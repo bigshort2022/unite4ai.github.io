@@ -1,0 +1,39 @@
+---
+import Base from '../../../layouts/Base.astro';
+import { getCollection } from 'astro:content';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (p: string) => `${base}${p}` || '/';
+const datasets = (await getCollection('datasets')).sort(
+  (a, b) => b.data.updated.valueOf() - a.data.updated.valueOf()
+);
+---
+<Base title="Dataset registry">
+  <section class="wrap section">
+    <p class="eyebrow"><a href={href('/registry')}>Registry</a></p>
+    <h1>Open datasets</h1>
+    <p class="lede">
+      Every dataset card must declare collection method, consent basis, PII review status, and known
+      bias — these are required schema fields, not optional good intentions.
+    </p>
+
+    {datasets.length === 0 ? (
+      <div class="empty" style="margin-top:2rem">No datasets yet. <a href={href('/contribute')}>Add the first one.</a></div>
+    ) : (
+      <div class="grid grid-3" style="margin-top:2rem">
+        {datasets.map((x) => (
+          <article class="card">
+            <h3><a href={href(`/registry/datasets/${x.id}`)}>{x.data.name}</a></h3>
+            <p>{x.data.summary}</p>
+            <div class="card-meta">
+              <span class="tag tag-open">{x.data.license}</span>
+              <span class={x.data.pii_review ? 'tag tag-open' : 'tag tag-partial'}>
+                {x.data.pii_review ? 'PII reviewed' : 'PII review pending'}
+              </span>
+            </div>
+          </article>
+        ))}
+      </div>
+    )}
+  </section>
+</Base>

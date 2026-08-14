@@ -1,0 +1,51 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getCollection } from 'astro:content';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (p: string) => `${base}${p}` || '/';
+const courses = await getCollection('courses');
+
+const LEVELS = ['beginner', 'intermediate', 'advanced'] as const;
+const PERSONA_LABEL: Record<string, string> = {
+  'ai-learner': 'AI Learner / Mentor',
+  'model-app-contributor': 'Model / App Contributor',
+  'dataset-code-contributor': 'Dataset / Code Contributor',
+  'model-app-user': 'Model / App User',
+};
+---
+<Base title="The open school">
+  <section class="wrap section">
+    <p class="eyebrow">Open technology school</p>
+    <h1>Learn AI. <span class="grad-text">Free, forever.</span></h1>
+    <p class="lede">
+      No account, no paywall, no tracking. Courses are written for the four people this community
+      is built for — learners, contributors, dataset stewards, and applied users.
+    </p>
+
+    {courses.length === 0 ? (
+      <div class="empty" style="margin-top:2rem">No courses published yet.</div>
+    ) : (
+      LEVELS.map((level) => {
+        const group = courses.filter((c) => c.data.level === level);
+        return group.length > 0 ? (
+          <div style="margin-top:2.5rem">
+            <h2 style="text-transform:capitalize">{level}</h2>
+            <div class="grid grid-3" style="margin-top:1.2rem">
+              {group.map((c) => (
+                <article class="card">
+                  <h3><a href={href(`/school/${c.id}`)}>{c.data.title}</a></h3>
+                  <p>{c.data.summary}</p>
+                  <div class="card-meta">
+                    <span class="tag">{c.data.duration_minutes} min</span>
+                    {c.data.persona.map((p) => <span class="tag">{PERSONA_LABEL[p]}</span>)}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        ) : null;
+      })
+    )}
+  </section>
+</Base>

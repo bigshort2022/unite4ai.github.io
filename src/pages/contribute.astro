@@ -1,0 +1,66 @@
+---
+import Base from '../layouts/Base.astro';
+const REPO = 'https://github.com/unite4ai/unite4ai.github.io';
+---
+<Base title="Contribute">
+  <section class="wrap section">
+    <p class="eyebrow">Contribute</p>
+    <h1>Contribution <span class="grad-text">is</span> membership</h1>
+    <p class="lede">
+      There is no signup form. The moment your first pull request merges, you're a member —
+      your name appears on the contributors page and you get a vote in governance.
+      Three ways in, and only one of them needs git.
+    </p>
+
+    <div class="grid grid-3" style="margin-top:2.5rem">
+      <article class="card">
+        <h3>1. Fill in a form</h3>
+        <p>No git, no terminal, no code. Answer a structured web form and a maintainer turns it into a pull request for you. This is the recommended path for most people.</p>
+        <p style="margin-top:auto">
+          <a class="btn btn-primary" href={`${REPO}/issues/new/choose`}>Open a submission form</a>
+        </p>
+      </article>
+      <article class="card">
+        <h3>2. Edit in the browser</h3>
+        <p>Every page has a "Suggest an edit" link at the bottom. It opens GitHub's web editor, forks the repo for you, and opens a pull request when you save. Fixing a typo takes 30 seconds.</p>
+      </article>
+      <article class="card">
+        <h3>3. Clone and PR</h3>
+        <p>The developer path. Fork, branch, add a card or course under <code>src/content/</code>, run <code>npm run build</code>, open a PR. CI validates your schema, licenses, and links automatically.</p>
+        <p style="margin-top:auto"><a class="btn btn-ghost" href={REPO}>View the repo</a></p>
+      </article>
+    </div>
+
+    <h2 style="margin-top:3.5rem">What happens to your submission</h2>
+    <div class="card" style="margin-top:1.2rem">
+      <ol style="margin:0;padding-left:1.3rem;line-height:2">
+        <li><strong>Schema validation</strong> — required fields, valid dates, well-formed structure.</li>
+        <li><strong>License check</strong> — the SPDX allowlist rejects restrictive "open-washing" licenses mechanically.</li>
+        <li><strong>Link &amp; checksum check</strong> — every artifact URL must resolve; checksums must be well-formed.</li>
+        <li><strong>Build &amp; preview</strong> — the site builds with your change so reviewers see it rendered.</li>
+        <li><strong>Human review</strong> — a maintainer responds. Our target is under 48 hours; we publish the actual number.</li>
+        <li><strong>Merge → live</strong> — production deploys automatically, usually within two minutes.</li>
+      </ol>
+    </div>
+
+    <h2 style="margin-top:3rem">What we're looking for right now</h2>
+    <div class="grid grid-2" style="margin-top:1.2rem">
+      <article class="card">
+        <h3>Genuinely open models</h3>
+        <p>Open weights <em>and</em> documented training data <em>and</em> a permissive license. If any axis is closed, we still list it — clearly graded, so nobody is misled.</p>
+      </article>
+      <article class="card">
+        <h3>Ethically sourced datasets</h3>
+        <p>You'll need to state collection method, consent basis, PII review status, and known bias. These are required fields — the schema refuses cards without them.</p>
+      </article>
+      <article class="card">
+        <h3>Courses in any language</h3>
+        <p>Especially non-English. AI education that only exists in English is not equitable AI education.</p>
+      </article>
+      <article class="card">
+        <h3>Translations and accessibility fixes</h3>
+        <p>Unglamorous, disproportionately valuable, and always merged fast.</p>
+      </article>
+    </div>
+  </section>
+</Base>

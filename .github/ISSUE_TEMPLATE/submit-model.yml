@@ -1,0 +1,88 @@
+name: Submit a model
+description: Add an open model to the registry. No git required — a maintainer turns this into a pull request.
+title: "[Model] "
+labels: ["submission", "model"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for contributing. Every field here becomes part of a public model card.
+        Honest gaps are welcome — **"unknown" is a valid and respected answer.**
+  - type: input
+    id: name
+    attributes:
+      label: Model name
+      placeholder: Darsy X-Ray Analysis
+    validations: { required: true }
+  - type: textarea
+    id: summary
+    attributes:
+      label: One-paragraph summary
+      description: What it does and who it's for. Max ~300 characters.
+    validations: { required: true }
+  - type: dropdown
+    id: license
+    attributes:
+      label: License
+      description: Find the actual LICENSE file — don't trust the README badge.
+      options:
+        - apache-2.0
+        - mit
+        - bsd-3-clause
+        - cc-by-4.0
+        - cc-by-sa-4.0
+        - cc0-1.0
+        - gpl-3.0
+        - agpl-3.0
+        - mpl-2.0
+        - "Other / not sure (we'll help you check)"
+    validations: { required: true }
+  - type: dropdown
+    id: weights
+    attributes:
+      label: "Openness — weights"
+      options: [open, documented, partial, closed]
+    validations: { required: true }
+  - type: dropdown
+    id: training_data
+    attributes:
+      label: "Openness — training data"
+      options: [open, documented, partial, closed]
+    validations: { required: true }
+  - type: dropdown
+    id: training_code
+    attributes:
+      label: "Openness — training code"
+      options: [open, documented, partial, closed]
+    validations: { required: true }
+  - type: dropdown
+    id: evaluation
+    attributes:
+      label: "Openness — evaluation"
+      options: [open, documented, partial, closed]
+    validations: { required: true }
+  - type: input
+    id: weights_url
+    attributes:
+      label: Where do the weights live?
+      placeholder: https://huggingface.co/org/model
+  - type: input
+    id: sha256
+    attributes:
+      label: SHA-256 of the main artifact (optional but strongly encouraged)
+      description: "Run: sha256sum model.safetensors"
+  - type: textarea
+    id: limitations
+    attributes:
+      label: Known limitations and failure modes
+      description: A card with no limitations section is a marketing page. What breaks? Who is under-represented in evaluation?
+    validations: { required: true }
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Confirmation
+      options:
+        - label: I have read the LICENSE file itself and the license above is accurate.
+          required: true
+        - label: I agree to license my contribution to this card under CC BY 4.0.
+          required: true

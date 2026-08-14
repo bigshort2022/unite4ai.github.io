@@ -1,0 +1,44 @@
+---
+import Base from '../../../layouts/Base.astro';
+import { getCollection, render } from 'astro:content';
+
+export async function getStaticPaths() {
+  const items = await getCollection('datasets');
+  return items.map((x) => ({ params: { id: x.id }, props: { entry: x } }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+const d = entry.data;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (p: string) => `${base}${p}` || '/';
+---
+<Base title={d.name} description={d.summary}>
+  <article class="wrap section" data-pagefind-body>
+    <p class="eyebrow"><a href={href('/registry/datasets')}>Registry</a> · Dataset</p>
+    <h1>{d.name}</h1>
+    <p class="lede">{d.summary}</p>
+
+    <div class="card-meta" style="margin:1.2rem 0 2rem">
+      <span class="tag tag-open">{d.license}</span>
+      {d.domains.map((x) => <span class="tag">{x}</span>)}
+      {d.sdg_alignment.map((s) => <span class="tag">SDG {s}</span>)}
+    </div>
+
+    <div class="card" style="margin-bottom:2.5rem">
+      <p class="eyebrow" style="margin-bottom:.6rem">Ethics &amp; provenance (required fields)</p>
+      <dl style="display:grid;gap:.8rem;margin:0;font-size:.92rem">
+        <div><dt style="color:var(--u-text-faint);font-size:.8rem">Collection method</dt><dd style="margin:.2rem 0 0">{d.collection_method}</dd></div>
+        <div><dt style="color:var(--u-text-faint);font-size:.8rem">Consent basis</dt><dd style="margin:.2rem 0 0">{d.consent}</dd></div>
+        <div><dt style="color:var(--u-text-faint);font-size:.8rem">PII review</dt><dd style="margin:.2rem 0 0">{d.pii_review ? 'Completed' : 'Pending'}</dd></div>
+        <div><dt style="color:var(--u-text-faint);font-size:.8rem">Known bias</dt><dd style="margin:.2rem 0 0">{d.bias_notes}</dd></div>
+      </dl>
+    </div>
+
+    <div class="prose"><Content /></div>
+
+    <p style="margin-top:3rem;font-size:.88rem;color:var(--u-text-faint)">
+      Maintained by {d.maintainers.join(', ')} · Updated {d.updated.toISOString().slice(0, 10)}
+    </p>
+  </article>
+</Base>

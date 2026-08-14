@@ -1,0 +1,40 @@
+---
+import Base from '../layouts/Base.astro';
+---
+<Base title="Privacy">
+  <section class="wrap section">
+    <p class="eyebrow">Privacy</p>
+    <h1>We can't surveil you</h1>
+    <p class="lede">
+      Not "we promise not to" — we architecturally cannot. This site is static files served from a
+      CDN. There is no application server, no user database, and no session state. Here is the
+      complete, honest accounting.
+    </p>
+
+    <div class="grid grid-2" style="margin-top:2.5rem">
+      <article class="card">
+        <h3>What we don't collect</h3>
+        <ul style="margin:0;padding-left:1.2rem">
+          <li>No accounts, no passwords, no email addresses</li>
+          <li>No cookies of any kind</li>
+          <li>No advertising or third-party trackers</li>
+          <li>No search queries — search runs in your browser</li>
+          <li>No fingerprinting, no session recording</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h3>What is unavoidably visible</h3>
+        <ul style="margin:0;padding-left:1.2rem">
+          <li>Our host (GitHub Pages) sees standard request logs, including your IP, under <a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement">GitHub's privacy statement</a>. We cannot access these.</li>
+          <li>If you comment or open an issue, that happens on GitHub under your GitHub identity and is public.</li>
+          <li>Course progress, if we add it, stays in your browser's local storage and never leaves your device.</li>
+        </ul>
+      </article>
+    </div>
+
+    <p style="margin-top:2rem">
+      Verify all of this yourself: open your browser's network tab, or read
+      <a href="https://github.com/unite4ai/unite4ai.github.io">the source</a>. That is the point of building it this way.
+    </p>
+  </section>
+</Base>

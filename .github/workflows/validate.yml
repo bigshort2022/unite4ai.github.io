@@ -1,0 +1,38 @@
+name: Validate pull request
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Gate 1: content rules — required fields, license allowlist, checksum format.
+      - name: Validate content
+        run: npm run validate
+
+      # Gate 2: the real build. A schema violation fails here, loudly, before merge.
+      - name: Build
+        run: npm run build
+
+      - name: Report
+        run: |
+          echo "### Validation passed :white_check_mark:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Content schemas valid" >> $GITHUB_STEP_SUMMARY
+          echo "- License allowlist satisfied" >> $GITHUB_STEP_SUMMARY
+          echo "- Site builds cleanly" >> $GITHUB_STEP_SUMMARY
+          echo "- Pages generated: $(find dist -name '*.html' | wc -l)" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,40 @@
+name: Propose a course
+description: Propose or submit a free course for the open school.
+title: "[Course] "
+labels: ["submission", "course"]
+body:
+  - type: input
+    id: title
+    attributes: { label: Course title }
+    validations: { required: true }
+  - type: textarea
+    id: summary
+    attributes: { label: What will learners be able to do afterwards? }
+    validations: { required: true }
+  - type: dropdown
+    id: level
+    attributes:
+      label: Level
+      options: [beginner, intermediate, advanced]
+    validations: { required: true }
+  - type: dropdown
+    id: persona
+    attributes:
+      label: Who is this for?
+      multiple: true
+      options:
+        - "AI Learner / Mentor"
+        - "Model / App Contributor"
+        - "Dataset / Code Contributor"
+        - "Model / App User"
+    validations: { required: true }
+  - type: input
+    id: language
+    attributes:
+      label: Language
+      description: Non-English courses are especially welcome and reviewed with priority.
+      value: English
+  - type: input
+    id: duration
+    attributes: { label: Estimated duration in minutes, placeholder: "45" }
+    validations: { required: true }

@@ -1,0 +1,47 @@
+name: Submit a dataset
+description: Add an openly licensed dataset to the registry.
+title: "[Dataset] "
+labels: ["submission", "dataset"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Dataset cards require ethics fields. This is deliberate — our schema rejects cards without them.
+  - type: input
+    id: name
+    attributes: { label: Dataset name }
+    validations: { required: true }
+  - type: textarea
+    id: summary
+    attributes: { label: One-paragraph summary }
+    validations: { required: true }
+  - type: dropdown
+    id: license
+    attributes:
+      label: License
+      options: [cc-by-4.0, cc-by-sa-4.0, cc0-1.0, odc-by-1.0, apache-2.0, mit, "Other / not sure"]
+    validations: { required: true }
+  - type: textarea
+    id: collection_method
+    attributes:
+      label: How was this data collected?
+      description: Sources, time period, sampling method, filtering applied.
+    validations: { required: true }
+  - type: input
+    id: consent
+    attributes:
+      label: Consent basis
+      placeholder: e.g. IRB-approved study, public domain, opt-in participants, CC-licensed web crawl
+    validations: { required: true }
+  - type: dropdown
+    id: pii_review
+    attributes:
+      label: Has a PII review been completed?
+      options: ["Yes — completed and documented", "No — not yet", "Not applicable (no human-derived data)"]
+    validations: { required: true }
+  - type: textarea
+    id: bias_notes
+    attributes:
+      label: Known bias and coverage gaps
+      description: Which populations, languages, geographies, or conditions are under-represented? Be specific.
+    validations: { required: true }

@@ -1,0 +1,21 @@
+name: Course feedback
+description: 60 seconds. This directly shapes what we build next.
+title: "[Feedback] "
+labels: ["feedback"]
+body:
+  - type: input
+    id: course
+    attributes: { label: Which course? }
+    validations: { required: true }
+  - type: dropdown
+    id: rating
+    attributes:
+      label: Was this course useful to you?
+      options: ["Yes — clearly", "Somewhat", "Not really", "No"]
+    validations: { required: true }
+  - type: textarea
+    id: confusing
+    attributes: { label: What was confusing or missing? }
+  - type: textarea
+    id: next
+    attributes: { label: What course should exist that doesn't? }

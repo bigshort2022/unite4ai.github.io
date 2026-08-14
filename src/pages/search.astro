@@ -1,0 +1,29 @@
+---
+import Base from '../layouts/Base.astro';
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+<Base title="Search">
+  <section class="wrap section">
+    <p class="eyebrow">Search</p>
+    <h1>Find anything</h1>
+    <p class="lede">
+      This search runs entirely in your browser. No query ever reaches a server — there is no
+      search server to reach. Privacy by architecture, not by policy.
+    </p>
+    <div id="search" style="margin-top:2rem"></div>
+    <noscript><p class="empty" style="margin-top:2rem">Search needs JavaScript. Browse the <a href={`${base}/registry`}>registry</a> or <a href={`${base}/school`}>school</a> instead.</p></noscript>
+  </section>
+
+  <link rel="stylesheet" href={`${base}/pagefind/pagefind-ui.css`} />
+  <script is:inline src={`${base}/pagefind/pagefind-ui.js`}></script>
+  <script is:inline define:vars={{ base }}>
+    window.addEventListener('DOMContentLoaded', () => {
+      if (typeof PagefindUI === 'undefined') {
+        document.getElementById('search').innerHTML =
+          '<p class="empty">Search index builds during deployment. Run <code>npm run build</code> to generate it locally.</p>';
+        return;
+      }
+      new PagefindUI({ element: '#search', showSubResults: true, showImages: false, bundlePath: base + '/pagefind/' });
+    });
+  </script>
+</Base>
