@@ -15,7 +15,7 @@ import sitemap from '@astrojs/sitemap';
 // Option C — custom domain https://unite4ai.org
 //   site: 'https://unite4ai.org',      base: '/'
 // ─────────────────────────────────────────────────────────────
-const SITE = 'https://unite4ai.github.io';
+const SITE = 'https://unite4ai.com';
 const BASE = '/';
 
 export default defineConfig({
