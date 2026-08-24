@@ -20,6 +20,7 @@
     "@astrojs/mdx": "^7.0.5",
     "@astrojs/sitemap": "^3.7.3",
     "astro": "^7.2.1",
+    "maplibre-gl": "^6.6.0",
     "pagefind": "^1.5.2"
   },
   "devDependencies": {
