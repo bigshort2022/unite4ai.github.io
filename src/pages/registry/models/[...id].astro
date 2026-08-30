@@ -1,7 +1,9 @@
 ---
 import Base from '../../../layouts/Base.astro';
 import OpennessMeter from '../../../components/OpennessMeter.astro';
+import StackVerifyPanel from '../../../components/StackVerifyPanel.astro';
 import { getCollection, render } from 'astro:content';
+import { opennessScore } from '../../../lib/openness-score.mjs';
 
 export async function getStaticPaths() {
   const models = await getCollection('models');
@@ -11,12 +13,16 @@ export async function getStaticPaths() {
 const { entry } = Astro.props;
 const { Content } = await render(entry);
 const d = entry.data;
+const score = opennessScore(d.openness);
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const href = (p: string) => `${base}${p}` || '/';
+const localGuide = d.inference?.run_local_guide?.startsWith('/')
+  ? href(d.inference.run_local_guide)
+  : d.inference?.run_local_guide;
 ---
 <Base title={d.name} description={d.summary}>
-  <article class="wrap section" data-pagefind-body>
-    <p class="eyebrow"><a href={href('/registry')}>Registry</a> · Model</p>
+  <article class="wrap section" data-pagefind-body data-pagefind-meta={`openness:${score}`} data-pagefind-filter={`license:${d.license}`}>
+    <p class="eyebrow"><a href={href('/registry')}>Registry</a> · <a href={href('/stack')}>Open stack</a> · Model</p>
     <h1>{d.name}</h1>
     <p class="lede">{d.summary}</p>
 
@@ -32,24 +38,12 @@ const href = (p: string) => `${base}${p}` || '/';
       <div class="card">
         <OpennessMeter openness={d.openness} />
       </div>
-      <div class="card">
-        <p class="eyebrow" style="margin-bottom:.6rem">Artifacts &amp; verification</p>
-        {d.artifacts.length === 0 ? (
-          <p>No artifacts registered yet.</p>
-        ) : (
-          <ul style="margin:0;padding-left:1.1rem;font-size:.9rem">
-            {d.artifacts.map((a) => (
-              <li style="margin-bottom:.6rem">
-                <a href={a.url}>{a.kind}</a>
-                {a.sha256 && <><br /><code style="font-size:.72rem;word-break:break-all">sha256:{a.sha256.slice(0, 32)}…</code></>}
-              </li>
-            ))}
-          </ul>
-        )}
-        <p style="font-size:.82rem;color:var(--u-text-faint);margin:.8rem 0 0">
-          Verify any download: <code>sha256sum &lt;file&gt;</code> and compare.
-        </p>
-      </div>
+      <StackVerifyPanel
+        artifacts={d.artifacts}
+        inference={d.inference ? { ...d.inference, run_local_guide: localGuide } : undefined}
+        evalBundle={d.eval_bundle}
+        modelName={d.name}
+      />
     </div>
 
     <div class="prose"><Content /></div>

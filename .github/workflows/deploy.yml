@@ -38,6 +38,10 @@ jobs:
       - name: Build site (Astro + Pagefind search index)
         run: npm run build
 
+      - name: Verify artifact checksums
+        run: npm run verify-artifacts
+        continue-on-error: true
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
         with:

@@ -1,5 +1,6 @@
 ---
 import Base from '../../../layouts/Base.astro';
+import StackStoragePanel from '../../../components/StackStoragePanel.astro';
 import { getCollection, render } from 'astro:content';
 
 export async function getStaticPaths() {
@@ -15,7 +16,7 @@ const href = (p: string) => `${base}${p}` || '/';
 ---
 <Base title={d.name} description={d.summary}>
   <article class="wrap section" data-pagefind-body>
-    <p class="eyebrow"><a href={href('/registry/datasets')}>Registry</a> · Dataset</p>
+    <p class="eyebrow"><a href={href('/registry/datasets')}>Registry</a> · <a href={href('/stack')}>Open stack</a> · Dataset</p>
     <h1>{d.name}</h1>
     <p class="lede">{d.summary}</p>
 
@@ -24,6 +25,8 @@ const href = (p: string) => `${base}${p}` || '/';
       {d.domains.map((x) => <span class="tag">{x}</span>)}
       {d.sdg_alignment.map((s) => <span class="tag">SDG {s}</span>)}
     </div>
+
+    <StackStoragePanel storage={d.storage} />
 
     <div class="card" style="margin-bottom:2.5rem">
       <p class="eyebrow" style="margin-bottom:.6rem">Ethics &amp; provenance (required fields)</p>

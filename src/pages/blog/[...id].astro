@@ -1,5 +1,6 @@
 ---
 import Base from '../../layouts/Base.astro';
+import GiscusComments from '../../components/GiscusComments.astro';
 import { getCollection, render } from 'astro:content';
 
 export async function getStaticPaths() {
@@ -25,4 +26,5 @@ const href = (p: string) => `${base}${p}` || '/';
     </div>
     <div class="prose"><Content /></div>
   </article>
+  <GiscusComments term={`blog:${entry.id}`} />
 </Base>

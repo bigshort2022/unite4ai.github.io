@@ -408,6 +408,29 @@
   .workspace-status { display: none; }
 }
 
+.search-error {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--p-red, #ff7b75);
+  font-size: .72rem;
+}
+
+.candidate-filter {
+  display: flex;
+  gap: .6rem;
+  align-items: end;
+  padding: .5rem .75rem;
+  border-bottom: 1px solid var(--p-line);
+  background: #0a161c;
+}
+.candidate-filter label { display: grid; gap: .2rem; font-size: .62rem; color: var(--p-dim); }
+.candidate-filter input { width: 5rem; padding: .25rem .4rem; border: 1px solid var(--p-line); border-radius: 3px; background: #0d1b21; color: var(--p-text); }
+
+.evidence-skeleton strong { opacity: .35; }
+.evidence-skeleton small { color: var(--p-faint); }
+
+.mobile-sheet-toggle { display: none; }
+
 @media (max-width: 860px) {
   .places-toolbar { position: relative; grid-template-columns: 1fr; min-height: auto; }
   .places-search { justify-self: stretch; }
@@ -417,14 +440,27 @@
   .tea-panel { border: 0; }
   .places-rail { order: 1; border-bottom: 1px solid var(--p-line); }
   .tea-panel { order: 2; border-top: 1px solid var(--p-line); }
+
+  .mobile-sheet-toggle {
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    align-items: center;
+    padding: .65rem .85rem;
+    border: 0;
+    border-bottom: 1px solid var(--p-line);
+    background: #0d1b21;
+    color: var(--p-text);
+    font: inherit;
+    cursor: pointer;
+  }
+  .mobile-sheet-toggle::after { content: '▼'; font-size: .65rem; color: var(--p-dim); transition: transform .2s; }
+  [data-mobile-sheet][data-expanded="false"] .mobile-sheet-toggle::after { transform: rotate(-90deg); }
+  [data-mobile-sheet][data-expanded="false"] .mobile-sheet-body { display: none; }
+
   .rail-scroll,
-  .tea-scroll { height: auto; overflow: visible; }
-  .rail-scroll { display: grid; grid-template-columns: 1fr 1fr; padding: 0; }
-  .candidate-section,
-  .layer-section { grid-row: span 2; }
-  .source-drawer-trigger { position: static; grid-column: 1 / -1; }
-  .tea-scroll { display: grid; grid-template-columns: 1fr 1fr; }
-  .site-summary { grid-column: 1 / -1; }
+  .tea-scroll { height: auto; overflow: visible; max-height: 60svh; overflow-y: auto; }
+  .source-drawer-trigger { position: static; }
 }
 
 @media (max-width: 620px) {

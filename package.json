@@ -14,7 +14,9 @@
     "preview": "astro preview",
     "check": "astro check",
     "validate": "node scripts/validate.mjs",
-    "setup": "node scripts/setup.mjs"
+    "verify-artifacts": "node scripts/verify-artifacts.mjs",
+    "setup": "node scripts/setup.mjs",
+    "new:model": "node scripts/new-model.mjs"
   },
   "dependencies": {
     "@astrojs/mdx": "^7.0.5",

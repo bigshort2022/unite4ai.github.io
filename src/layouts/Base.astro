@@ -13,6 +13,7 @@ const href = (p: string) => `${base}${p}` || '/';
 const path = Astro.url.pathname.replace(base, '').replace(/\/$/, '') || '/';
 
 const nav = [
+  { label: 'Stack', href: '/stack' },
   { label: 'Registry', href: '/registry' },
   { label: 'School', href: '/school' },
   { label: 'Places', href: '/places' },
@@ -35,8 +36,11 @@ const nav = [
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href={href('/favicon.svg')} type="image/svg+xml" />
     <link rel="sitemap" href={href('/sitemap-index.xml')} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <!-- GitHub Pages cannot set HTTP headers, so CSP ships as a meta tag. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://giscus.app; worker-src 'self' blob:; frame-src https://giscus.app; connect-src 'self' https://api.github.com https://tiles.openfreemap.org https://*.basemaps.cartocdn.com https://power.larc.nasa.gov https://api.open-meteo.com https://developer.nrel.gov https://nominatim.openstreetmap.org; base-uri 'self'; form-action 'self'" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://giscus.app; worker-src 'self' blob:; frame-src https://giscus.app; connect-src 'self' https://api.github.com https://tiles.openfreemap.org https://*.basemaps.cartocdn.com https://power.larc.nasa.gov https://api.open-meteo.com https://developer.nrel.gov https://nominatim.openstreetmap.org; base-uri 'self'; form-action 'self'" />
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -79,6 +83,7 @@ const nav = [
             <strong>Open</strong>
             <a href="https://github.com/unite4ai/unite4ai.github.io">Source on GitHub</a>
             <a href={href('/governance')}>Governance</a>
+            <a href={href('/governance/metrics')}>Metrics</a>
             <a href={href('/privacy')}>Privacy</a>
           </div>
         </div>
@@ -87,5 +92,9 @@ const nav = [
         </p>
       </div>
     </footer>
+    <script>
+      import { initWebVitals } from '../lib/web-vitals.mjs';
+      initWebVitals();
+    </script>
   </body>
 </html>

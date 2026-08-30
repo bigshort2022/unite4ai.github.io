@@ -28,6 +28,10 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Verify artifact checksums
+        run: npm run verify-artifacts
+        continue-on-error: true
+
       - name: Report
         run: |
           echo "### Validation passed :white_check_mark:" >> $GITHUB_STEP_SUMMARY

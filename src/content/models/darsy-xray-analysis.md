@@ -13,10 +13,16 @@ artifacts:
     url: https://www.jacr.org/article/S1546-1440(22)00404-4/fulltext
   - kind: demo
     url: https://github.com/unite4ai/unite4ai.github.io
+  - kind: code
+    url: https://github.com/unite4ai/unite4ai.github.io
+inference:
+  protocol: ollama
+  run_local_guide: /school/run-open-weights
 tasks: ["image-segmentation", "image-classification", "anomaly-detection"]
 domains: ["healthcare", "medical-imaging"]
 sdg_alignment: [3]
 community_led: false
+featured: true
 updated: 2026-08-01
 ---
 

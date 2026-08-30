@@ -253,6 +253,16 @@ p  { margin: 0 0 1.1em; }
   background: linear-gradient(90deg, #43d8d0, #f4c266);
 }
 
+.registry-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: end;
+}
+.registry-controls label { display: grid; gap: .3rem; font-size: .82rem; }
+.registry-controls select,
+.registry-controls input[type="range"] { min-width: 10rem; }
+
 @media (max-width: 760px) {
   .places-preview { grid-template-columns: 1fr; }
   .places-preview-layers { border-top: 1px solid #345367; border-left: 0; }

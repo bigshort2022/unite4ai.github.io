@@ -1,0 +1,116 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getCollection } from 'astro:content';
+import { STACK_LAYERS, hasVerifiableArtifacts } from '../../lib/stack-layers.mjs';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (p: string) => `${base}${p}` || '/';
+
+const models = await getCollection('models');
+const datasets = await getCollection('datasets');
+const compute = await getCollection('compute');
+const stackCourses = (await getCollection('courses'))
+  .filter((c) => c.data.track === 'open-stack')
+  .sort((a, b) => (a.data.track_order ?? 99) - (b.data.track_order ?? 99));
+
+const verifiableModels = models.filter((m) =>
+  hasVerifiableArtifacts(m.data.artifacts) || m.data.eval_bundle?.reproducible
+);
+
+const counts = {
+  data: datasets.length,
+  compute: compute.length,
+  weights: models.length,
+  verify: verifiableModels.length,
+};
+---
+
+<Base
+  title="Open & decentralized AI stack"
+  description="Unite4AI maps the open stack — data, compute, weights, and verifiable outputs — so you can tinker faster and opt out of AI you do not trust."
+>
+  <section class="wrap section">
+    <p class="eyebrow">Open &amp; decentralized AI stack</p>
+    <h1>Map the stack.<br /><span class="grad-text">Verify the pieces.</span></h1>
+    <p class="lede">
+      Open protocols for training data, compute, model weights, and verifiable outputs —
+      indexed and taught here, not gatekept. Faster tinkering. An alternative to AI you do not trust.
+    </p>
+    <p style="margin-top:1rem">
+      <a class="btn btn-primary" href={href('/school')}>Start the open-stack course track</a>
+      <a class="btn btn-ghost" href={href('/contribute')}>Add to the index</a>
+    </p>
+  </section>
+
+  <section class="wrap section" style="padding-top:0" aria-label="Stack layers">
+    <div class="grid grid-2 stack-layer-grid">
+      {STACK_LAYERS.map((layer) => (
+        <article class="card stack-layer-card">
+          <p class="eyebrow">{layer.label}</p>
+          <h2 style="margin:.2rem 0 .5rem">{layer.short}</h2>
+          <p>{layer.why}</p>
+          <p class="stack-count"><b>{counts[layer.id as keyof typeof counts] ?? 0}</b> indexed</p>
+          <a class="btn btn-ghost" href={href(layer.href)} style="margin-top:.8rem">{layer.cta}</a>
+        </article>
+      ))}
+    </div>
+  </section>
+
+  <section class="wrap section" style="padding-top:0" id="verify" aria-labelledby="verify-title">
+    <h2 id="verify-title">Verifiable outputs</h2>
+    <p class="lede">
+      Trust comes from checksums and reproducible evals — not marketing. These models include
+      verifiable artifacts or reproducible evaluation bundles.
+    </p>
+    {verifiableModels.length === 0 ? (
+      <p class="empty" style="margin-top:1.5rem">No verifiable entries yet. <a href={href('/contribute')}>Add checksums to a model card.</a></p>
+    ) : (
+      <div class="grid grid-3" style="margin-top:1.5rem">
+        {verifiableModels.map((m) => (
+          <article class="card">
+            <h3><a href={href(`/registry/models/${m.id}`)}>{m.data.name}</a></h3>
+            <p>{m.data.summary}</p>
+            <div class="card-meta">
+              {hasVerifiableArtifacts(m.data.artifacts) && <span class="tag tag-open">checksum</span>}
+              {m.data.eval_bundle?.reproducible && <span class="tag tag-open">reproducible eval</span>}
+            </div>
+          </article>
+        ))}
+      </div>
+    )}
+    <p style="margin-top:1.5rem"><a href={href('/school/verify-model-outputs')}>Learn to verify →</a></p>
+  </section>
+
+  <section class="wrap section" style="padding-top:0" aria-labelledby="learn-title">
+    <h2 id="learn-title">Use the open stack — course track</h2>
+    <p class="lede">Four free modules mirroring the four layers. No account required.</p>
+    <ol class="stack-course-track" style="margin-top:1.5rem">
+      {stackCourses.map((c) => (
+        <li class="card">
+          <span class="tag">{c.data.duration_minutes} min</span>
+          <h3><a href={href(`/school/${c.id}`)}>{c.data.title}</a></h3>
+          <p>{c.data.summary}</p>
+        </li>
+      ))}
+    </ol>
+  </section>
+
+  <section class="wrap section" style="padding-top:0">
+    <div class="card">
+      <h3>What Unite4AI does not do</h3>
+      <ul style="margin:.5rem 0 0;padding-left:1.2rem;line-height:1.8">
+        <li>Broker compute or route inference traffic</li>
+        <li>Host model weights or datasets</li>
+        <li>Certify models as safe — we certify artifacts and reproducibility</li>
+      </ul>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .stack-layer-grid { gap: 1rem; }
+  .stack-count { margin: .8rem 0 0; font-size: .9rem; color: var(--u-text-faint); }
+  .stack-course-track { list-style: none; padding: 0; display: grid; gap: 1rem; }
+  .stack-course-track li { padding: 1rem 1.2rem; }
+  .stack-course-track h3 { margin: .4rem 0; }
+</style>
