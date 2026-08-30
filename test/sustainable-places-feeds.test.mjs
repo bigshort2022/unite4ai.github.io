@@ -5,7 +5,7 @@ import {
   normalizeForecast,
   normalizePower,
   normalizePvWatts,
-} from '../src/lib/sustainable-places/feeds.mjs';
+} from '../src/lib/sustainable-places/evidence-service.mjs';
 
 const observedAt = '2026-08-24T16:00:00.000Z';
 

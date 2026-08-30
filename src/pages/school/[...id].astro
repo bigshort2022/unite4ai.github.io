@@ -1,5 +1,6 @@
 ---
 import Base from '../../layouts/Base.astro';
+import GiscusComments from '../../components/GiscusComments.astro';
 import { getCollection, render } from 'astro:content';
 
 export async function getStaticPaths() {
@@ -55,4 +56,5 @@ const href = (p: string) => `${base}${p}` || '/';
       By {d.author} · Updated {d.updated.toISOString().slice(0, 10)}
     </p>
   </article>
+  <GiscusComments term={`course:${entry.id}`} category="General" />
 </Base>

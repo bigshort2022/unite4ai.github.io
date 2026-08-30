@@ -1,0 +1,14 @@
+{
+  "version": "2026-08",
+  "source": "FEMA National Risk Index (county-level aggregates, simplified)",
+  "status": "cached",
+  "cadence": "annual",
+  "coverage": "us",
+  "regions": [
+    { "id": "washoe-nv", "name": "Washoe County, NV", "flood": 42, "wildfire": 78, "heat": 65, "wind": 35, "overall": 55 },
+    { "id": "clark-nv", "name": "Clark County, NV", "flood": 28, "wildfire": 45, "heat": 82, "wind": 30, "overall": 46 },
+    { "id": "maricopa-az", "name": "Maricopa County, AZ", "flood": 35, "wildfire": 52, "heat": 88, "wind": 40, "overall": 54 },
+    { "id": "travis-tx", "name": "Travis County, TX", "flood": 55, "wildfire": 38, "heat": 72, "wind": 48, "overall": 53 },
+    { "id": "king-wa", "name": "King County, WA", "flood": 48, "wildfire": 25, "heat": 30, "wind": 42, "overall": 36 }
+  ]
+}

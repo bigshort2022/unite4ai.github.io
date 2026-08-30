@@ -1,32 +1,12 @@
 #!/usr/bin/env node
 /**
  * Content gate — runs before the build, in CI on every pull request.
- *
- * Astro's Zod schemas already reject malformed content at build time. This script
- * exists to catch the things a schema cannot express and to produce human-readable
- * failures a first-time contributor can act on without reading a stack trace.
  */
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { OPEN_LICENSE_SET, OPEN_WASHED } from './open-licenses.mjs';
 
 const ROOT = new URL('../src/content/', import.meta.url).pathname;
-
-const OPEN_LICENSES = new Set([
-  'apache-2.0', 'mit', 'bsd-3-clause', 'cc-by-4.0', 'cc-by-sa-4.0',
-  'cc0-1.0', 'gpl-3.0', 'agpl-3.0', 'lgpl-3.0', 'odc-by-1.0', 'mpl-2.0',
-]);
-
-// Licenses that market themselves as open but restrict use. Named explicitly so the
-// failure message can teach, not just reject.
-const OPEN_WASHED = {
-  'llama-2': 'Restricts use above a monthly-active-user threshold.',
-  'llama-3': 'Restricts use above a monthly-active-user threshold.',
-  'openrail': 'Contains downstream use restrictions; not an OSI-approved open license.',
-  'creativeml-openrail-m': 'Contains downstream use restrictions.',
-  'cc-by-nc-4.0': 'Non-commercial clause — not an open license under the OSD.',
-  'cc-by-nd-4.0': 'No-derivatives clause — blocks fine-tuning and adaptation.',
-  'proprietary': 'Not open by any definition.',
-};
 
 const errors = [];
 const warnings = [];
@@ -68,10 +48,10 @@ const licenseCheck = (fm, rel) => {
   if (!lic) { errors.push(`${rel}: missing "license"`); return; }
   if (OPEN_WASHED[lic]) {
     errors.push(`${rel}: license "${lic}" is not open. ${OPEN_WASHED[lic]}`);
-  } else if (!OPEN_LICENSES.has(lic)) {
+  } else if (!OPEN_LICENSE_SET.has(lic)) {
     errors.push(
       `${rel}: license "${lic}" is not on the allowlist.\n` +
-      `    Allowed: ${[...OPEN_LICENSES].join(', ')}\n` +
+      `    Allowed: ${[...OPEN_LICENSE_SET].join(', ')}\n` +
       `    If this license is genuinely open, propose adding it in a separate PR.`
     );
   }
@@ -117,7 +97,6 @@ await checkDir('courses', (fm, rel) => {
 await checkDir('events', requireFields(['title', 'summary', 'starts', 'kind']));
 await checkDir('posts', requireFields(['title', 'summary', 'author', 'published']));
 
-// ── Report ──────────────────────────────────────────────────────────
 if (warnings.length) {
   console.log('\n\x1b[33mWarnings\x1b[0m');
   warnings.forEach((w) => console.log(`  ! ${w}`));

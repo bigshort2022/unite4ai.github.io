@@ -1,5 +1,6 @@
 import { defineCollection, z } from 'astro:content';
 import { glob } from 'astro/loaders';
+import { OPEN_LICENSES } from './lib/open-licenses.mjs';
 
 /**
  * THE DATA MODEL.
@@ -8,11 +9,7 @@ import { glob } from 'astro/loaders';
  * An invalid submission fails CI and never reaches production.
  */
 
-// SPDX allowlist: mechanically blocks "open-washing" licenses.
-const OPEN_LICENSES = [
-  'apache-2.0', 'mit', 'bsd-3-clause', 'cc-by-4.0', 'cc-by-sa-4.0',
-  'cc0-1.0', 'gpl-3.0', 'agpl-3.0', 'lgpl-3.0', 'odc-by-1.0', 'mpl-2.0',
-] as const;
+const openLicenseEnum = z.enum(OPEN_LICENSES as unknown as [string, ...string[]]);
 
 const OPENNESS = z.enum(['open', 'documented', 'partial', 'closed']);
 
@@ -36,7 +33,7 @@ const models = defineCollection({
     name: z.string(),
     summary: z.string().max(300),
     maintainers: z.array(z.string()).min(1),
-    license: z.enum(OPEN_LICENSES),
+    license: openLicenseEnum,
     openness: z.object({
       weights: OPENNESS,
       training_data: OPENNESS,
@@ -48,6 +45,7 @@ const models = defineCollection({
     domains: z.array(z.string()).default([]),
     sdg_alignment: z.array(z.number().int().min(1).max(17)).default([]),
     community_led: z.boolean().default(false),
+    featured: z.boolean().default(false),
     updated: z.coerce.date(),
   }),
 });
@@ -58,7 +56,7 @@ const datasets = defineCollection({
     name: z.string(),
     summary: z.string().max(300),
     maintainers: z.array(z.string()).min(1),
-    license: z.enum(OPEN_LICENSES),
+    license: openLicenseEnum,
     // Ethics fields are REQUIRED — the schema enforces the mission.
     collection_method: z.string().min(10),
     consent: z.string().min(3),
@@ -68,6 +66,7 @@ const datasets = defineCollection({
     domains: z.array(z.string()).default([]),
     sdg_alignment: z.array(z.number().int().min(1).max(17)).default([]),
     community_led: z.boolean().default(false),
+    featured: z.boolean().default(false),
     updated: z.coerce.date(),
   }),
 });

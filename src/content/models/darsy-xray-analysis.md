@@ -17,6 +17,7 @@ tasks: ["image-segmentation", "image-classification", "anomaly-detection"]
 domains: ["healthcare", "medical-imaging"]
 sdg_alignment: [3]
 community_led: false
+featured: true
 updated: 2026-08-01
 ---
 

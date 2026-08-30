@@ -1,16 +1,13 @@
 ---
+import { OPENNESS_LABELS, OPENNESS_SCORE, opennessScore } from '../lib/openness-score.mjs';
+
 interface Props {
   openness: { weights: string; training_data: string; training_code: string; evaluation: string };
 }
 const { openness } = Astro.props;
 
-// Model Openness Framework axes → a score anyone can read at a glance.
-const SCORE: Record<string, number> = { open: 100, documented: 70, partial: 40, closed: 0 };
-const LABEL: Record<string, string> = {
-  weights: 'Weights', training_data: 'Training data', training_code: 'Training code', evaluation: 'Evaluation',
-};
 const rows = Object.entries(openness) as [string, string][];
-const overall = Math.round(rows.reduce((s, [, v]) => s + (SCORE[v] ?? 0), 0) / rows.length);
+const overall = opennessScore(openness);
 ---
 <div>
   <p class="eyebrow" style="margin-bottom:.15rem">Openness · {overall}%</p>
@@ -18,8 +15,8 @@ const overall = Math.round(rows.reduce((s, [, v]) => s + (SCORE[v] ?? 0), 0) / r
   <dl class="openness">
     {rows.map(([k, v]) => (
       <div>
-        <dt>{LABEL[k]}</dt>
-        <dd class="meter" style="margin:0"><i style={`width:${SCORE[v] ?? 0}%`}></i></dd>
+        <dt>{OPENNESS_LABELS[k as keyof typeof OPENNESS_LABELS]}</dt>
+        <dd class="meter" style="margin:0"><i style={`width:${OPENNESS_SCORE[v as keyof typeof OPENNESS_SCORE] ?? 0}%`}></i></dd>
         <dd style="margin:0"><span class={`tag ${v === 'open' ? 'tag-open' : v === 'closed' ? 'tag-closed' : 'tag-partial'}`}>{v}</span></dd>
       </div>
     ))}

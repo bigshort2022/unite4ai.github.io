@@ -1,0 +1,16 @@
+{
+  "version": "2026-08",
+  "source": "US EIA Open Data (representative state averages)",
+  "status": "cached",
+  "cadence": "monthly",
+  "coverage": "us",
+  "states": {
+    "NV": { "price_cents_per_kwh": 11.2, "sector": "all" },
+    "CA": { "price_cents_per_kwh": 22.4, "sector": "all" },
+    "TX": { "price_cents_per_kwh": 12.1, "sector": "all" },
+    "NY": { "price_cents_per_kwh": 19.8, "sector": "all" },
+    "FL": { "price_cents_per_kwh": 13.5, "sector": "all" },
+    "WA": { "price_cents_per_kwh": 10.3, "sector": "all" },
+    "default": { "price_cents_per_kwh": 13.8, "sector": "all" }
+  }
+}

@@ -12,7 +12,8 @@ const events = (await getCollection('events')).sort(
   (a, b) => a.data.starts.valueOf() - b.data.starts.valueOf()
 );
 
-const featured = models.slice(0, 3);
+const featured = models.filter((m) => m.data.featured).slice(0, 3);
+const featuredFallback = featured.length > 0 ? featured : models.slice(0, 3);
 const nextEvents = events.filter((e) => e.data.starts > new Date()).slice(0, 2);
 ---
 <Base title="Equitable AI, actually open">
@@ -81,11 +82,11 @@ const nextEvents = events.filter((e) => e.data.starts > new Date()).slice(0, 2);
     </div>
   </section>
 
-  {featured.length > 0 && (
+  {featuredFallback.length > 0 && (
     <section class="wrap section" style="padding-top:0">
       <h2>Featured models</h2>
       <div class="grid grid-3" style="margin-top:1.5rem">
-        {featured.map((m) => (
+        {featuredFallback.map((m) => (
           <article class="card">
             <h3><a href={href(`/registry/models/${m.id}`)}>{m.data.name}</a></h3>
             <p>{m.data.summary}</p>
