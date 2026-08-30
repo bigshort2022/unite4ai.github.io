@@ -7,6 +7,11 @@ collection_method: Manual curation of publicly published research datasets, each
 consent: Institutional review board approval documented at the source dataset; no data is re-hosted by Unite4AI.
 pii_review: true
 bias_notes: Source datasets skew heavily toward North American and European hospital populations and adult patients. Pediatric and Global South representation is sparse — treat any model trained solely on this index as unvalidated for those groups.
+storage:
+  protocol: https
+  content_address: "index://community-medical-imaging/v1"
+  mirror_urls:
+    - https://github.com/unite4ai/unite4ai.github.io
 artifacts: []
 domains: ["healthcare", "medical-imaging"]
 sdg_alignment: [3, 10]

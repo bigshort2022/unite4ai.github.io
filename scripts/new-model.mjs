@@ -24,6 +24,14 @@ openness:
   training_code: open
   evaluation: open
 artifacts: []
+# Optional open-stack fields:
+# inference:
+#   protocol: ollama
+#   run_local_guide: /school/run-open-weights
+# eval_bundle:
+#   url: https://example.com/eval.tar.gz
+#   sha256: "64-char-hex"
+#   reproducible: false
 tasks: []
 domains: []
 sdg_alignment: []

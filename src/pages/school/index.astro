@@ -13,6 +13,11 @@ const PERSONA_LABEL: Record<string, string> = {
   'dataset-code-contributor': 'Dataset / Code Contributor',
   'model-app-user': 'Model / App User',
 };
+
+const stackTrack = courses
+  .filter((c) => c.data.track === 'open-stack')
+  .sort((a, b) => (a.data.track_order ?? 99) - (b.data.track_order ?? 99));
+const generalCourses = courses.filter((c) => c.data.track !== 'open-stack');
 ---
 <Base title="The open school">
   <section class="wrap section">
@@ -23,11 +28,27 @@ const PERSONA_LABEL: Record<string, string> = {
       is built for — learners, contributors, dataset stewards, and applied users.
     </p>
 
-    {courses.length === 0 ? (
+    {stackTrack.length > 0 && (
+      <div style="margin-top:2.5rem" aria-labelledby="open-stack-track">
+        <h2 id="open-stack-track">Use the open stack</h2>
+        <p class="lede" style="font-size:.95rem">Four modules — data, weights, compute, verify. <a href={href('/stack')}>Stack map →</a></p>
+        <ol class="stack-course-track" style="margin-top:1.2rem">
+          {stackTrack.map((c) => (
+            <li class="card">
+              <span class="tag">{c.data.duration_minutes} min · {c.data.level}</span>
+              <h3><a href={href(`/school/${c.id}`)}>{c.data.title}</a></h3>
+              <p>{c.data.summary}</p>
+            </li>
+          ))}
+        </ol>
+      </div>
+    )}
+
+    {generalCourses.length === 0 && stackTrack.length === 0 ? (
       <div class="empty" style="margin-top:2rem">No courses published yet.</div>
-    ) : (
+    ) : generalCourses.length > 0 && (
       LEVELS.map((level) => {
-        const group = courses.filter((c) => c.data.level === level);
+        const group = generalCourses.filter((c) => c.data.level === level);
         return group.length > 0 ? (
           <div style="margin-top:2.5rem">
             <h2 style="text-transform:capitalize">{level}</h2>
@@ -49,3 +70,9 @@ const PERSONA_LABEL: Record<string, string> = {
     )}
   </section>
 </Base>
+
+<style>
+  .stack-course-track { list-style: none; padding: 0; display: grid; gap: 1rem; }
+  .stack-course-track li { padding: 1rem 1.2rem; }
+  .stack-course-track h3 { margin: .4rem 0; }
+</style>

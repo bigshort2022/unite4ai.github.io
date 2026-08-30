@@ -73,9 +73,17 @@ await checkDir('models', (fm, rel, raw) => {
     if (!/^[a-f0-9]{64}$/.test(hash)) errors.push(`${rel}: sha256 "${hash}" is not a valid 64-char hex digest`);
   }
   if (!/##\s/.test(raw)) warnings.push(`${rel}: card body has no sections — reviewers will ask for more detail`);
+  const hasWeightArtifact = /kind:\s+weights/m.test(raw);
+  const hasSha256 = /sha256:\s+[a-f0-9]{64}/m.test(raw);
+  if (hasWeightArtifact && !hasSha256) {
+    warnings.push(`${rel}: weight artifact listed without sha256 — add a checksum for verifiable outputs`);
+  }
+  if (/artifacts:\s*\n/m.test(raw) && !hasSha256 && /url:\s+https?:/m.test(raw)) {
+    warnings.push(`${rel}: HTTPS-only artifact with no sha256 or content address — consider mirrors or IPFS for decentralization`);
+  }
 });
 
-await checkDir('datasets', (fm, rel) => {
+await checkDir('datasets', (fm, rel, raw) => {
   licenseCheck(fm, rel);
   requireFields([
     'name', 'summary', 'maintainers', 'updated',
@@ -84,6 +92,13 @@ await checkDir('datasets', (fm, rel) => {
   if (fm.bias_notes && unquote(fm.bias_notes).length < 20) {
     errors.push(`${rel}: "bias_notes" is too short. Name the populations under-represented.`);
   }
+  if (/artifacts:\s*\n\s+-\s/m.test(raw) && !raw.includes('storage:') && !raw.includes('content_address:')) {
+    warnings.push(`${rel}: dataset artifacts without storage protocol — add storage.content_address or mirror_urls`);
+  }
+});
+
+await checkDir('compute', (fm, rel) => {
+  requireFields(['name', 'summary', 'maintainers', 'protocol', 'open_source_url', 'pricing_model', 'updated'])(fm, rel);
 });
 
 await checkDir('courses', (fm, rel) => {
