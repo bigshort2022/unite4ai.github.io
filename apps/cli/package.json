@@ -1,0 +1,16 @@
+{
+  "name": "@unite4ai/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "unite4ai": "./src/index.ts"
+  },
+  "scripts": {
+    "publish": "bun src/index.ts"
+  },
+  "dependencies": {
+    "@unite4ai/core": "workspace:*",
+    "@unite4ai/schema": "workspace:*"
+  }
+}

@@ -1,32 +1,18 @@
 {
-  "name": "unite4ai-site",
+  "name": "unite4ai",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
-  "engines": {
-    "node": ">=24 <25"
-  },
+  "workspaces": ["apps/*", "packages/*"],
   "scripts": {
-    "preinstall": "node scripts/node-version.mjs",
-    "test": "node --test",
-    "dev": "astro dev",
-    "build": "astro build && pagefind --site dist",
-    "preview": "astro preview",
-    "check": "astro check",
-    "validate": "node scripts/validate.mjs",
-    "verify-artifacts": "node scripts/verify-artifacts.mjs",
-    "setup": "node scripts/setup.mjs",
-    "new:model": "node scripts/new-model.mjs"
-  },
-  "dependencies": {
-    "@astrojs/mdx": "^7.0.5",
-    "@astrojs/sitemap": "^3.7.3",
-    "astro": "^7.2.1",
-    "maplibre-gl": "^6.6.0",
-    "pagefind": "^1.5.2"
-  },
-  "devDependencies": {
-    "@astrojs/check": "^0.9.10",
-    "typescript": "^6.0.3"
+    "dev": "bun run --filter @unite4ai/web dev",
+    "build": "bun run --filter @unite4ai/web build",
+    "preview": "bun run --filter @unite4ai/web preview",
+    "check": "bun run --filter @unite4ai/web check",
+    "validate": "bun run --filter @unite4ai/web validate",
+    "verify-artifacts": "bun run --filter @unite4ai/web verify-artifacts",
+    "new:model": "bun run --filter @unite4ai/web new:model",
+    "publish:cli": "bun run --filter @unite4ai/cli publish",
+    "test": "bun test apps/web/test apps/api/test packages/core/test",
+    "sync:d1": "bun run --filter @unite4ai/api sync:d1"
   }
 }

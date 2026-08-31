@@ -1,0 +1,25 @@
+---
+import { OPENNESS_LABELS, OPENNESS_SCORE, opennessScore } from '@unite4ai/core';
+import type { ModelData } from '@unite4ai/schema';
+
+interface Props {
+  openness: ModelData['openness'];
+}
+const { openness } = Astro.props;
+
+const rows = Object.entries(openness) as [keyof ModelData['openness'], ModelData['openness'][keyof ModelData['openness']]][];
+const overall = opennessScore(openness);
+---
+<div>
+  <p class="eyebrow" style="margin-bottom:.15rem">Openness · {overall}%</p>
+  <p style="margin:0 0 .9rem;font-size:.78rem;color:var(--u-text-faint)">Scored on the Model Openness Framework</p>
+  <dl class="openness">
+    {rows.map(([k, v]) => (
+      <div>
+        <dt>{OPENNESS_LABELS[k as keyof typeof OPENNESS_LABELS]}</dt>
+        <dd class="meter" style="margin:0"><i style={`width:${OPENNESS_SCORE[v as keyof typeof OPENNESS_SCORE] ?? 0}%`}></i></dd>
+        <dd style="margin:0"><span class={`tag ${v === 'open' ? 'tag-open' : v === 'closed' ? 'tag-closed' : 'tag-partial'}`}>{v}</span></dd>
+      </div>
+    ))}
+  </dl>
+</div>

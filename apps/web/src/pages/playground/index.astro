@@ -1,0 +1,109 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getCollection } from 'astro:content';
+import { INFERENCE_PROTOCOLS } from '@unite4ai/core';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (p: string) => `${base}${p}` || '/';
+
+const models = await getCollection('models');
+const demos = models.flatMap((m) => {
+  const items: Array<{
+    modelId: string;
+    modelName: string;
+    kind: 'inference' | 'demo' | 'endpoint';
+    label: string;
+    url: string;
+    protocol?: string;
+    badge: 'self-hosted' | 'community' | 'external';
+  }> = [];
+
+  if (m.data.inference?.endpoint_url) {
+    items.push({
+      modelId: m.id,
+      modelName: m.data.name,
+      kind: 'endpoint',
+      label: INFERENCE_PROTOCOLS[m.data.inference.protocol ?? 'http'] ?? 'Inference endpoint',
+      url: m.data.inference.endpoint_url,
+      protocol: m.data.inference.protocol,
+      badge: m.data.inference.protocol === 'federated' ? 'community' : 'self-hosted',
+    });
+  } else if (m.data.inference?.run_local_guide) {
+    items.push({
+      modelId: m.id,
+      modelName: m.data.name,
+      kind: 'inference',
+      label: 'Run locally',
+      url: href(m.data.inference.run_local_guide),
+      protocol: m.data.inference.protocol,
+      badge: 'self-hosted',
+    });
+  }
+
+  for (const a of m.data.artifacts) {
+    if (a.kind === 'demo') {
+      items.push({
+        modelId: m.id,
+        modelName: m.data.name,
+        kind: 'demo',
+        label: 'Demo / code',
+        url: a.url,
+        badge: 'external',
+      });
+    }
+  }
+  return items;
+});
+---
+<Base
+  title="Playground"
+  description="Try open models via maintainer-hosted demos and inference endpoints — Unite4AI links out, never proxies GPU traffic."
+>
+  <section class="wrap section">
+    <p class="eyebrow">Playground</p>
+    <h1>Open model experiences</h1>
+    <p class="lede">
+      Hugging Face Spaces–style access without our GPU bill: every demo runs on maintainer or community
+      infrastructure. We index endpoints and link out — we never proxy inference through Unite4AI.
+    </p>
+
+    <div class="card" style="margin-top:1.5rem">
+      <p class="eyebrow" style="margin-bottom:.4rem">Trust badges</p>
+      <ul style="margin:0;padding-left:1.2rem;line-height:1.8;font-size:.9rem">
+        <li><span class="tag tag-open">self-hosted</span> — run on your hardware (Ollama, vLLM, etc.)</li>
+        <li><span class="tag">community</span> — federated or community GPU; verify before sending data</li>
+        <li><span class="tag tag-partial">external</span> — third-party demo; not audited by Unite4AI</li>
+      </ul>
+    </div>
+
+    {demos.length === 0 ? (
+      <div class="empty" style="margin-top:2rem">
+        No playground entries yet. <a href={href('/contribute')}>Submit a model with a demo or inference URL.</a>
+      </div>
+    ) : (
+      <div class="grid grid-2" style="margin-top:2rem">
+        {demos.map((d) => (
+          <article class="card">
+            <p class="eyebrow" style="margin-bottom:.25rem">{d.modelName}</p>
+            <h3>{d.label}</h3>
+            <p style="font-size:.85rem;color:var(--u-text-faint)">
+              <span class={`tag ${d.badge === 'self-hosted' ? 'tag-open' : d.badge === 'external' ? 'tag-partial' : ''}`}>{d.badge}</span>
+              {d.protocol && <span class="tag">{d.protocol}</span>}
+            </p>
+            <p style="margin-top:.75rem">
+              <a class="btn btn-primary" href={d.url} target="_blank" rel="noopener noreferrer">
+                Open demo →
+              </a>
+              <a class="btn btn-ghost" href={href(`/registry/models/${d.modelId}`)} style="margin-left:.5rem">Model card</a>
+            </p>
+          </article>
+        ))}
+      </div>
+    )}
+
+    <p style="margin-top:2.5rem">
+      <a href={href('/stack/compute')}>Browse compute options</a>
+      · <a href={href('/school/run-open-weights')}>Run open weights course</a>
+    </p>
+  </section>
+</Base>
