@@ -1,0 +1,152 @@
+---
+import Base from '../layouts/Base.astro';
+import { getCollection } from 'astro:content';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (p: string) => `${base}${p}` || '/';
+
+const models = await getCollection('models');
+const datasets = await getCollection('datasets');
+const courses = await getCollection('courses');
+const events = (await getCollection('events')).sort(
+  (a, b) => a.data.starts.valueOf() - b.data.starts.valueOf()
+);
+
+const featured = models.filter((m) => m.data.featured).slice(0, 3);
+const featuredFallback = featured.length > 0 ? featured : models.slice(0, 3);
+const nextEvents = events.filter((e) => e.data.starts > new Date()).slice(0, 2);
+---
+<Base title="Equitable AI, actually open">
+  <section class="hero wrap">
+    <p class="eyebrow">Systems change through AI democratization</p>
+    <h1>AI is a <span class="grad-text">global public resource.</span><br />We build it like one.</h1>
+    <p class="lede">
+      An open model &amp; dataset registry that grades real openness, a free technology school,
+      and a community where contributing is how you belong. No open-washing — every card, course,
+      and governance rule in this platform lives in a public repo you can fork today.
+    </p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href={href('/stack')}>Explore the open stack</a>
+      <a class="btn btn-ghost" href={href('/school')}>Start learning — free</a>
+      <a class="btn btn-ghost" href={href('/registry')}>Browse the registry</a>
+    </div>
+  </section>
+
+  <section class="wrap section" style="padding-top:0" aria-labelledby="stack-preview-title">
+    <p class="eyebrow">Open &amp; decentralized AI stack</p>
+    <h2 id="stack-preview-title">Four layers. One map.</h2>
+    <p class="lede">
+      Data for training, compute for inference, open weights, and verifiable outputs —
+      so you can tinker faster and opt out of AI you do not trust.
+    </p>
+    <div class="grid grid-2" style="margin-top:1.5rem">
+      <article class="card">
+        <h3>Index, don&apos;t gatekeep</h3>
+        <p>We catalog datasets, models, and compute protocols. We do not host weights, broker GPUs, or certify safety.</p>
+      </article>
+      <article class="card">
+        <h3>Verify, don&apos;t trust</h3>
+        <p>Checksums, eval bundles, and reproducibility badges — trust comes from what you can replay, not what we claim.</p>
+      </article>
+    </div>
+    <p style="margin-top:1.2rem"><a class="btn btn-primary" href={href('/stack')}>Open the stack map</a></p>
+  </section>
+
+  <section class="wrap section" style="padding-top:0" aria-label="Platform at a glance">
+    <div class="stats">
+      <div class="stat"><b>{models.length}</b><span>Open models</span></div>
+      <div class="stat"><b>{datasets.length}</b><span>Open datasets</span></div>
+      <div class="stat"><b>{courses.length}</b><span>Free courses</span></div>
+      <div class="stat"><b>{events.length}</b><span>Community events</span></div>
+    </div>
+  </section>
+
+  <section class="wrap section" style="padding-top:0">
+    <h2>What makes us different</h2>
+    <p class="lede">Three commitments, enforced by the build system — not by a marketing page.</p>
+    <div class="grid grid-3" style="margin-top:1.8rem">
+      <article class="card">
+        <h3>Openness is graded, not claimed</h3>
+        <p>Every model card scores four Model Openness Framework axes — weights, training data, training code, evaluation. Restrictive licenses are rejected in CI automatically.</p>
+      </article>
+      <article class="card">
+        <h3>The school is the product</h3>
+        <p>Courses built for four community personas, from first inference to publishing your own open model. Free, forever, no account required to learn.</p>
+      </article>
+      <article class="card">
+        <h3>Privacy-first by architecture</h3>
+        <p>Static site, client-side search, no tracking cookies, no user database. We cannot surveil you because there is no server to do it.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="wrap section" style="padding-top:0" aria-labelledby="places-preview-title">
+    <div class="places-preview">
+      <div>
+        <p class="eyebrow">Open geospatial research</p>
+        <h2 id="places-preview-title">Explore sustainable places</h2>
+        <p class="lede">
+          Compare live-work-play sites through energy resources, climate resilience,
+          infrastructure, incentives, and transparent development economics.
+        </p>
+        <a class="btn btn-primary" href={href('/places')}>Open the site intelligence map</a>
+      </div>
+      <div class="places-preview-layers" aria-label="Research layers included">
+        <span>Solar + wind</span>
+        <span>Geothermal + hydro</span>
+        <span>Grid + storage</span>
+        <span>Climate + hazards</span>
+        <span>Policy + incentives</span>
+        <span>Development ROI</span>
+      </div>
+    </div>
+  </section>
+
+  {featuredFallback.length > 0 && (
+    <section class="wrap section" style="padding-top:0">
+      <h2>Featured models</h2>
+      <div class="grid grid-3" style="margin-top:1.5rem">
+        {featuredFallback.map((m) => (
+          <article class="card">
+            <h3><a href={href(`/registry/models/${m.id}`)}>{m.data.name}</a></h3>
+            <p>{m.data.summary}</p>
+            <div class="card-meta">
+              <span class="tag tag-open">{m.data.license}</span>
+              {m.data.domains.slice(0, 2).map((d) => <span class="tag">{d}</span>)}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  )}
+
+  {nextEvents.length > 0 && (
+    <section class="wrap section" style="padding-top:0">
+      <h2>Coming up</h2>
+      <div class="grid grid-2" style="margin-top:1.5rem">
+        {nextEvents.map((e) => (
+          <article class="card">
+            <h3><a href={href(`/community/${e.id}`)}>{e.data.title}</a></h3>
+            <p>{e.data.summary}</p>
+            <div class="card-meta">
+              <span class="tag">{e.data.starts.toISOString().slice(0, 10)}</span>
+              <span class="tag">{e.data.kind}</span>
+              <span class="tag">{e.data.location}</span>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  )}
+
+  <section class="wrap section" style="padding-top:0">
+    <div class="card" style="text-align:center;align-items:center;padding:2.5rem">
+      <h2 style="margin-bottom:.3rem">Progress is not automatic.</h2>
+      <p class="lede" style="text-align:center">
+        Every model card, course, and dataset here was added by someone through a pull request.
+        Add yours — you don't need to know git.
+      </p>
+      <a class="btn btn-primary" href={href('/contribute')} style="margin-top:.5rem">Make your first contribution</a>
+    </div>
+  </section>
+</Base>

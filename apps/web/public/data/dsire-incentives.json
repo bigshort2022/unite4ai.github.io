@@ -1,0 +1,30 @@
+{
+  "version": "2026-08",
+  "source": "DSIRE USA (representative programs)",
+  "status": "cached",
+  "cadence": "policy-updates",
+  "coverage": "us",
+  "programs": [
+    {
+      "state": "NV",
+      "name": "NV Energy RenewableGenerations",
+      "type": "rebate",
+      "technology": ["solar", "storage"],
+      "max_incentive_usd": 3000
+    },
+    {
+      "state": "CA",
+      "name": "Self-Generation Incentive Program",
+      "type": "rebate",
+      "technology": ["storage", "solar"],
+      "max_incentive_usd": 1000
+    },
+    {
+      "state": "TX",
+      "name": "Property tax exemption for solar",
+      "type": "tax-exemption",
+      "technology": ["solar"],
+      "max_incentive_usd": null
+    }
+  ]
+}

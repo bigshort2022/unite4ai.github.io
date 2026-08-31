@@ -1,0 +1,17 @@
+name = "unite4ai-api"
+main = "src/index.ts"
+compatibility_date = "2024-08-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "unite4ai-registry"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[vars]
+# Set NREL_API_KEY via: wrangler secret put NREL_API_KEY
+
+# Optional R2 bucket for small eval bundles (Phase 2):
+# [[r2_buckets]]
+# binding = "ARTIFACTS"
+# bucket_name = "unite4ai-artifacts"

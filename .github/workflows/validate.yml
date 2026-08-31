@@ -13,20 +13,27 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v7
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: 24
-          cache: npm
+          bun-version: latest
 
-      - run: npm ci
+      - run: bun install --frozen-lockfile
 
-      # Gate 1: content rules — required fields, license allowlist, checksum format.
+      - name: Generate registry snapshot
+        run: bun run sync:d1
+
       - name: Validate content
-        run: npm run validate
+        run: bun run validate
 
-      # Gate 2: the real build. A schema violation fails here, loudly, before merge.
       - name: Build
-        run: npm run build
+        run: bun run build
+
+      - name: Verify artifact checksums
+        run: bun run verify-artifacts
+        continue-on-error: true
+
+      - name: Test
+        run: bun test
 
       - name: Report
         run: |
@@ -35,4 +42,4 @@ jobs:
           echo "- Content schemas valid" >> $GITHUB_STEP_SUMMARY
           echo "- License allowlist satisfied" >> $GITHUB_STEP_SUMMARY
           echo "- Site builds cleanly" >> $GITHUB_STEP_SUMMARY
-          echo "- Pages generated: $(find dist -name '*.html' | wc -l)" >> $GITHUB_STEP_SUMMARY
+          echo "- Pages generated: $(find apps/web/dist -name '*.html' | wc -l)" >> $GITHUB_STEP_SUMMARY

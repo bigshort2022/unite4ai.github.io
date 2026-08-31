@@ -24,6 +24,27 @@ npm run validate && npm run build
 git commit -am "Add <thing>" && git push origin my-contribution
 ```
 
+## Local development
+
+Search requires a built Pagefind index. After your first clone:
+
+```bash
+npm run build && npm run preview   # full site including search
+npm run dev                        # fast iteration; /search needs build first
+```
+
+Scaffold a new model card:
+
+```bash
+npm run new:model my-model-slug
+```
+
+Verify artifact checksums (optional, requires network):
+
+```bash
+npm run verify-artifacts
+```
+
 ## What gets checked
 
 Every pull request runs the same gate:

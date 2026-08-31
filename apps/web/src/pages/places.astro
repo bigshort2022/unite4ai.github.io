@@ -1,0 +1,335 @@
+---
+import Base from '../layouts/Base.astro';
+import { ARCHETYPES, METRIC_DEFINITIONS, SOURCE_CATALOG } from '../lib/sustainable-places/catalog.mjs';
+import { DEMO_SITES } from '../lib/sustainable-places/demo-sites.mjs';
+import '../styles/places.css';
+
+const layers = [
+  { id: 'opportunity', label: 'Opportunity index', detail: 'Composite', tone: 'gold', active: true },
+  { id: 'solar', label: 'Solar resource', detail: 'NASA + NREL', tone: 'amber', active: true },
+  { id: 'geothermal', label: 'Geothermal', detail: 'NREL + USGS', tone: 'violet', active: false },
+  { id: 'hydro', label: 'Hydropower', detail: 'NREL + USGS', tone: 'blue', active: false },
+  { id: 'wind', label: 'Wind resource', detail: 'NASA + NREL', tone: 'cyan', active: false },
+  { id: 'storage', label: 'Storage fit', detail: 'Iron-air + sodium', tone: 'green', active: false },
+  { id: 'hazards', label: 'Climate hazards', detail: 'FEMA + NOAA', tone: 'red', active: true },
+  { id: 'grid', label: 'Grid + fiber', detail: 'EIA + FCC', tone: 'white', active: false },
+];
+
+const candidates = DEMO_SITES.features.map((feature) => ({
+  ...feature.properties,
+  score: feature.properties.overall,
+  latitude: feature.geometry.coordinates[1],
+  longitude: feature.geometry.coordinates[0],
+}));
+
+const activeSite = candidates[0];
+const metricOrder: Array<keyof typeof METRIC_DEFINITIONS> = ['npv', 'irr', 'payback', 'lcoe'];
+---
+<Base
+  title="Sustainable Places"
+  description="Open geospatial site intelligence and transparent techno-economic assessment for climate-resilient development."
+>
+  <div class="places-page" data-places-root>
+    <header class="places-toolbar">
+      <div class="places-title">
+        <span class="places-mark" aria-hidden="true"></span>
+        <div>
+          <p class="places-kicker">Sustainable real estate intelligence</p>
+          <h1>Sustainable Places</h1>
+        </div>
+      </div>
+      <form class="places-search" data-location-search>
+        <label class="sr-only" for="location-query">Search a location or coordinates</label>
+        <span aria-hidden="true">⌖</span>
+        <input id="location-query" name="location" type="search" placeholder="Search address or 39.5296, -119.8138" autocomplete="off" />
+        <button type="submit">Evaluate</button>
+      </form>
+      <p class="search-error" data-search-error hidden role="alert"></p>
+      <div class="workspace-status" aria-label="Workspace data status">
+        <span class="status-pulse" aria-hidden="true"></span>
+        <span data-workspace-feed-count><b>0</b> live feeds</span>
+        <span class="status-divider" aria-hidden="true"></span>
+        <span>US deep coverage</span>
+      </div>
+    </header>
+
+    <div class="places-workspace">
+      <aside class="places-rail" aria-label="Opportunity and layer controls" data-mobile-sheet="rail">
+        <button class="mobile-sheet-toggle" type="button" data-mobile-toggle="rail" aria-expanded="true">
+          Candidates &amp; layers
+        </button>
+        <div class="rail-scroll mobile-sheet-body">
+          <section class="rail-section candidate-section">
+            <div class="rail-heading">
+              <div>
+                <p class="rail-eyebrow">Opportunity search</p>
+                <h2>Ranked candidates</h2>
+              </div>
+              <button class="icon-button" type="button" aria-label="Filter candidate sites" data-candidate-filter-trigger>⌁</button>
+            </div>
+            <div class="candidate-filter" data-candidate-filter hidden>
+              <label>
+                <span>Minimum score</span>
+                <input type="number" data-candidate-filter-min min="0" max="100" value="0" step="5" />
+              </label>
+              <button class="text-button" type="button" data-candidate-filter-apply>Apply</button>
+            </div>
+            <div class="candidate-list" role="list">
+              {candidates.map((site, index) => (
+                <button
+                  class:list={['candidate', { active: index === 0 }]}
+                  type="button"
+                  data-candidate={site.id}
+                  data-lat={site.latitude}
+                  data-lng={site.longitude}
+                  role="listitem"
+                >
+                  <span class="candidate-rank">{String(site.rank).padStart(2, '0')}</span>
+                  <span class="candidate-copy">
+                    <strong>{site.name}</strong>
+                    <small>{site.detail}</small>
+                  </span>
+                  <span class="candidate-score">{site.score}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section class="rail-section">
+            <div class="rail-heading">
+              <div>
+                <p class="rail-eyebrow">Development thesis</p>
+                <h2>Archetype</h2>
+              </div>
+            </div>
+            <label class="select-field">
+              <span class="sr-only">Development archetype</span>
+              <select data-archetype>
+                {ARCHETYPES.map((item) => <option value={item.id}>{item.shortLabel}</option>)}
+              </select>
+            </label>
+            <p class="archetype-description" data-archetype-description>{ARCHETYPES[0].description}</p>
+          </section>
+
+          <section class="rail-section layer-section">
+            <div class="rail-heading">
+              <div>
+                <p class="rail-eyebrow">Evidence stack</p>
+                <h2>Map overlays</h2>
+              </div>
+              <button class="text-button" type="button" data-clear-layers>Clear</button>
+            </div>
+            <div class="layer-list">
+              {layers.map((layer) => (
+                <label class="layer-control">
+                  <input type="checkbox" value={layer.id} checked={layer.active} data-map-layer />
+                  <span class:list={['layer-swatch', `tone-${layer.tone}`]} aria-hidden="true"></span>
+                  <span class="layer-copy">
+                    <strong>{layer.label}</strong>
+                    <small>{layer.detail}</small>
+                  </span>
+                  <span class="layer-toggle" aria-hidden="true"></span>
+                </label>
+              ))}
+            </div>
+          </section>
+        </div>
+
+        <button class="source-drawer-trigger" type="button" data-source-trigger aria-expanded="false">
+          <span><b>{SOURCE_CATALOG.length}</b> source adapters</span>
+          <span>View provenance ↑</span>
+        </button>
+      </aside>
+
+      <section class="map-stage" aria-label="Interactive site intelligence map">
+        <div id="places-map" class="map-canvas" aria-label="OpenStreetMap-based development intelligence map"></div>
+        <div class="map-grid-placeholder" aria-hidden="true">
+          <span class="map-contour contour-one"></span>
+          <span class="map-contour contour-two"></span>
+          <span class="map-contour contour-three"></span>
+        </div>
+
+        <div class="map-readout map-readout-top">
+          <span>GLOBAL / UNITED STATES</span>
+          <span data-map-zoom>ZOOM 3.2</span>
+          <span>WGS 84</span>
+        </div>
+
+        <div class="map-callout" data-map-callout>
+          <span class="callout-line" aria-hidden="true"></span>
+          <div>
+            <p>Selected opportunity</p>
+            <strong data-map-site>{activeSite.name}</strong>
+            <span>39.5296° N · 119.8138° W</span>
+          </div>
+          <b>{activeSite.score}</b>
+        </div>
+
+        <div class="map-tools" aria-label="Map tools">
+          <button type="button" data-map-zoom-in aria-label="Zoom in">+</button>
+          <button type="button" data-map-zoom-out aria-label="Zoom out">−</button>
+          <button type="button" data-map-draw aria-label="Draw a site boundary" aria-pressed="false">△</button>
+          <button type="button" data-map-reset aria-label="Reset map">◎</button>
+        </div>
+
+        <div class="map-legend" aria-label="Opportunity score legend">
+          <span>Lower fit</span>
+          <span class="legend-ramp" aria-hidden="true"></span>
+          <span>Higher fit</span>
+        </div>
+
+        <div class="map-provenance" aria-live="polite">
+          <span class="provenance-mode"><i></i> Screening mode</span>
+          <span data-coordinates>39.5296, -119.8138</span>
+          <span data-evidence-time>Loading evidence…</span>
+          <button type="button" data-methodology-trigger>Methodology</button>
+        </div>
+      </section>
+
+      <aside class="tea-panel" aria-label="Site evidence and techno-economic assessment" data-mobile-sheet="tea">
+        <button class="mobile-sheet-toggle" type="button" data-mobile-toggle="tea" aria-expanded="true">
+          Site evidence &amp; TEA
+        </button>
+        <div class="tea-scroll mobile-sheet-body">
+          <header class="site-summary">
+            <p class="rail-eyebrow">Site evidence</p>
+            <div class="site-heading-row">
+              <div>
+                <h2 data-site-name>{activeSite.name}</h2>
+                <p data-site-subtitle>Washoe County · Nevada · United States</p>
+              </div>
+              <div class="overall-score" aria-label="Opportunity score 82 out of 100">
+                <strong data-overall-score>82</strong>
+                <span>/ 100</span>
+              </div>
+            </div>
+            <div class="confidence-line">
+              <span><i class="status-live"></i> <span data-feed-health>Connecting</span></span>
+              <span><i class="status-modeled"></i> modeled fallback</span>
+              <span><i class="status-assumption"></i> assumptions</span>
+            </div>
+          </header>
+
+          <section class="evidence-section" aria-labelledby="evidence-title">
+            <div class="panel-heading">
+              <h3 id="evidence-title">Suitability profile</h3>
+              <span data-confidence-label>Medium-high confidence</span>
+            </div>
+            <div class="evidence-bars">
+              <div class="evidence-row">
+                <span>Energy resources</span><i><b style="--value:88%"></b></i><strong data-score-resource>88</strong>
+              </div>
+              <div class="evidence-row">
+                <span>Infrastructure</span><i><b style="--value:74%"></b></i><strong data-score-infrastructure>74</strong>
+              </div>
+              <div class="evidence-row">
+                <span>Climate resilience</span><i><b style="--value:69%"></b></i><strong data-score-climate>69</strong>
+              </div>
+              <div class="evidence-row">
+                <span>Policy + incentives</span><i><b style="--value:86%"></b></i><strong data-score-policy>86</strong>
+              </div>
+            </div>
+          </section>
+
+          <section class="tea-section" aria-labelledby="tea-title">
+            <div class="panel-heading panel-heading-stacked">
+              <div>
+                <p class="rail-eyebrow">Screening economics</p>
+                <h3 id="tea-title">Techno-economic assessment</h3>
+              </div>
+              <span class="scenario-chip">Base case</span>
+            </div>
+
+            <div class="tea-metrics">
+              {metricOrder.map((key) => (
+                <article class="tea-metric">
+                  <div>
+                    <span>{METRIC_DEFINITIONS[key].label}</span>
+                    <button
+                      class="definition-button"
+                      type="button"
+                      aria-label={`Define ${METRIC_DEFINITIONS[key].label}`}
+                      data-definition={key}
+                    >?</button>
+                  </div>
+                  <strong data-tea-metric={key}>—</strong>
+                  <small>{key === 'npv' ? 'Risk-adjusted estimate' : key === 'irr' ? 'Unlevered project return' : key === 'payback' ? 'Simple payback' : 'Levelized energy cost'}</small>
+                </article>
+              ))}
+            </div>
+
+            <div class="definition-popover" data-definition-popover hidden>
+              <button type="button" aria-label="Close definition" data-definition-close>×</button>
+              <strong data-definition-title></strong>
+              <p data-definition-short></p>
+              <small data-definition-detail></small>
+            </div>
+
+            <details class="calculation-details">
+              <summary>How this is calculated</summary>
+              <p>
+                Screening outputs use the selected archetype, incentive-adjusted capital cost,
+                annual net cash flow, discount rate, project life, salvage value, and location evidence.
+              </p>
+              <p class="legal-note">For early site screening only. Not investment, tax, engineering, or legal advice.</p>
+            </details>
+          </section>
+
+          <section class="inputs-section" aria-labelledby="inputs-title">
+            <div class="panel-heading">
+              <h3 id="inputs-title">Editable assumptions</h3>
+              <button class="text-button" type="button" data-reset-assumptions>Reset</button>
+            </div>
+            <div class="input-grid">
+              <label><span>Capital cost</span><span class="number-input"><b>$</b><input data-tea-input="capex" type="number" value="25000000" min="0" step="100000" /></span></label>
+              <label><span>Annual revenue</span><span class="number-input"><b>$</b><input data-tea-input="annualRevenue" type="number" value="3800000" min="0" step="50000" /></span></label>
+              <label><span>Annual operating cost</span><span class="number-input"><b>$</b><input data-tea-input="annualOpex" type="number" value="1100000" min="0" step="50000" /></span></label>
+              <label><span>Eligible incentives</span><span class="number-input"><b>$</b><input data-tea-input="incentives" type="number" value="1500000" min="0" step="50000" /></span></label>
+              <label><span>Discount rate</span><span class="number-input"><input data-tea-input="discountRate" type="number" value="8" min="0" max="100" step=".1" /><b>%</b></span></label>
+              <label><span>Project life</span><span class="number-input"><input data-tea-input="horizonYears" type="number" value="25" min="1" max="100" step="1" /><b>yr</b></span></label>
+            </div>
+          </section>
+
+          <section class="live-evidence-section" aria-labelledby="live-evidence-title">
+            <div class="panel-heading">
+              <h3 id="live-evidence-title">Location evidence</h3>
+              <span data-feed-health>Connecting</span>
+            </div>
+            <div class="live-evidence-grid" data-live-evidence>
+              <article class="evidence-skeleton"><span>Solar resource</span><strong>—</strong><small>Loading…</small></article>
+              <article class="evidence-skeleton"><span>7-day forecast</span><strong>—</strong><small>Loading…</small></article>
+              <article class="evidence-skeleton"><span>PV production</span><strong>—</strong><small>Loading…</small></article>
+              <article class="evidence-skeleton"><span>Energy price</span><strong>—</strong><small>Loading…</small></article>
+            </div>
+          </section>
+        </div>
+      </aside>
+    </div>
+
+    <aside class="source-drawer" data-source-drawer hidden aria-label="Data source provenance">
+      <header>
+        <div>
+          <p class="rail-eyebrow">Evidence provenance</p>
+          <h2>Source adapter catalog</h2>
+        </div>
+        <button type="button" data-source-close aria-label="Close source catalog">×</button>
+      </header>
+      <div class="source-grid">
+        {SOURCE_CATALOG.map((source) => (
+          <article>
+            <span class:list={['source-status', `source-${source.status}`]}>{source.status}</span>
+            <strong><a href={source.url} target="_blank" rel="noreferrer">{source.name}</a></strong>
+            <p>{source.category}</p>
+            <small>{source.coverage} · {source.cadence}</small>
+          </article>
+        ))}
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    import { initPlacesWorkspace } from '../lib/sustainable-places/places-client.mjs';
+    const root = document.querySelector('[data-places-root]');
+    if (root) initPlacesWorkspace(root);
+  </script>
+</Base>
