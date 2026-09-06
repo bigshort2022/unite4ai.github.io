@@ -88,6 +88,22 @@ p  { margin: 0 0 1.1em; }
 }
 .lede { font-size: clamp(1.02rem, 1.7vw, 1.2rem); color: var(--u-text-dim); max-width: 62ch; }
 
+.byline {
+  margin: -.15rem 0 1.1rem;
+  color: var(--u-text-faint);
+  font-size: .95rem;
+  letter-spacing: .01em;
+}
+.byline__author {
+  color: var(--u-text);
+  font-weight: 650;
+}
+.byline__sep {
+  margin: 0 .45rem;
+  color: var(--u-border-bright);
+}
+.byline time { color: var(--u-text-dim); }
+
 /* ─── Header / nav ─── */
 .site-header {
   position: sticky; top: 0; z-index: 50;

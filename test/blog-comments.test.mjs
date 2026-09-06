@@ -11,8 +11,8 @@ test('S3 alternatives blog post exists with required frontmatter', async () => {
   );
   assert.match(raw, /^---[\s\S]*title:\s*Open Source Alternatives To Amazon S3/m);
   assert.match(raw, /summary:/);
-  assert.match(raw, /author:/);
-  assert.match(raw, /published:/);
+  assert.match(raw, /author:\s*b33jman/);
+  assert.match(raw, /published:\s*2026-09-06T/);
   assert.match(raw, /MinIO/);
   assert.match(raw, /Ceph/);
   assert.match(raw, /Garage/);
@@ -25,6 +25,15 @@ test('blog comments collection seeds the S3 post thread', async () => {
   );
   assert.match(welcome, /post:\s*open-source-alternatives-to-amazon-s3/);
   assert.match(welcome, /author:/);
+});
+
+test('blog post page renders a byline with author and datetime', async () => {
+  const blog = await readFile(new URL('src/pages/blog/[...id].astro', root), 'utf8');
+  assert.match(blog, /class="byline"/);
+  assert.match(blog, /byline__author/);
+  assert.match(blog, /toLocaleString/);
+  assert.match(blog, /d\.author/);
+  assert.match(blog, /d\.published/);
 });
 
 test('Comments component and giscus config are wired for NYT-style tray', async () => {

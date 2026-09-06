@@ -1,8 +1,8 @@
 ---
 title: Open Source Alternatives To Amazon S3
 summary: Object storage does not have to mean a single cloud vendor. Here is a practical map of open-source S3-compatible systems — what each is good at, where it hurts, and how to choose.
-author: unite4ai-team
-published: 2026-09-06
+author: b33jman
+published: 2026-09-06T00:59:00.000Z
 tags: ["open-source", "infrastructure", "storage", "engineering"]
 ---
 
