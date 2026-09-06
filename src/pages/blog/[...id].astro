@@ -1,5 +1,6 @@
 ---
 import Base from '../../layouts/Base.astro';
+import Comments from '../../components/Comments.astro';
 import { getCollection, render } from 'astro:content';
 
 export async function getStaticPaths() {
@@ -24,5 +25,11 @@ const href = (p: string) => `${base}${p}` || '/';
       {d.tags.map((t) => <span class="tag">{t}</span>)}
     </div>
     <div class="prose"><Content /></div>
+    <p class="blog-comments-link">
+      <a href="#comments">Jump to comments</a>
+    </p>
   </article>
+  <div class="wrap" data-pagefind-ignore>
+    <Comments postId={entry.id} />
+  </div>
 </Base>

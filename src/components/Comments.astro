@@ -1,0 +1,227 @@
+---
+import { getCollection, render } from 'astro:content';
+import { giscusConfig, giscusReady } from '../lib/giscus';
+
+interface Props {
+  postId: string;
+}
+
+const { postId } = Astro.props;
+
+const forPost = (await getCollection('comments')).filter((c) => c.data.post === postId);
+
+const items = await Promise.all(
+  forPost.map(async (entry) => {
+    const { Content } = await render(entry);
+    return { entry, Content, children: [] as { entry: (typeof forPost)[number]; Content: Awaited<ReturnType<typeof render>>['Content'] }[] };
+  }),
+);
+
+type Item = (typeof items)[number];
+const byId = new Map<string, Item>(items.map((i) => [i.entry.id, i]));
+const roots: Item[] = [];
+
+for (const item of items) {
+  const parentId = item.entry.data.parent;
+  if (parentId && byId.has(parentId)) {
+    byId.get(parentId)!.children.push(item);
+  } else {
+    roots.push(item);
+  }
+}
+
+roots.sort((a, b) => b.entry.data.recommends - a.entry.data.recommends
+  || b.entry.data.published.valueOf() - a.entry.data.published.valueOf());
+
+const totalCount = items.length;
+const discussUrl = `https://github.com/${giscusConfig.repo}/discussions`;
+const guidelinesUrl = `https://github.com/${giscusConfig.repo}/blob/main/CODE_OF_CONDUCT.md`;
+
+function formatWhen(d: Date) {
+  return d.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function initials(name: string) {
+  return name
+    .split(/[\s._-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]!.toUpperCase())
+    .join('');
+}
+---
+<section class="nyt-comments" id="comments" data-post={postId} aria-labelledby="comments-heading">
+  <header class="nyt-comments__header">
+    <div class="nyt-comments__title-row">
+      <h2 id="comments-heading">{totalCount} {totalCount === 1 ? 'Comment' : 'Comments'}</h2>
+      <a class="nyt-comments__jump" href="#comment-compose">Leave a comment</a>
+    </div>
+    <p class="nyt-comments__lede">
+      Reader discussion — be civil, cite experience, and disagree on the facts. Comments are public
+      under your GitHub identity.
+    </p>
+    <div class="nyt-comments__controls">
+      <label class="nyt-comments__sort">
+        <span>Sort by</span>
+        <select data-comments-sort>
+          <option value="readers" selected>Reader picks</option>
+          <option value="newest">Newest</option>
+          <option value="oldest">Oldest</option>
+        </select>
+      </label>
+      <p class="nyt-comments__guidelines">
+        <a href={guidelinesUrl}>Community guidelines</a>
+      </p>
+    </div>
+  </header>
+
+  <div class="nyt-comments__thread" data-comments-thread>
+    {roots.length === 0 ? (
+      <p class="nyt-comments__empty">No curated comments yet — be the first in the live thread.</p>
+    ) : (
+      roots.map(({ entry, Content, children }) => (
+        <article
+          class="nyt-comment"
+          id={`comment-${entry.id}`}
+          data-comment-id={entry.id}
+          data-published={entry.data.published.toISOString()}
+          data-recommends={String(entry.data.recommends)}
+        >
+          <div class="nyt-comment__avatar" aria-hidden="true">{initials(entry.data.author)}</div>
+          <div class="nyt-comment__body">
+            <header class="nyt-comment__meta">
+              <span class="nyt-comment__author">{entry.data.author}</span>
+              {entry.data.author_note && (
+                <span class="nyt-comment__note">{entry.data.author_note}</span>
+              )}
+              <time datetime={entry.data.published.toISOString()}>
+                {formatWhen(entry.data.published)}
+              </time>
+            </header>
+            <div class="nyt-comment__prose">
+              <Content />
+            </div>
+            <footer class="nyt-comment__actions">
+              <span class="nyt-comment__reco" title="Reader recommends">
+                <span aria-hidden="true">▴</span> {entry.data.recommends}
+                <span class="sr-only"> recommends</span>
+              </span>
+              <a href="#comment-compose">Reply</a>
+            </footer>
+
+            {children.length > 0 && (
+              <div class="nyt-comment__replies">
+                {children
+                  .slice()
+                  .sort((a, b) => a.entry.data.published.valueOf() - b.entry.data.published.valueOf())
+                  .map(({ entry: child, Content: ChildContent }) => (
+                    <article
+                      class="nyt-comment nyt-comment--reply"
+                      id={`comment-${child.id}`}
+                      data-comment-id={child.id}
+                      data-published={child.data.published.toISOString()}
+                      data-recommends={String(child.data.recommends)}
+                    >
+                      <div class="nyt-comment__avatar" aria-hidden="true">{initials(child.data.author)}</div>
+                      <div class="nyt-comment__body">
+                        <header class="nyt-comment__meta">
+                          <span class="nyt-comment__author">{child.data.author}</span>
+                          {child.data.author_note && (
+                            <span class="nyt-comment__note">{child.data.author_note}</span>
+                          )}
+                          <time datetime={child.data.published.toISOString()}>
+                            {formatWhen(child.data.published)}
+                          </time>
+                        </header>
+                        <div class="nyt-comment__prose">
+                          <ChildContent />
+                        </div>
+                        <footer class="nyt-comment__actions">
+                          <span class="nyt-comment__reco" title="Reader recommends">
+                            <span aria-hidden="true">▴</span> {child.data.recommends}
+                            <span class="sr-only"> recommends</span>
+                          </span>
+                          <a href="#comment-compose">Reply</a>
+                        </footer>
+                      </div>
+                    </article>
+                  ))}
+              </div>
+            )}
+          </div>
+        </article>
+      ))
+    )}
+  </div>
+
+  <div class="nyt-comments__compose" id="comment-compose">
+    <h3>Join the conversation</h3>
+    {giscusReady ? (
+      <p class="nyt-comments__compose-lede">
+        Sign in with GitHub to post. Threads live in Discussions and appear on this page.
+      </p>
+    ) : (
+      <p class="nyt-comments__compose-lede">
+        Live commenting uses GitHub Discussions via Giscus. Until that category is connected,
+        {' '}<a href={discussUrl}>start a discussion on GitHub</a>
+        {' '}or add a markdown file under <code>src/content/comments/</code> in a pull request.
+      </p>
+    )}
+
+    {giscusReady && (
+      <div class="nyt-comments__giscus">
+        <script
+          is:inline
+          src="https://giscus.app/client.js"
+          data-repo={giscusConfig.repo}
+          data-repo-id={giscusConfig.repoId}
+          data-category={giscusConfig.category}
+          data-category-id={giscusConfig.categoryId}
+          data-mapping={giscusConfig.mapping}
+          data-strict={giscusConfig.strict}
+          data-reactions-enabled={giscusConfig.reactionsEnabled}
+          data-emit-metadata={giscusConfig.emitMetadata}
+          data-input-position={giscusConfig.inputPosition}
+          data-theme={giscusConfig.theme}
+          data-lang={giscusConfig.lang}
+          data-loading="lazy"
+          crossorigin="anonymous"
+          async
+        ></script>
+      </div>
+    )}
+  </div>
+</section>
+
+<script is:inline>
+  function bindCommentSort() {
+    const root = document.querySelector('.nyt-comments');
+    const select = root && root.querySelector('[data-comments-sort]');
+    const thread = root && root.querySelector('[data-comments-thread]');
+    if (!root || !select || !thread) return;
+
+    select.addEventListener('change', function () {
+      const mode = select.value;
+      const items = Array.prototype.slice.call(thread.querySelectorAll(':scope > .nyt-comment'));
+      items.sort(function (a, b) {
+        const pa = Date.parse(a.getAttribute('data-published') || '0');
+        const pb = Date.parse(b.getAttribute('data-published') || '0');
+        const ra = Number(a.getAttribute('data-recommends') || 0);
+        const rb = Number(b.getAttribute('data-recommends') || 0);
+        if (mode === 'oldest') return pa - pb;
+        if (mode === 'readers') return rb - ra || pb - pa;
+        return pb - pa;
+      });
+      for (let i = 0; i < items.length; i++) thread.appendChild(items[i]);
+    });
+  }
+
+  bindCommentSort();
+  document.addEventListener('astro:page-load', bindCommentSort);
+</script>

@@ -111,4 +111,17 @@ const posts = defineCollection({
   }),
 });
 
-export const collections = { models, datasets, courses, events, posts };
+/** Git-backed reader comments — rendered like a newspaper comments tray; live replies via Giscus. */
+const comments = defineCollection({
+  loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/comments' }),
+  schema: z.object({
+    post: z.string().min(1),
+    author: z.string().min(1),
+    author_note: z.string().optional(),
+    published: z.coerce.date(),
+    recommends: z.number().int().nonnegative().default(0),
+    parent: z.string().optional(),
+  }),
+});
+
+export const collections = { models, datasets, courses, events, posts, comments };
