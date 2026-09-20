@@ -1,0 +1,63 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+const {
+  title,
+  description = 'AI Sustainability — open geospatial site intelligence and transparent techno-economic assessment for climate-resilient development. A Unite4AI project.',
+} = Astro.props;
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (p: string) => `${base}${p}` || '/';
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title} · AI Sustainability</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={Astro.url.href} />
+    <meta property="og:title" content={`${title} · AI Sustainability`} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href={href('/favicon.svg')} type="image/svg+xml" />
+    <link rel="sitemap" href={href('/sitemap-index.xml')} />
+    <!-- GitHub Pages cannot set HTTP headers, so CSP ships as a meta tag. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; worker-src 'self' blob:; connect-src 'self' https://tiles.openfreemap.org https://*.basemaps.cartocdn.com https://power.larc.nasa.gov https://api.open-meteo.com https://developer.nrel.gov https://nominatim.openstreetmap.org; base-uri 'self'; form-action 'self'"
+    />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <div class="bar">
+        <a class="brand" href={href('/')}>
+          Unite<span>4AI</span><small>AI Sustainability</small>
+        </a>
+        <nav class="site-nav" aria-label="Main">
+          <a href="https://unite4ai.com/">← Unite4AI</a>
+          <a href="https://unite4ai.com/registry">Registry</a>
+          <a href="https://unite4ai.com/school">School</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <slot />
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap">
+        <span>AI Sustainability · a <a href="https://unite4ai.com/">Unite4AI</a> project · Content CC BY 4.0 · Code Apache-2.0</span>
+        <span>Screening intelligence only — not investment, tax, engineering, or legal advice.</span>
+      </div>
+    </footer>
+  </body>
+</html>

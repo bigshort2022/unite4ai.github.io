@@ -209,55 +209,6 @@ p  { margin: 0 0 1.1em; }
   padding: 2rem; text-align: center; color: var(--u-text-dim);
 }
 
-/* ─── Sustainable places homepage preview ─── */
-.places-preview {
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(280px, .75fr);
-  gap: clamp(2rem, 6vw, 5rem);
-  align-items: center;
-  padding: clamp(1.6rem, 5vw, 3rem);
-  overflow: hidden;
-  border: 1px solid #294152;
-  border-radius: calc(var(--u-radius) + 4px);
-  background:
-    linear-gradient(115deg, rgba(12, 31, 39, .96), rgba(10, 18, 28, .98)),
-    var(--u-bg-elev);
-  box-shadow: inset 0 1px rgba(255, 255, 255, .04);
-}
-
-.places-preview .btn { margin-top: .6rem; }
-
-.places-preview-layers {
-  display: grid;
-  gap: .6rem;
-  padding: 1rem;
-  border-left: 1px solid #345367;
-  background: linear-gradient(90deg, rgba(67, 216, 208, .05), transparent);
-}
-
-.places-preview-layers span {
-  display: flex;
-  align-items: center;
-  gap: .75rem;
-  color: var(--u-text-dim);
-  font-family: var(--u-mono);
-  font-size: .76rem;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-}
-
-.places-preview-layers span::before {
-  width: 1.4rem;
-  height: 2px;
-  content: '';
-  background: linear-gradient(90deg, #43d8d0, #f4c266);
-}
-
-@media (max-width: 760px) {
-  .places-preview { grid-template-columns: 1fr; }
-  .places-preview-layers { border-top: 1px solid #345367; border-left: 0; }
-}
-
 @media (max-width: 620px) {
   .site-header .bar {
     display: block;

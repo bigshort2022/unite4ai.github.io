@@ -1,5 +1,5 @@
 {
-  "name": "unite4ai-site",
+  "name": "ai-sustainability-site",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,19 +8,16 @@
   },
   "scripts": {
     "preinstall": "node scripts/node-version.mjs",
-    "test": "node --test test/*.test.mjs",
+    "test": "node --test",
     "dev": "astro dev",
-    "build": "astro build && pagefind --site dist",
+    "build": "astro build",
     "preview": "astro preview",
-    "check": "astro check",
-    "validate": "node scripts/validate.mjs",
-    "setup": "node scripts/setup.mjs"
+    "check": "astro check"
   },
   "dependencies": {
-    "@astrojs/mdx": "^7.0.5",
     "@astrojs/sitemap": "^3.7.3",
     "astro": "^7.2.1",
-    "pagefind": "^1.5.2"
+    "maplibre-gl": "^6.6.0"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
