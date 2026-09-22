@@ -88,6 +88,22 @@ p  { margin: 0 0 1.1em; }
 }
 .lede { font-size: clamp(1.02rem, 1.7vw, 1.2rem); color: var(--u-text-dim); max-width: 62ch; }
 
+.byline {
+  margin: -.15rem 0 1.1rem;
+  color: var(--u-text-faint);
+  font-size: .95rem;
+  letter-spacing: .01em;
+}
+.byline__author {
+  color: var(--u-text);
+  font-weight: 650;
+}
+.byline__sep {
+  margin: 0 .45rem;
+  color: var(--u-border-bright);
+}
+.byline time { color: var(--u-text-dim); }
+
 /* ─── Header / nav ─── */
 .site-header {
   position: sticky; top: 0; z-index: 50;
@@ -279,4 +295,204 @@ p  { margin: 0 0 1.1em; }
 
   .site-nav::-webkit-scrollbar { display: none; }
   .site-nav a { flex: none; white-space: nowrap; }
+}
+
+/* ─── Blog comments (newspaper-style tray) ─── */
+.blog-comments-link {
+  margin: 2.5rem 0 0;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--u-border);
+  font-size: .95rem;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.nyt-comments {
+  max-width: 72ch;
+  margin: 0 auto 4rem;
+  padding: 2rem 0 0;
+  border-top: 2px solid var(--u-text);
+}
+
+.nyt-comments__header { margin-bottom: 1.75rem; }
+.nyt-comments__title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.nyt-comments__title-row h2 {
+  margin: 0;
+  font-size: clamp(1.35rem, 2.5vw, 1.75rem);
+  letter-spacing: -0.03em;
+}
+.nyt-comments__jump {
+  font-size: .9rem;
+  font-weight: 650;
+  text-decoration: none;
+  color: var(--u-text);
+  border-bottom: 1px solid var(--u-border-bright);
+}
+.nyt-comments__jump:hover { color: var(--u-cyan); border-color: var(--u-cyan); }
+.nyt-comments__lede {
+  margin: .85rem 0 1.1rem;
+  color: var(--u-text-dim);
+  font-size: .95rem;
+}
+.nyt-comments__controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: .75rem 0;
+  border-top: 1px solid var(--u-border);
+  border-bottom: 1px solid var(--u-border);
+}
+.nyt-comments__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
+  font-size: .82rem;
+  color: var(--u-text-faint);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-weight: 700;
+}
+.nyt-comments__sort select {
+  font: inherit;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+  color: var(--u-text);
+  background: var(--u-bg-elev);
+  border: 1px solid var(--u-border-bright);
+  border-radius: var(--u-radius-sm);
+  padding: .35rem .6rem;
+  min-height: 40px;
+}
+.nyt-comments__guidelines {
+  margin: 0;
+  font-size: .85rem;
+}
+.nyt-comments__empty {
+  color: var(--u-text-dim);
+  padding: 1.5rem 0;
+}
+
+.nyt-comment {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  gap: .85rem;
+  padding: 1.35rem 0;
+  border-bottom: 1px solid var(--u-border);
+}
+.nyt-comment--reply {
+  padding: 1rem 0 0;
+  border-bottom: 0;
+}
+.nyt-comment__avatar {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+  color: var(--u-text);
+  background: var(--u-bg-elev-2);
+  border: 1px solid var(--u-border-bright);
+}
+.nyt-comment__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem .65rem;
+  align-items: baseline;
+  margin-bottom: .45rem;
+  font-size: .82rem;
+  color: var(--u-text-faint);
+}
+.nyt-comment__author {
+  color: var(--u-text);
+  font-weight: 700;
+  font-size: .92rem;
+}
+.nyt-comment__note { color: var(--u-text-dim); }
+.nyt-comment__prose {
+  color: var(--u-text);
+  font-size: .98rem;
+  line-height: 1.55;
+}
+.nyt-comment__prose p { margin: 0 0 .7em; }
+.nyt-comment__prose p:last-child { margin-bottom: 0; }
+.nyt-comment__actions {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-top: .7rem;
+  font-size: .82rem;
+  font-weight: 650;
+}
+.nyt-comment__actions a {
+  color: var(--u-text-dim);
+  text-decoration: none;
+}
+.nyt-comment__actions a:hover { color: var(--u-cyan); }
+.nyt-comment__reco {
+  color: var(--u-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.nyt-comment__replies {
+  margin-top: .35rem;
+  padding-left: .25rem;
+  border-left: 2px solid var(--u-border);
+  padding-left: 1rem;
+}
+
+.nyt-comments__compose {
+  margin-top: 2rem;
+  padding: 1.4rem 1.35rem;
+  background: var(--u-bg-elev);
+  border: 1px solid var(--u-border);
+  border-radius: var(--u-radius);
+}
+.nyt-comments__compose h3 { margin: 0 0 .4rem; font-size: 1.1rem; }
+.nyt-comments__compose-lede {
+  margin: 0 0 1rem;
+  color: var(--u-text-dim);
+  font-size: .92rem;
+}
+.nyt-comments__compose-lede code {
+  font-family: var(--u-mono);
+  font-size: .85em;
+  background: var(--u-bg-elev-2);
+  padding: .1em .35em;
+  border-radius: 4px;
+  border: 1px solid var(--u-border);
+}
+.nyt-comments__giscus { margin-top: .5rem; min-height: 120px; }
+
+@media (max-width: 560px) {
+  .nyt-comment {
+    grid-template-columns: 2rem minmax(0, 1fr);
+    gap: .65rem;
+  }
+  .nyt-comment__avatar {
+    width: 2rem;
+    height: 2rem;
+    font-size: .65rem;
+  }
+  .nyt-comment__replies { padding-left: .75rem; }
 }

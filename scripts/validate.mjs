@@ -116,6 +116,12 @@ await checkDir('courses', (fm, rel) => {
 
 await checkDir('events', requireFields(['title', 'summary', 'starts', 'kind']));
 await checkDir('posts', requireFields(['title', 'summary', 'author', 'published']));
+await checkDir('comments', (fm, rel) => {
+  requireFields(['post', 'author', 'published'])(fm, rel);
+  if (fm.recommends !== undefined && fm.recommends !== '' && Number.isNaN(Number(unquote(fm.recommends)))) {
+    errors.push(`${rel}: "recommends" must be a number`);
+  }
+});
 
 // ── Report ──────────────────────────────────────────────────────────
 if (warnings.length) {

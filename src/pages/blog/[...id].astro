@@ -1,5 +1,6 @@
 ---
 import Base from '../../layouts/Base.astro';
+import Comments from '../../components/Comments.astro';
 import { getCollection, render } from 'astro:content';
 
 export async function getStaticPaths() {
@@ -12,17 +13,37 @@ const { Content } = await render(entry);
 const d = entry.data;
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const href = (p: string) => `${base}${p}` || '/';
+
+const bylineWhen = d.published.toLocaleString('en-US', {
+  month: 'long',
+  day: 'numeric',
+  year: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  timeZoneName: 'short',
+});
 ---
 <Base title={d.title} description={d.summary}>
   <article class="wrap section" data-pagefind-body>
     <p class="eyebrow"><a href={href('/community')}>Blog</a></p>
     <h1>{d.title}</h1>
+    <p class="byline">
+      By <span class="byline__author">{d.author}</span>
+      <span class="byline__sep" aria-hidden="true">·</span>
+      <time datetime={d.published.toISOString()}>{bylineWhen}</time>
+    </p>
     <p class="lede">{d.summary}</p>
-    <div class="card-meta" style="margin:1.2rem 0 2.5rem">
-      <span class="tag">{d.author}</span>
-      <span class="tag">{d.published.toISOString().slice(0, 10)}</span>
-      {d.tags.map((t) => <span class="tag">{t}</span>)}
-    </div>
+    {d.tags.length > 0 && (
+      <div class="card-meta" style="margin:1.2rem 0 2.5rem">
+        {d.tags.map((t) => <span class="tag">{t}</span>)}
+      </div>
+    )}
     <div class="prose"><Content /></div>
+    <p class="blog-comments-link">
+      <a href="#comments">Jump to comments</a>
+    </p>
   </article>
+  <div class="wrap" data-pagefind-ignore>
+    <Comments postId={entry.id} />
+  </div>
 </Base>
