@@ -1,0 +1,15 @@
+{
+  "name": "unite4ai-site",
+  "user": "ubuntu",
+  "install": "bash .cursor/install.sh",
+  "terminals": [
+    {
+      "name": "dev",
+      "command": "bash .cursor/dev.sh",
+      "description": "Astro dev server (http://localhost:4321)"
+    }
+  ],
+  "ports": [
+    { "name": "astro dev", "port": 4321 }
+  ]
+}
