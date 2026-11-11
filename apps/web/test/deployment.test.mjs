@@ -5,7 +5,8 @@ import test from 'node:test';
 
 const ROOT = new URL('..', import.meta.url);
 
-test('production build targets the unite4ai.com custom domain', async () => {
+// Spawns a full Astro + Pagefind build; CI runners routinely exceed bun's 5s default.
+test('production build targets the unite4ai.com custom domain', { timeout: 120_000 }, async () => {
   const result = spawnSync('bun', ['run', 'build'], {
     cwd: ROOT,
     encoding: 'utf8',

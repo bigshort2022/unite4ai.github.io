@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 
-test('Astro check runs diagnostics without requesting dependencies', () => {
+// Spawns `astro check`; CI runners routinely exceed bun's 5s default.
+test('Astro check runs diagnostics without requesting dependencies', { timeout: 120_000 }, () => {
   const result = spawnSync('bun', ['run', 'check'], {
     cwd: new URL('..', import.meta.url),
     encoding: 'utf8',
