@@ -1,0 +1,128 @@
+/* ─── AI Sustainability — base tokens & shell ──────────────────
+   The Sustainable Places workspace (places.css) provides its own
+   dark "--p-*" palette; this file supplies the shared typography
+   tokens it references plus the site header/footer chrome. */
+
+:root {
+  --u-ink: #05060a;
+  --u-panel: #0b161c;
+  --u-line: #20343f;
+  --u-text: #edf5f3;
+  --u-text-dim: #8fa3a5;
+  --u-text-faint: #657b80;
+  --u-cyan: #43d8d0;
+  --u-gold: #f4c266;
+  --u-grad: linear-gradient(100deg, #43d8d0, #62aeea 55%, #f4c266);
+  --u-font: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --u-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html {
+  background: var(--u-ink);
+  color-scheme: dark;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+body {
+  margin: 0;
+  color: var(--u-text);
+  background: var(--u-ink);
+  font-family: var(--u-font);
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; }
+
+.skip-link {
+  position: absolute;
+  left: -999px;
+  top: 0;
+  z-index: 100;
+  padding: .6rem 1rem;
+  background: var(--u-cyan);
+  color: #05060a;
+  border-radius: 0 0 6px 0;
+}
+.skip-link:focus { left: 0; }
+
+/* Header */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  height: 63px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--u-line);
+  background: rgba(7, 16, 20, .86);
+  backdrop-filter: blur(8px);
+}
+.site-header .bar {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.brand {
+  display: inline-flex;
+  align-items: baseline;
+  gap: .1rem;
+  font-weight: 700;
+  font-size: 1.05rem;
+  text-decoration: none;
+  letter-spacing: .01em;
+}
+.brand span {
+  background: var(--u-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.brand small {
+  margin-left: .55rem;
+  font-weight: 500;
+  font-size: .72rem;
+  color: var(--u-text-faint);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.site-nav { margin-left: auto; display: flex; gap: .4rem; align-items: center; }
+.site-nav a {
+  padding: .38rem .7rem;
+  border-radius: 8px;
+  font-size: .84rem;
+  color: var(--u-text-dim);
+  text-decoration: none;
+}
+.site-nav a:hover { color: var(--u-text); background: var(--u-panel); }
+
+/* Footer */
+.site-footer {
+  border-top: 1px solid var(--u-line);
+  background: #071014;
+}
+.site-footer .wrap {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 1.4rem 1.1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--u-text-faint);
+  font-size: .8rem;
+}
+.site-footer a { color: var(--u-text-dim); }
+
+@media (max-width: 620px) {
+  .brand small { display: none; }
+  .site-nav a { padding: .38rem .55rem; }
+}

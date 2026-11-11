@@ -59,28 +59,6 @@ const nextEvents = events.filter((e) => e.data.starts > new Date()).slice(0, 2);
     </div>
   </section>
 
-  <section class="wrap section" style="padding-top:0" aria-labelledby="places-preview-title">
-    <div class="places-preview">
-      <div>
-        <p class="eyebrow">Open geospatial research</p>
-        <h2 id="places-preview-title">Explore sustainable places</h2>
-        <p class="lede">
-          Compare live-work-play sites through energy resources, climate resilience,
-          infrastructure, incentives, and transparent development economics.
-        </p>
-        <a class="btn btn-primary" href={href('/places')}>Open the site intelligence map</a>
-      </div>
-      <div class="places-preview-layers" aria-label="Research layers included">
-        <span>Solar + wind</span>
-        <span>Geothermal + hydro</span>
-        <span>Grid + storage</span>
-        <span>Climate + hazards</span>
-        <span>Policy + incentives</span>
-        <span>Development ROI</span>
-      </div>
-    </div>
-  </section>
-
   {featured.length > 0 && (
     <section class="wrap section" style="padding-top:0">
       <h2>Featured models</h2>

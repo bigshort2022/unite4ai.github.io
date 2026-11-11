@@ -8,7 +8,7 @@
   },
   "scripts": {
     "preinstall": "node scripts/node-version.mjs",
-    "test": "node --test",
+    "test": "node --test test/*.test.mjs",
     "dev": "astro dev",
     "build": "astro build && pagefind --site dist",
     "preview": "astro preview",
@@ -20,7 +20,6 @@
     "@astrojs/mdx": "^7.0.5",
     "@astrojs/sitemap": "^3.7.3",
     "astro": "^7.2.1",
-    "maplibre-gl": "^6.6.0",
     "pagefind": "^1.5.2"
   },
   "devDependencies": {
