@@ -1,6 +1,6 @@
 # Unite4AI API (Cloudflare Worker)
 
-Hono + TypeScript edge API for registry search, evidence feeds, and verification metadata.
+Hono + TypeScript edge API for registry search and verification metadata.
 
 ## Endpoints
 
@@ -12,8 +12,6 @@ Hono + TypeScript edge API for registry search, evidence feeds, and verification
 | `GET /api/v1/datasets/:id` | Dataset detail |
 | `GET /api/v1/search?q=` | Search models + datasets |
 | `POST /api/v1/verify/sha256` | Verify command metadata |
-| `GET /api/evidence?lat=&lng=` | Sustainable Places evidence |
-| `GET /api/geocode?q=` | Geocoding proxy |
 
 ## Local development
 
@@ -28,12 +26,11 @@ bun run dev              # wrangler dev
 1. Create a D1 database: `wrangler d1 create unite4ai-registry`
 2. Update `database_id` in `wrangler.toml`
 3. Apply migrations: `wrangler d1 migrations apply unite4ai-registry --remote`
-4. Set secret: `wrangler secret put NREL_API_KEY`
-5. Deploy: `bun run deploy`
-6. Route worker to `https://unite4ai.com/api/*` or set `PUBLIC_API_BASE` on the static site build
+4. Deploy: `bun run deploy`
+5. Route worker to `https://unite4ai.com/api/*`
 
 Without D1 configured, the worker serves registry data from the bundled `registry-snapshot.json` (regenerated on each `sync:d1` run).
 
 ## Cost
 
-Free tier: 100k requests/day on Cloudflare Workers. Upgrade to Workers Paid ($5/mo) if evidence API hits the 10ms CPU limit.
+Free tier: 100k requests/day on Cloudflare Workers.

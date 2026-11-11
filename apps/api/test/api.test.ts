@@ -44,10 +44,3 @@ describe('registry API', () => {
     expect(body.verify_command).toContain('sha256sum');
   });
 });
-
-describe('evidence API', () => {
-  test('GET /api/evidence requires lat/lng', async () => {
-    const res = await app.request('/api/evidence');
-    expect(res.status).toBe(400);
-  });
-});

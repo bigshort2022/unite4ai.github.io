@@ -17,7 +17,6 @@ const nav = [
   { label: 'Registry', href: '/registry' },
   { label: 'Playground', href: '/playground' },
   { label: 'School', href: '/school' },
-  { label: 'Places', href: '/places' },
   { label: 'Community', href: '/community' },
   { label: 'Search', href: '/search' },
   { label: 'Contribute', href: '/contribute' },
@@ -41,7 +40,7 @@ const nav = [
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <!-- GitHub Pages cannot set HTTP headers, so CSP ships as a meta tag. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://giscus.app; worker-src 'self' blob:; frame-src https://giscus.app; connect-src 'self' https://api.github.com https://tiles.openfreemap.org https://*.basemaps.cartocdn.com https://power.larc.nasa.gov https://api.open-meteo.com https://developer.nrel.gov https://nominatim.openstreetmap.org; base-uri 'self'; form-action 'self'" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://giscus.app; worker-src 'self' blob:; frame-src https://giscus.app; connect-src 'self' https://api.github.com; base-uri 'self'; form-action 'self'" />
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -82,7 +81,7 @@ const nav = [
           </div>
           <div>
             <strong>Open</strong>
-            <a href="https://github.com/unite4ai/unite4ai.github.io">Source on GitHub</a>
+            <a href="https://github.com/bigshort2022/unite4ai.github.io">Source on GitHub</a>
             <a href={href('/governance')}>Governance</a>
             <a href={href('/governance/metrics')}>Metrics</a>
             <a href={href('/privacy')}>Privacy</a>

@@ -6,7 +6,7 @@ Open-source AI education platform and federated model registry — a trust-first
 
 ```
 apps/web/       Astro static site (unite4ai.com)
-apps/api/       Hono TypeScript Cloudflare Worker (registry + evidence API)
+apps/api/       Hono TypeScript Cloudflare Worker (registry API)
 apps/cli/       unite4ai publish CLI
 packages/schema Zod content schemas
 packages/core   Openness score, stack layers, validation
@@ -27,7 +27,7 @@ bun run sync:d1      # refresh registry JSON from markdown
 
 ## API worker
 
-See [apps/api/README.md](apps/api/README.md). Deploy to Cloudflare Workers (free tier: 100k req/day). Set `PUBLIC_API_BASE` in GitHub Actions variables when the worker is live.
+See [apps/api/README.md](apps/api/README.md). Deploy to Cloudflare Workers (free tier: 100k req/day).
 
 ## Submit content
 
@@ -37,4 +37,6 @@ See [apps/api/README.md](apps/api/README.md). Deploy to Cloudflare Workers (free
 
 ## Cost
 
-Static site on GitHub Pages: **$0**. Cloudflare Worker + D1 free tiers cover registry API until ~100k requests/day. Optional Workers Paid (~$5/mo) if evidence API hits CPU limits.
+Static site on GitHub Pages: **$0**. Cloudflare Worker + D1 free tiers cover registry API until ~100k requests/day.
+
+The Sustainable Places app lives in [`sites/ai-sustainability/`](sites/ai-sustainability/README.md), a standalone npm/Astro project staged for its own repo and `sustainability.unite4ai.com`; it is not part of the Bun workspace.

@@ -1,15 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import {
-  createReoptJob,
-  fetchAllEvidence,
-  getCachedEvidence,
-  getCachedGeocode,
-  getReoptJob,
-  setCachedEvidence,
-  setCachedGeocode,
-} from './evidence';
-import {
   getDataset,
   getModel,
   listDatasets,
@@ -28,72 +19,6 @@ app.use('*', cors({
 }));
 
 app.get('/api/health', (c) => c.json({ ok: true, service: 'unite4ai-api', version: 3 }));
-
-app.get('/api/evidence', async (c) => {
-  const lat = Number(c.req.query('lat'));
-  const lng = Number(c.req.query('lng'));
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-    return c.json({ error: 'lat and lng required' }, 400);
-  }
-  const hit = getCachedEvidence(lat, lng);
-  if (hit) {
-    return c.json({ ...(hit as object), cache: 'hit' }, 200, {
-      'Cache-Control': 'public, max-age=900',
-    });
-  }
-  const result = await fetchAllEvidence(lat, lng, c.env.NREL_API_KEY ?? 'DEMO_KEY');
-  setCachedEvidence(lat, lng, result);
-  return c.json(result, 200, { 'Cache-Control': 'public, max-age=900' });
-});
-
-app.get('/api/geocode', async (c) => {
-  const q = c.req.query('q')?.trim();
-  if (!q) return c.json({ error: 'q required' }, 400);
-  const hit = getCachedGeocode(q);
-  if (hit) {
-    return c.json(hit, 200, { 'Cache-Control': 'public, max-age=604800' });
-  }
-  const response = await fetch(
-    `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(q)}`,
-    {
-      headers: {
-        'Accept-Language': 'en',
-        'User-Agent': 'Unite4AI-API/3.0 (https://unite4ai.com)',
-      },
-    },
-  );
-  const results = await response.json() as Array<{ lat: string; lon: string; display_name: string }>;
-  if (!results[0]) return c.json({ error: 'No results' }, 404);
-  const payload = {
-    latitude: Number(results[0].lat),
-    longitude: Number(results[0].lon),
-    label: results[0].display_name.split(',').slice(0, 2).join(','),
-  };
-  setCachedGeocode(q, payload);
-  return c.json(payload, 200, { 'Cache-Control': 'public, max-age=604800' });
-});
-
-app.post('/api/reopt', async (c) => {
-  let body: { latitude?: number; longitude?: number; archetype?: string };
-  try {
-    body = await c.req.json();
-  } catch {
-    return c.json({ error: 'Invalid JSON' }, 400);
-  }
-  const { latitude, longitude, archetype } = body ?? {};
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-    return c.json({ error: 'latitude and longitude required' }, 400);
-  }
-  const job = createReoptJob({ latitude: latitude!, longitude: longitude!, archetype });
-  return c.json(job, 202);
-});
-
-app.get('/api/reopt', (c) => {
-  const jobId = c.req.query('jobId');
-  const job = jobId ? getReoptJob(jobId) : null;
-  if (!job) return c.json({ error: 'Job not found' }, 404);
-  return c.json(job);
-});
 
 app.post('/api/vitals', () => new Response(null, { status: 204 }));
 

@@ -5,7 +5,6 @@ import snapshot from './generated/registry-snapshot.json';
 
 export interface Env {
   DB?: D1Database;
-  NREL_API_KEY?: string;
   ARTIFACTS?: R2Bucket;
 }
 

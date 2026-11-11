@@ -34,8 +34,6 @@ jobs:
 
       - name: Build site (Astro + Pagefind search index)
         run: bun run build
-        env:
-          PUBLIC_API_BASE: ${{ vars.PUBLIC_API_BASE || '' }}
 
       - name: Verify artifact checksums
         run: bun run verify-artifacts

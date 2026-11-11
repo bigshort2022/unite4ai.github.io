@@ -20,7 +20,6 @@
     "@unite4ai/core": "workspace:*",
     "@unite4ai/schema": "workspace:*",
     "astro": "^7.2.1",
-    "maplibre-gl": "^6.6.0",
     "pagefind": "^1.5.2"
   },
   "devDependencies": {

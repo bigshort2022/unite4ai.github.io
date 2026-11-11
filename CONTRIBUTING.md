@@ -15,11 +15,11 @@ a pull request when you save.
 
 ```bash
 git clone https://github.com/<you>/unite4ai.git
-cd unite4ai && npm install
+cd unite4ai && bun install
 git checkout -b my-contribution
 
-# add or edit a file under src/content/
-npm run validate && npm run build
+# add or edit a file under apps/web/src/content/
+bun run validate && bun run build
 
 git commit -am "Add <thing>" && git push origin my-contribution
 ```
@@ -29,20 +29,20 @@ git commit -am "Add <thing>" && git push origin my-contribution
 Search requires a built Pagefind index. After your first clone:
 
 ```bash
-npm run build && npm run preview   # full site including search
-npm run dev                        # fast iteration; /search needs build first
+bun run build && bun run preview   # full site including search
+bun run dev                        # fast iteration; /search needs build first
 ```
 
 Scaffold a new model card:
 
 ```bash
-npm run new:model my-model-slug
+bun run new:model my-model-slug
 ```
 
 Verify artifact checksums (optional, requires network):
 
 ```bash
-npm run verify-artifacts
+bun run verify-artifacts
 ```
 
 ## What gets checked

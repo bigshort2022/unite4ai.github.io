@@ -20,7 +20,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     window.addEventListener('DOMContentLoaded', () => {
       if (typeof PagefindUI === 'undefined') {
         document.getElementById('search').innerHTML =
-          '<p class="empty">Search index builds during deployment. Run <code>npm run build</code> to generate it locally.</p>';
+          '<p class="empty">Search index builds during deployment. Run <code>bun run build</code> to generate it locally.</p>';
         return;
       }
       new PagefindUI({ element: '#search', showSubResults: true, showImages: false, bundlePath: base + '/pagefind/' });

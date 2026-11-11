@@ -2,12 +2,6 @@ const POWER_URL = 'https://power.larc.nasa.gov/';
 const FORECAST_URL = 'https://open-meteo.com/';
 const PVWATTS_URL = 'https://developer.nrel.gov/docs/solar/pvwatts/v8/';
 
-export const FEED_TTLS = Object.freeze({
-  power: 24 * 60 * 60 * 1000,
-  forecast: 15 * 60 * 1000,
-  pvwatts: 7 * 24 * 60 * 60 * 1000,
-});
-
 const round = (value, digits = 1) => Number(Number(value).toFixed(digits));
 const average = (values = []) => values.length
   ? values.reduce((total, value) => total + Number(value || 0), 0) / values.length
@@ -15,7 +9,7 @@ const average = (values = []) => values.length
 const maximum = (values = []) => values.length ? Math.max(...values.map(Number)) : 0;
 const sum = (values = []) => values.reduce((total, value) => total + Number(value || 0), 0);
 
-export function evidence({
+function evidence({
   key,
   label,
   value,
@@ -58,10 +52,34 @@ export function normalizePower(payload, observedAt = new Date().toISOString()) {
   };
 
   return [
-    evidence({ ...common, key: 'solar-resource', label: 'Solar resource', value: round(parameters.ALLSKY_SFC_SW_DWN.ANN, 2), unit: 'kWh/m²/day' }),
-    evidence({ ...common, key: 'mean-temperature', label: 'Mean temperature', value: round(parameters.T2M?.ANN ?? 0, 1), unit: '°C' }),
-    evidence({ ...common, key: 'wind-speed', label: 'Mean wind speed', value: round(parameters.WS10M?.ANN ?? 0, 1), unit: 'm/s' }),
-    evidence({ ...common, key: 'precipitation', label: 'Mean precipitation', value: round(parameters.PRECTOTCORR?.ANN ?? 0, 1), unit: 'mm/day' }),
+    evidence({
+      ...common,
+      key: 'solar-resource',
+      label: 'Solar resource',
+      value: round(parameters.ALLSKY_SFC_SW_DWN.ANN, 2),
+      unit: 'kWh/m²/day',
+    }),
+    evidence({
+      ...common,
+      key: 'mean-temperature',
+      label: 'Mean temperature',
+      value: round(parameters.T2M?.ANN ?? 0, 1),
+      unit: '°C',
+    }),
+    evidence({
+      ...common,
+      key: 'wind-speed',
+      label: 'Mean wind speed',
+      value: round(parameters.WS10M?.ANN ?? 0, 1),
+      unit: 'm/s',
+    }),
+    evidence({
+      ...common,
+      key: 'precipitation',
+      label: 'Mean precipitation',
+      value: round(parameters.PRECTOTCORR?.ANN ?? 0, 1),
+      unit: 'mm/day',
+    }),
   ];
 }
 
@@ -80,10 +98,34 @@ export function normalizeForecast(payload, observedAt = new Date().toISOString()
   };
 
   return [
-    evidence({ ...common, key: 'forecast-high', label: 'Forecast mean high', value: round(average(daily.temperature_2m_max), 1), unit: '°C' }),
-    evidence({ ...common, key: 'forecast-low', label: 'Forecast mean low', value: round(average(daily.temperature_2m_min), 1), unit: '°C' }),
-    evidence({ ...common, key: 'forecast-rain', label: 'Forecast precipitation', value: round(sum(daily.precipitation_sum), 1), unit: 'mm total' }),
-    evidence({ ...common, key: 'forecast-wind', label: 'Forecast peak wind', value: round(maximum(daily.wind_speed_10m_max), 1), unit: 'km/h' }),
+    evidence({
+      ...common,
+      key: 'forecast-high',
+      label: 'Forecast mean high',
+      value: round(average(daily.temperature_2m_max), 1),
+      unit: '°C',
+    }),
+    evidence({
+      ...common,
+      key: 'forecast-low',
+      label: 'Forecast mean low',
+      value: round(average(daily.temperature_2m_min), 1),
+      unit: '°C',
+    }),
+    evidence({
+      ...common,
+      key: 'forecast-rain',
+      label: 'Forecast precipitation',
+      value: round(sum(daily.precipitation_sum), 1),
+      unit: 'mm total',
+    }),
+    evidence({
+      ...common,
+      key: 'forecast-wind',
+      label: 'Forecast peak wind',
+      value: round(maximum(daily.wind_speed_10m_max), 1),
+      unit: 'km/h',
+    }),
   ];
 }
 
@@ -104,12 +146,24 @@ export function normalizePvWatts(payload, observedAt = new Date().toISOString())
   };
 
   return [
-    evidence({ ...common, key: 'pv-production', label: 'PV production', value: round(outputs.ac_annual, 0), unit: 'kWh/kW/year' }),
-    evidence({ ...common, key: 'pv-capacity-factor', label: 'PV capacity factor', value: round(outputs.capacity_factor ?? 0, 1), unit: '%' }),
+    evidence({
+      ...common,
+      key: 'pv-production',
+      label: 'PV production',
+      value: round(outputs.ac_annual, 0),
+      unit: 'kWh/kW/year',
+    }),
+    evidence({
+      ...common,
+      key: 'pv-capacity-factor',
+      label: 'PV capacity factor',
+      value: round(outputs.capacity_factor ?? 0, 1),
+      unit: '%',
+    }),
   ];
 }
 
-export function fallbackEvidence(observedAt) {
+function fallbackEvidence(observedAt) {
   const common = {
     sourceUrl: '',
     observedAt,
@@ -127,26 +181,19 @@ export function fallbackEvidence(observedAt) {
   ];
 }
 
-export async function fetchJson(url, { signal, timeoutMs = 12_000 } = {}) {
+async function fetchJson(url, timeoutMs = 12_000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  const onAbort = () => controller.abort();
-  signal?.addEventListener('abort', onAbort);
   try {
     const response = await fetch(url, { signal: controller.signal });
     if (!response.ok) throw new Error(`Source request failed with ${response.status}`);
     return await response.json();
   } finally {
     clearTimeout(timer);
-    signal?.removeEventListener('abort', onAbort);
   }
 }
 
-export function nrelApiKey() {
-  return (typeof process !== 'undefined' && process.env?.NREL_API_KEY) || 'DEMO_KEY';
-}
-
-export async function fetchPower(latitude, longitude, observedAt, options = {}) {
+async function fetchPower(latitude, longitude, observedAt) {
   const query = new URLSearchParams({
     parameters: 'ALLSKY_SFC_SW_DWN,WS10M,T2M,PRECTOTCORR',
     community: 'RE',
@@ -154,11 +201,11 @@ export async function fetchPower(latitude, longitude, observedAt, options = {}) 
     latitude: String(latitude),
     format: 'JSON',
   });
-  const payload = await fetchJson(`https://power.larc.nasa.gov/api/temporal/climatology/point?${query}`, options);
+  const payload = await fetchJson(`https://power.larc.nasa.gov/api/temporal/climatology/point?${query}`);
   return normalizePower(payload, observedAt);
 }
 
-export async function fetchForecast(latitude, longitude, observedAt, options = {}) {
+async function fetchForecast(latitude, longitude, observedAt) {
   const query = new URLSearchParams({
     latitude: String(latitude),
     longitude: String(longitude),
@@ -166,14 +213,14 @@ export async function fetchForecast(latitude, longitude, observedAt, options = {
     forecast_days: '7',
     timezone: 'auto',
   });
-  const payload = await fetchJson(`https://api.open-meteo.com/v1/forecast?${query}`, options);
+  const payload = await fetchJson(`https://api.open-meteo.com/v1/forecast?${query}`);
   return normalizeForecast(payload, observedAt);
 }
 
-export async function fetchPvWatts(latitude, longitude, observedAt, options = {}) {
+async function fetchPvWatts(latitude, longitude, observedAt) {
   const isUs = latitude >= 24 && latitude <= 50 && longitude >= -125 && longitude <= -66;
   const query = new URLSearchParams({
-    api_key: nrelApiKey(),
+    api_key: 'DEMO_KEY',
     azimuth: '180',
     system_capacity: '1',
     losses: '14',
@@ -185,23 +232,25 @@ export async function fetchPvWatts(latitude, longitude, observedAt, options = {}
     dataset: isUs ? 'nsrdb' : 'intl',
     timeframe: 'monthly',
   });
-  const payload = await fetchJson(`https://developer.nrel.gov/api/pvwatts/v8.json?${query}`, options);
+  const payload = await fetchJson(`https://developer.nrel.gov/api/pvwatts/v8.json?${query}`);
   if (payload.errors?.length) throw new Error(payload.errors.join('; '));
   return normalizePvWatts(payload, observedAt);
 }
 
-export const FEED_REQUESTS = Object.freeze([
-  ['power', fetchPower],
-  ['forecast', fetchForecast],
-  ['pvwatts', fetchPvWatts],
-]);
-
-export function mergeEvidenceResults(settled, fallback, observedAt) {
+export async function fetchLocationEvidence({ latitude, longitude }) {
+  const observedAt = new Date().toISOString();
+  const fallback = fallbackEvidence(observedAt);
+  const requests = [
+    ['power', () => fetchPower(latitude, longitude, observedAt)],
+    ['forecast', () => fetchForecast(latitude, longitude, observedAt)],
+    ['pvwatts', () => fetchPvWatts(latitude, longitude, observedAt)],
+  ];
+  const settled = await Promise.allSettled(requests.map(([, request]) => request()));
   const health = {};
   const records = [];
 
   settled.forEach((result, index) => {
-    const key = FEED_REQUESTS[index][0];
+    const key = requests[index][0];
     if (result.status === 'fulfilled') {
       health[key] = 'live';
       records.push(...result.value);
@@ -215,13 +264,4 @@ export function mergeEvidenceResults(settled, fallback, observedAt) {
   }
 
   return { evidence: records, health, observedAt };
-}
-
-export async function fetchAllEvidence({ latitude, longitude, signal } = {}) {
-  const observedAt = new Date().toISOString();
-  const fallback = fallbackEvidence(observedAt);
-  const settled = await Promise.allSettled(
-    FEED_REQUESTS.map(([, request]) => request(latitude, longitude, observedAt, { signal })),
-  );
-  return mergeEvidenceResults(settled, fallback, observedAt);
 }
