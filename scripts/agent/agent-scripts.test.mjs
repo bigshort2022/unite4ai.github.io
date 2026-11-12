@@ -333,3 +333,54 @@ test('model-check reports not_ready with a plain message when the completion tim
     server.close();
   }
 });
+
+const REQUEST = resolve(ROOT, 'scripts/agent/request.mjs');
+
+/** Renders a request, returns the parsed file, and removes it so tests leave `.agent/` clean. */
+function render(template, goal) {
+  const r = run(REQUEST, [template, goal]);
+  assert.equal(r.status, 0, r.stderr);
+  const out = r.stdout.trim();
+  try {
+    return { r, out, request: JSON.parse(readFileSync(out, 'utf8')) };
+  } finally {
+    rmSync(out, { force: true });
+  }
+}
+
+test('request renders a loop template with absolute cwd and the goal', () => {
+  const { r, out, request } = render('hub-loop', 'Make /contribute link to /submit.');
+  assert.ok(out.startsWith(resolve(ROOT, '.agent/requests/hub-loop-')), out);
+  assert.equal(request.cwd, ROOT);
+  assert.equal(request.goal, 'Make /contribute link to /submit.');
+  assert.equal(request.mode, 'loop');
+  assert.equal(request.checks[0].cwd, ROOT);
+  assert.deepEqual(request.checks[0].argv, ['node', 'scripts/agent/verify.mjs', '--only', 'hub']);
+  assert.match(r.stderr, new RegExp(`omp local --run ${out}`));
+});
+
+test('request renders the read-only task and the sustainability loop', () => {
+  const inspect = render('inspect', 'Explain the hub layout.').request;
+  assert.equal(inspect.mode, 'task');
+  assert.equal(inspect.cwd, ROOT);
+  assert.deepEqual(inspect.capabilities, ['read', 'glob', 'grep']);
+  assert.equal(inspect.checks, undefined);
+  const sustain = render('sustain-loop', 'Fix the footer year.').request;
+  assert.deepEqual(sustain.context_files, ['AGENTS.md', 'sites/ai-sustainability/AGENTS.md']);
+  assert.equal(sustain.checks[0].cwd, ROOT);
+  assert.deepEqual(sustain.checks[0].argv, ['node', 'scripts/agent/verify.mjs', '--only', 'sustain']);
+});
+
+test('request refuses a goal that would blow the prompt budget', () => {
+  const r = run(REQUEST, ['inspect', 'x'.repeat(15_000)]);
+  assert.equal(r.status, 3);
+  assert.match(r.stderr, /16384/);
+  assert.equal(r.stdout, '');
+});
+
+test('request rejects a missing template or goal', () => {
+  assert.equal(run(REQUEST, ['hub-loop']).status, 2);
+  assert.equal(run(REQUEST, ['hub-loop', '  ']).status, 2);
+  assert.equal(run(REQUEST, ['nope', 'goal']).status, 2);
+  assert.equal(run(REQUEST, ['../../package', 'goal']).status, 2);
+});
