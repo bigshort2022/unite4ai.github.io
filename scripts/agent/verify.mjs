@@ -3,14 +3,21 @@
  * Objective acceptance gate for agent runs. Runs each step with a timeout, writes one log,
  * and prints exactly one JSON summary line last so a small model (or omp's loop runner)
  * can read the outcome without parsing build output.
+ *
+ * Each step runs in its own process group. verify kills that whole group when the step
+ * times out and when verify itself receives SIGINT, SIGTERM or SIGHUP (then exits 128+signo
+ * without a summary), so no build or test process outlives the gate.
  */
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { constants } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
 const ROOT = resolve(import.meta.dirname, '../..');
 const SUSTAIN = join(ROOT, 'sites/ai-sustainability');
 const USAGE = 'usage: verify.mjs [--only hub|sustain] [--list]  (env: AGENT_STEP_TIMEOUT=<seconds > 0>)';
+// Per stream, keep at most the last 32 Mi characters of output (the tail is what matters).
+const MAX_OUTPUT = 32 * 1024 * 1024;
 
 const STEP_SETS = {
   hub: [
@@ -29,7 +36,7 @@ const args = process.argv.slice(2);
 const onlyIndex = args.indexOf('--only');
 const only = onlyIndex === -1 ? 'all' : args[onlyIndex + 1];
 const sets = only === 'all' ? ['hub', 'sustain'] : [only];
-const timeoutSeconds = Number(process.env.AGENT_STEP_TIMEOUT ?? 600);
+const timeoutSeconds = Number(process.env.AGENT_STEP_TIMEOUT || 600);
 if (sets.some((s) => !STEP_SETS[s]) || !Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0) {
   console.error(USAGE);
   process.exit(2);
@@ -45,6 +52,67 @@ if (args.includes('--list')) {
   process.exit(0);
 }
 
+let current = null;
+function killGroup(child) {
+  if (!(child?.pid > 0)) return;
+  try { process.kill(-child.pid, 'SIGKILL'); } catch {} // ESRCH: the group is already gone.
+}
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+  process.on(signal, () => {
+    killGroup(current);
+    process.exit(128 + constants.signals[signal]);
+  });
+}
+
+/** Collects one stream's text, keeping only the last MAX_OUTPUT characters (trimmed lazily). */
+function collector(stream) {
+  const sink = { text: '', truncated: false };
+  stream.setEncoding('utf8');
+  stream.on('data', (chunk) => {
+    sink.text += chunk;
+    if (sink.text.length > 2 * MAX_OUTPUT) {
+      sink.text = sink.text.slice(-MAX_OUTPUT);
+      sink.truncated = true;
+    }
+  });
+  return sink;
+}
+
+function runStep(step, env, timeoutMs) {
+  return new Promise((settle) => {
+    let child;
+    try {
+      child = spawn('bash', ['-c', step.cmd], { cwd: step.cwd, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch (error) {
+      settle({ status: null, timedOut: false, error, stdout: '', stderr: '' });
+      return;
+    }
+    current = child;
+    const out = collector(child.stdout);
+    const err = collector(child.stderr);
+    let timedOut = false;
+    let done = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      killGroup(child);
+    }, timeoutMs);
+    const finish = (status, error) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      current = null;
+      const trim = (sink, name) =>
+        sink.text.length > MAX_OUTPUT || sink.truncated
+          ? `[verify] ${name} truncated to its last ${MAX_OUTPUT} characters\n${sink.text.slice(-MAX_OUTPUT)}`
+          : sink.text;
+      settle({ status, timedOut, error, stdout: trim(out, 'stdout'), stderr: trim(err, 'stderr') });
+    };
+    // A failed spawn (missing cwd, no bash) has no pid; a running child reports via 'close'.
+    child.on('error', (error) => { if (!(child.pid > 0)) finish(null, error); });
+    child.on('close', (status) => finish(status, timedOut ? Object.assign(new Error(`step timed out after ${timeoutMs / 1000}s`), { code: 'ETIMEDOUT' }) : null));
+  });
+}
+
 // The runner may call us with a minimal PATH: put this Node and Bun first.
 const env = { ...process.env, PATH: `${dirname(process.execPath)}:${process.env.HOME}/.bun/bin:${process.env.PATH ?? ''}` };
 const logDir = join(ROOT, '.agent/logs');
@@ -55,24 +123,16 @@ const startedAt = Date.now();
 
 for (const step of steps) {
   const t0 = Date.now();
-  // detached: the step leads its own process group, so a timeout can kill its whole tree.
-  const r = spawnSync('bash', ['-c', step.cmd], {
-    cwd: step.cwd, encoding: 'utf8', env, timeout: timeoutSeconds * 1000, killSignal: 'SIGTERM',
-    detached: true, maxBuffer: 32 * 1024 * 1024,
-  });
-  const timedOut = r.error?.code === 'ETIMEDOUT';
-  if (timedOut) {
-    try { process.kill(-r.pid, 'SIGKILL'); } catch {} // ESRCH: the group is already gone.
-  }
-  const output = `${r.stdout ?? ''}${r.stderr ?? ''}`;
-  const spawnError = r.error ? `\n[verify] ${r.error.message}\n` : '';
+  const r = await runStep(step, env, timeoutSeconds * 1000);
+  const output = `${r.stdout}${r.stderr}`;
+  const spawnError = r.error ? `\n[verify] ${r.error.message} (cwd ${step.cwd})\n` : '';
   appendFileSync(log, `### ${step.name} (${step.cwd}) $ ${step.cmd}\n${output}${spawnError}\n`);
   const ok = !r.error && r.status === 0;
   console.error(`${ok ? 'ok  ' : 'FAIL'} ${step.name} ${((Date.now() - t0) / 1000).toFixed(1)}s`);
   if (!ok) {
     const tail = output.trim().split('\n').slice(-20).join('\n');
     console.log(JSON.stringify({
-      status: 'fail', failed_step: step.name, exit_code: r.status, timed_out: timedOut, error: r.error?.code ?? null, log, tail,
+      status: 'fail', failed_step: step.name, exit_code: r.status, timed_out: r.timedOut, error: r.error?.code ?? null, log, tail,
       seconds: (Date.now() - startedAt) / 1000,
     }));
     process.exit(1);
