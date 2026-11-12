@@ -1,0 +1,38 @@
+---
+/**
+ * Giscus comments — requires repo configuration at https://giscus.app
+ * Set PUBLIC_GISCUS_REPO and PUBLIC_GISCUS_REPO_ID in build env to enable.
+ */
+interface Props {
+  term?: string;
+  category?: string;
+}
+
+const { term = Astro.url.pathname, category = 'Announcements' } = Astro.props;
+const repo = import.meta.env.PUBLIC_GISCUS_REPO ?? 'unite4ai/unite4ai.github.io';
+const repoId = import.meta.env.PUBLIC_GISCUS_REPO_ID ?? '';
+const categoryId = import.meta.env.PUBLIC_GISCUS_CATEGORY_ID ?? '';
+const enabled = Boolean(repoId && categoryId);
+---
+{enabled && (
+  <section class="giscus-section wrap section" style="padding-top:0" aria-label="Discussion">
+    <h2>Discussion</h2>
+    <p class="lede" style="font-size:.9rem">Comments are powered by GitHub Discussions. No account on this site — sign in with GitHub to participate.</p>
+    <script
+      src="https://giscus.app/client.js"
+      data-repo={repo}
+      data-repo-id={repoId}
+      data-category={category}
+      data-category-id={categoryId}
+      data-mapping="pathname"
+      data-term={term}
+      data-reactions-enabled="1"
+      data-emit-metadata="0"
+      data-input-position="top"
+      data-theme="preferred_color_scheme"
+      data-lang="en"
+      crossorigin="anonymous"
+      async
+    ></script>
+  </section>
+)}

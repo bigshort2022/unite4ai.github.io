@@ -1,0 +1,60 @@
+---
+import Base from '../../layouts/Base.astro';
+import GiscusComments from '../../components/GiscusComments.astro';
+import { getCollection, render } from 'astro:content';
+
+export async function getStaticPaths() {
+  const courses = await getCollection('courses');
+  return courses.map((c) => ({ params: { id: c.id }, props: { entry: c } }));
+}
+
+const { entry } = Astro.props;
+const { Content, headings } = await render(entry);
+const d = entry.data;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (p: string) => `${base}${p}` || '/';
+---
+<Base title={d.title} description={d.summary}>
+  <article class="wrap section" data-pagefind-body>
+    <p class="eyebrow"><a href={href('/school')}>School</a> · {d.level}</p>
+    <h1>{d.title}</h1>
+    <p class="lede">{d.summary}</p>
+
+    <div class="card-meta" style="margin:1.2rem 0 2rem">
+      <span class="tag">{d.duration_minutes} min</span>
+      <span class="tag">{d.level}</span>
+      {d.prerequisites.length === 0 && <span class="tag tag-open">no prerequisites</span>}
+    </div>
+
+    <div class="card" style="margin-bottom:2.5rem">
+      <p class="eyebrow" style="margin-bottom:.5rem">By the end you will be able to</p>
+      <ul style="margin:0;padding-left:1.2rem">
+        {d.outcomes.map((o) => <li>{o}</li>)}
+      </ul>
+    </div>
+
+    {headings.length > 2 && (
+      <nav class="card" style="margin-bottom:2.5rem" aria-label="Contents">
+        <p class="eyebrow" style="margin-bottom:.5rem">Contents</p>
+        <ol style="margin:0;padding-left:1.2rem">
+          {headings.filter((h) => h.depth === 2).map((h) => (
+            <li><a href={`#${h.slug}`}>{h.text}</a></li>
+          ))}
+        </ol>
+      </nav>
+    )}
+
+    <div class="prose"><Content /></div>
+
+    <div class="card" style="margin-top:3rem;text-align:center;align-items:center">
+      <h3>Finished this course?</h3>
+      <p>Tell us how it went — 60-second feedback, it directly shapes what we build next.</p>
+      <a class="btn btn-primary" href="https://github.com/unite4ai/unite4ai.github.io/issues/new?template=course-feedback.yml">Leave feedback</a>
+    </div>
+
+    <p style="margin-top:2rem;font-size:.88rem;color:var(--u-text-faint)">
+      By {d.author} · Updated {d.updated.toISOString().slice(0, 10)}
+    </p>
+  </article>
+  <GiscusComments term={`course:${entry.id}`} category="General" />
+</Base>

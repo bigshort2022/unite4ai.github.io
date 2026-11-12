@@ -1,0 +1,23 @@
+{
+  "name": "@unite4ai/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "sync:d1": "bun scripts/sync-registry.ts",
+    "sync:d1:remote": "bun scripts/sync-registry.ts --remote",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@unite4ai/core": "workspace:*",
+    "@unite4ai/schema": "workspace:*",
+    "hono": "^4.11.4",
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260207.0",
+    "wrangler": "^4.54.0"
+  }
+}
