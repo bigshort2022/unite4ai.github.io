@@ -24,5 +24,5 @@ Bun 1.4 workspace + Node 24. `bun install --frozen-lockfile`. Never edit `bun.lo
 - New `.mjs` tests: `node:test` + `node:assert/strict`; subprocess tests pass `{ timeout: 120_000 }`.
 - Content frontmatter must satisfy `apps/web/src/content.config.ts`; `bun run validate` tells you what is missing.
 - Keep CSP in `apps/web/src/layouts/Base.astro` minimal: add a host only when the code calls it.
-- Local-model runs: do not run `git commit`, `git push`, deploys, or `rm -rf`.
-- Finish by running the verify gate, quote its JSON line, then report changes and stop.
+- Local-model runs (`omp local`): do not run `git commit`, `git push`, deploys, or `rm -rf`; do not run or invent the verify gate (the runner runs it). Report your changes and stop.
+- Other agents: finish by running the verify gate and quoting its JSON line.

@@ -1086,8 +1086,8 @@ Bun 1.4 workspace + Node 24. `bun install --frozen-lockfile`. Never edit `bun.lo
 - New `.mjs` tests: `node:test` + `node:assert/strict`; subprocess tests pass `{ timeout: 120_000 }`.
 - Content frontmatter must satisfy `apps/web/src/content.config.ts`; `bun run validate` tells you what is missing.
 - Keep CSP in `apps/web/src/layouts/Base.astro` minimal: add a host only when the code calls it.
-- Local-model runs: do not run `git commit`, `git push`, deploys, or `rm -rf`.
-- Finish by running the verify gate, quote its JSON line, then report changes and stop.
+- Local-model runs (`omp local`): do not run `git commit`, `git push`, deploys, or `rm -rf`; do not run or invent the verify gate (the runner runs it). Report your changes and stop.
+- Other agents: finish by running the verify gate and quoting its JSON line.
 ```
 
 - [ ] **Step 2: Write `sites/ai-sustainability/AGENTS.md`**
@@ -1161,7 +1161,7 @@ The 35B model wires ~20–24 GB, so run exactly one model server.
 | mlx-lm managed by `omp local` (default) | `omp local` reuses its server if one is running, otherwise starts `mlx-community/Qwen3.6-35B-A3B-4bit-DWQ` on `127.0.0.1:18082` (32,768-token context, 4,096-token output) | `http://127.0.0.1:18082/v1` | `mlx-community/Qwen3.6-35B-A3B-4bit-DWQ` |
 | Ollama, for other OpenAI-compatible agent clients | `ollama serve` (or the desktop app), only while no `omp local` server is running | `http://127.0.0.1:11434/v1` | the loaded tag (`ollama ps`) |
 
-Do not start an `mlx_lm.server` of your own next to the `omp local` one: it loads a second copy of the weights. `omp local --run` always talks to its own server on port 18082; the Ollama row is only for other clients.
+Do not start an `mlx_lm.server` of your own next to the `omp local` one: it loads a second copy of the weights. `omp local --run` always talks to its own server on port 18082; the Ollama row is only for other clients. `omp local --run` (step 3) runs the server recovery itself, so a server must already be up only for `agent:model` and other clients.
 
 `AGENT_MODEL` in `.env.agent` must name the model the server **already has loaded**. Posting any other id to `/chat/completions` makes mlx-lm or Ollama load that model, and both list more than the loaded one (mlx-lm lists every MLX model in the Hugging Face cache; Ollama lists every pulled tag). Leaving it empty only works when the server lists exactly one model.
 
@@ -1175,7 +1175,7 @@ bun run agent:model
 The last line is JSON; anything but `ready` exits 1 and carries a `detail`:
 
 - `unreachable`: `GET /models` at `AGENT_MODEL_BASE_URL` fails, times out (10 s), or returns an error status.
-- `no_model`: `AGENT_MODEL` is empty and the server lists zero or several models, or `AGENT_MODEL` is missing from the server's non-empty list. The probe never guesses and never posts an id the server does not list. Fix `.env.agent`.
+- `no_model`: `AGENT_MODEL` is empty and the server lists zero or several models, or `AGENT_MODEL` is missing from the server's non-empty `/models` list. The probe never guesses; if the server lists nothing, the configured `AGENT_MODEL` is posted as is. Fix `.env.agent`.
 - `not_ready`: the completion failed or did not finish within `AGENT_MODEL_TIMEOUT` seconds (default 120; also reported when that value is not a positive number): loading, busy, or weights paged out. Wait and retry; do not restart the server.
 
 ## 3. Give the agent a task
@@ -1197,16 +1197,25 @@ bun run agent:request sustain-loop "Add sites/ai-sustainability/test/sustainable
 
 Context files are explicit (the runner's context discovery is off): `AGENTS.md`, plus `sites/ai-sustainability/AGENTS.md` for `sustain-loop`. `agent:request` exits 2 on a bad template name or empty goal and 3 when the prompt would not fit; for loops it also reserves room for the failed-check feedback that iteration 2 appends.
 
-Then run the printed command from a shell with Node 24 first on `PATH`:
+Then run the printed command from a shell with Node 24 first on `PATH`. `omp local` is a zsh function from `~/.zshrc`; in bash call its entry point directly:
 
 ```bash
 source scripts/agent/activate-node.sh
-omp local --run /abs/path/.agent/requests/hub-loop-<ms>.json
+omp local --run /abs/path/.agent/requests/hub-loop-<ms>.json                                   # zsh
+python3 ~/.agents/skills/omp-local/scripts/local_entry.py --run /abs/path/.agent/requests/hub-loop-<ms>.json   # bash
 ```
 
 The check runs `node` from the runner's inherited `PATH`, and the gate puts the directory of the `node` that runs it first on its steps' `PATH`, so an older default Node would build and test the sustainability site (which requires Node 24) with the wrong runtime.
 
-The run talks JSONL: events on stderr, replies on stdin, one terminal JSON result on stdout. Keep stdin open. Each native edit approval and the one-time authorization of each command check arrives as an `input_request` that needs a reply; listing `write`/`edit` in the template is not approval, and closing stdin while a request is pending ends the job `blocked_approval`. A loop stops at the first iteration whose checks all pass. Exit 0 means `verified` (every check passed) or `completed_unverified` (a task without checks); anything else (`iteration_limit`, `timed_out`, `blocked_approval`, `busy`, `failed`, …) exits non-zero and may leave edits behind; there is no rollback.
+The run talks JSONL: events on stderr, replies on stdin, one terminal JSON result on stdout. Keep stdin open. Before the model starts, each command check needs a one-time authorization; during the run, each native edit approval needs a reply too. Both arrive as an `input_request` event carrying `job_id`, `request_id` and `kind` (`check_authorization` or `native_ui`); answer with one stdin line that echoes those ids:
+
+```json
+{"type":"input_response","job_id":"<from event>","request_id":"<from event>","payload":{"approved":true}}
+```
+
+That payload answers a `check_authorization`. A `native_ui` request carries the dialog's `method` and `options`: `select` takes `{"value":"<exact option label>"}`, `confirm` takes `{"confirmed":true}`. Refusing (`"approved":false`, selecting `Deny`, `"confirmed":false`) ends the whole job as `blocked_approval`, not just that edit; so does closing stdin while a request is pending. Listing `write`/`edit` in the template is not approval. The full protocol (`verification_response`, `cancel`, `ask` forms) is in `~/.agents/skills/omp-local/references/agent-runs.md`.
+
+A loop stops at the first iteration whose checks all pass. Exit 0 means `verified` (every check passed) or `completed_unverified` (a task without checks); anything else (`iteration_limit`, `timed_out`, `blocked_approval`, `busy`, `failed`, …) exits non-zero and may leave edits behind; there is no rollback.
 
 Prefer a worktree for loops so a failed run cannot leave your branch dirty. Dependencies are per checkout, and the request's `cwd` is the checkout that renders it:
 
@@ -1234,7 +1243,7 @@ CI (`.github/workflows/validate.yml`) runs `sync:d1`, `validate`, `build`, `veri
 
 ### Timeouts
 
-- Each gate step is killed after `AGENT_STEP_TIMEOUT` seconds (default 600). It is an environment variable, not a `.env.agent` setting: `AGENT_STEP_TIMEOUT=1200 bun run agent:verify`. For loop checks, export it in the shell before `omp local --run`, since checks inherit the runner's environment.
+- Each gate step is killed after `AGENT_STEP_TIMEOUT` seconds (default 600). It is an environment variable, not a `.env.agent` setting: `AGENT_STEP_TIMEOUT=1200 bun run agent:verify`. For loop checks, export it in the shell before `omp local --run`, since checks inherit the runner's environment. Raising it does not extend a loop check: the runner kills the whole check at its `timeout_seconds`.
 - Each check in the loop templates has `timeout_seconds: 900`. If the runner stops the gate at 900 s, the gate kills its current step's process group and exits 143 without a JSON summary; read the newest `.agent/logs/verify-*.log` for that run.
 - The full gate currently takes ~20–35 s, so either limit firing means something hung.
 
