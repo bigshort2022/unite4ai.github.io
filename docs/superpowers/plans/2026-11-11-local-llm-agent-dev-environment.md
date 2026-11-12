@@ -1128,7 +1128,7 @@ Bun 1.4 workspace + Node 24. `bun install --frozen-lockfile`. Never edit `bun.lo
 - Content frontmatter must satisfy `apps/web/src/content.config.ts`; `bun run validate` tells you what is missing.
 - Keep CSP in `apps/web/src/layouts/Base.astro` minimal: add a host only when the code calls it.
 - Local-model runs (`omp local`): do not run `git commit`, `git push`, deploys, or `rm -rf`; do not run or invent the verify gate (the runner runs it). Report your changes and stop.
-- Other agents: finish by running the verify gate and quoting its JSON line.
+- Other agents: finish with `source scripts/agent/activate-node.sh` (puts Node 24 first on `PATH`; the gate exits 2 under any other Node), then run the verify gate and quote its JSON line.
 ```
 
 - [ ] **Step 2: Write `sites/ai-sustainability/AGENTS.md`**
