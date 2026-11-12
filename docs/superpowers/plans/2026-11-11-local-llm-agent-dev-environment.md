@@ -1,0 +1,913 @@
+# Local LLM Agent Dev Environment Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task.
+> Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Let a coding agent backed by a locally hosted LLM (mlx-lm or Ollama, OpenAI-compatible HTTP) set up, edit, and objectively verify this repo on the developer's own machine, with no containers.
+
+**Architecture:** Three small Node scripts under `scripts/agent/` (verify gate, model probe, request renderer) plus one bash setup script shared with the existing Cursor Cloud Agent config. A compact `AGENTS.md` repo card (small-context models get ~16 KiB of prompt) and ready-made `omp local --run` request templates whose acceptance check is the verify gate. Everything is plain Node 24 + bash, zero new dependencies.
+
+**Tech Stack:** Bun 1.4 workspace (hub), npm + Node 24 (`sites/ai-sustainability`), `node:test`, `omp local` (mlx-lm managed server on `127.0.0.1:18082`), optional Ollama (`127.0.0.1:11434/v1`).
+
+## Requirements (from the scoping answers)
+
+- "Local agents" = agents whose model is a locally hosted LLM, not a hosted API.
+- Run on the host (nvm Node 24 + Bun). No devcontainer.
+- Cover the hub monorepo (`apps/web`, `apps/api`, `packages/*`) and `sites/ai-sustainability` (separate npm toolchain). Not Cloudflare Workers.
+
+## Global constraints
+
+- The composed task prompt for `omp local --run` is capped at 16,384 bytes and automatic context discovery is off, so repo instructions must be short and listed explicitly in `context_files`.
+- The 35B model wires ~20–24 GB. Scripts must never start a second model server; they only probe the configured endpoint.
+- `GET /v1/models` on mlx-lm is cached metadata, not readiness. The only readiness proof is a real completion.
+- macOS has no `timeout(1)`; bounded execution uses `child_process.spawnSync({ timeout })`.
+- Existing conventions: tests use `node:test` + `node:assert/strict` and are discovered by root `bun test`; scripts are ESM `.mjs`; commits are merge-based, no force-push.
+
+## File map
+
+| Path | Responsibility |
+|---|---|
+| `scripts/agent/activate-node.sh` | Put Node 24 first on `PATH` (moved from `.cursor/`) |
+| `scripts/agent/setup.sh` | Idempotent host setup: Node 24, Bun, `bun install`, `npm ci` in the sustainability site, `.agent/` dirs, `.env.agent` |
+| `scripts/agent/verify.mjs` | Objective acceptance gate; runs bounded steps, writes a log, prints one JSON line |
+| `scripts/agent/model-check.mjs` | Probe the local model endpoint with a real completion |
+| `scripts/agent/request.mjs` | Render an `omp local --run` request from a template with absolute `cwd` and the goal |
+| `scripts/agent/agent-scripts.test.mjs` | Tests for the three scripts |
+| `docs/agents/requests/{inspect,hub-loop,sustain-loop}.json` | Request templates |
+| `docs/agents/local-llm.md` | How to run a local model and drive it against this repo |
+| `AGENTS.md`, `sites/ai-sustainability/AGENTS.md` | Repo cards for small-context models |
+| `.env.agent.example` | Endpoint/model variables |
+| `.cursor/install.sh`, `.cursor/dev.sh` | Call the shared scripts instead of duplicating them |
+| `package.json` | `agent:*` scripts; root `test` includes `scripts/agent` |
+| `.gitignore` | Ignore `.agent/`, keep `.env.agent.example` |
+
+---
+
+### Task 1: Shared host setup script
+
+**Files:**
+- Move: `.cursor/activate-node.sh` → `scripts/agent/activate-node.sh`
+- Create: `scripts/agent/setup.sh`
+- Create: `.env.agent.example`
+- Modify: `.cursor/install.sh`, `.cursor/dev.sh`, `.gitignore`, `package.json`
+
+- [ ] **Step 1: Move the Node activation script and make it tolerate a host without nvm**
+
+```bash
+git mv .cursor/activate-node.sh scripts/agent/activate-node.sh
+```
+
+Replace its contents with:
+
+```bash
+#!/usr/bin/env bash
+# Put the Node.js 24 toolchain this project requires (package.json "engines") first on PATH.
+# Source this file; do not execute it. Works with nvm, or with a host that already has Node 24.
+export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+if [ -s "$NVM_DIR/nvm.sh" ]; then
+  # shellcheck disable=SC1091
+  . "$NVM_DIR/nvm.sh"
+  nvm install 24 >/dev/null
+  nvm alias default 24 >/dev/null
+  export PATH="$(dirname "$(nvm which 24)"):$PATH"
+elif node --version 2>/dev/null | grep -q '^v24\.'; then
+  :
+else
+  echo "Node.js 24 is required. Install nvm (https://github.com/nvm-sh/nvm) or Node 24." >&2
+  return 1 2>/dev/null || exit 1
+fi
+```
+
+- [ ] **Step 2: Create `scripts/agent/setup.sh`**
+
+```bash
+#!/usr/bin/env bash
+# Idempotent host setup for coding agents (local-LLM or Cloud). Installs only under $HOME.
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$ROOT"
+
+# shellcheck source=scripts/agent/activate-node.sh
+source "$ROOT/scripts/agent/activate-node.sh"
+
+if ! command -v bun >/dev/null 2>&1; then
+  curl -fsSL https://bun.sh/install | bash
+fi
+export PATH="$HOME/.bun/bin:$PATH"
+
+echo "node $(node --version) · bun $(bun --version) · npm $(npm --version)"
+
+bun install --frozen-lockfile
+( cd sites/ai-sustainability && npm ci )
+
+mkdir -p .agent/logs .agent/requests
+[ -f .env.agent ] || cp .env.agent.example .env.agent
+
+echo "setup complete"
+```
+
+- [ ] **Step 3: Create `.env.agent.example`**
+
+```bash
+# Local model endpoint (OpenAI-compatible). Copied to .env.agent by scripts/agent/setup.sh.
+# mlx-lm managed server (omp local):  http://127.0.0.1:18082/v1
+# Ollama:                              http://127.0.0.1:11434/v1
+AGENT_MODEL_BASE_URL=http://127.0.0.1:18082/v1
+# Leave empty to use the first model the server lists.
+AGENT_MODEL=
+# Seconds to wait for the readiness completion (cold weights can take 30-130 s).
+AGENT_MODEL_TIMEOUT=120
+# Seconds per verify step before it is killed.
+AGENT_STEP_TIMEOUT=600
+```
+
+- [ ] **Step 4: Point the Cursor scripts at the shared ones**
+
+`.cursor/install.sh`:
+
+```bash
+#!/usr/bin/env bash
+# Cloud Agent dependency setup — delegates to the shared agent setup.
+set -euo pipefail
+exec bash "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/scripts/agent/setup.sh"
+```
+
+`.cursor/dev.sh`:
+
+```bash
+#!/usr/bin/env bash
+# Launch the Astro dev server (apps/web) on port 4321.
+set -euo pipefail
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# shellcheck source=scripts/agent/activate-node.sh
+source scripts/agent/activate-node.sh
+export PATH="$HOME/.bun/bin:$PATH"
+
+cd apps/web
+exec bun run dev --host 0.0.0.0
+```
+
+- [ ] **Step 5: `.gitignore` and `package.json`**
+
+Append to `.gitignore`:
+
+```
+.agent/
+!.env.agent.example
+```
+
+(`.env.*` is already ignored, so `.env.agent` stays private and the example must be re-included.)
+
+In root `package.json` `scripts`, add and change:
+
+```json
+"test": "bun test apps/web/test apps/api/test packages/core/test scripts/agent",
+"agent:setup": "bash scripts/agent/setup.sh",
+"agent:verify": "node scripts/agent/verify.mjs",
+"agent:model": "node scripts/agent/model-check.mjs",
+"agent:request": "node scripts/agent/request.mjs"
+```
+
+- [ ] **Step 6: Run setup and confirm it is idempotent**
+
+Run: `bash scripts/agent/setup.sh && bash scripts/agent/setup.sh`
+Expected: both runs print `node v24.x · bun 1.4.x · npm …` and `setup complete`; second run makes no changes (`git status --short` shows only the files above; `.agent/` and `.env.agent` are untracked-ignored).
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add scripts/agent/activate-node.sh scripts/agent/setup.sh .env.agent.example .cursor/install.sh .cursor/dev.sh .gitignore package.json
+git commit -m "Add shared agent host setup; Cursor scripts delegate to it"
+```
+
+---
+
+### Task 2: Verify gate (`verify.mjs`)
+
+**Files:**
+- Create: `scripts/agent/verify.mjs`
+- Create: `scripts/agent/agent-scripts.test.mjs`
+
+**Interface:** `node scripts/agent/verify.mjs [--only hub|sustain] [--list]`. Exit 0 on pass, 1 on a failed step, 2 on usage error. Last stdout line is one JSON object: `{status:"pass", steps, log, seconds}` or `{status:"fail", failed_step, exit_code, timed_out, log, tail, seconds}`. Env: `AGENT_STEP_TIMEOUT` (seconds, default 600), `AGENT_VERIFY_STEPS` (JSON array `[{name,cwd,cmd}]` overriding the step list; for tests).
+
+- [ ] **Step 1: Write the failing tests**
+
+`scripts/agent/agent-scripts.test.mjs`:
+
+```js
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+import test from 'node:test';
+
+const ROOT = resolve(import.meta.dirname, '../..');
+const VERIFY = resolve(ROOT, 'scripts/agent/verify.mjs');
+
+function run(script, args = [], env = {}) {
+  const r = spawnSync(process.execPath, [script, ...args], { cwd: ROOT, encoding: 'utf8', env: { ...process.env, ...env } });
+  const lines = r.stdout.trim().split('\n');
+  return { ...r, last: lines[lines.length - 1] };
+}
+
+test('verify --list names the hub steps in order', () => {
+  const r = run(VERIFY, ['--list', '--only', 'hub']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(r.stdout.trim().split('\n'), ['hub-validate', 'hub-build', 'hub-test']);
+});
+
+test('verify rejects an unknown --only value', () => {
+  assert.equal(run(VERIFY, ['--only', 'nope']).status, 2);
+});
+
+test('verify stops at the first failing step and reports it as JSON', () => {
+  const steps = JSON.stringify([
+    { name: 'ok', cwd: '.', cmd: 'echo fine' },
+    { name: 'boom', cwd: '.', cmd: 'echo bad >&2; exit 3' },
+    { name: 'never', cwd: '.', cmd: 'echo unreachable' },
+  ]);
+  const r = run(VERIFY, [], { AGENT_VERIFY_STEPS: steps });
+  assert.equal(r.status, 1);
+  const summary = JSON.parse(r.last);
+  assert.equal(summary.status, 'fail');
+  assert.equal(summary.failed_step, 'boom');
+  assert.equal(summary.exit_code, 3);
+  assert.equal(summary.timed_out, false);
+  assert.match(summary.tail, /bad/);
+  assert.ok(existsSync(summary.log), `log missing: ${summary.log}`);
+  assert.doesNotMatch(r.stderr, /never/);
+});
+
+test('verify kills a step that exceeds AGENT_STEP_TIMEOUT', () => {
+  const steps = JSON.stringify([{ name: 'slow', cwd: '.', cmd: 'sleep 5' }]);
+  const r = run(VERIFY, [], { AGENT_VERIFY_STEPS: steps, AGENT_STEP_TIMEOUT: '1' });
+  assert.equal(r.status, 1);
+  const summary = JSON.parse(r.last);
+  assert.equal(summary.failed_step, 'slow');
+  assert.equal(summary.timed_out, true);
+});
+
+test('verify reports pass with the step list', () => {
+  const steps = JSON.stringify([{ name: 'a', cwd: '.', cmd: 'true' }, { name: 'b', cwd: 'apps', cmd: 'test -d web' }]);
+  const r = run(VERIFY, [], { AGENT_VERIFY_STEPS: steps });
+  assert.equal(r.status, 0, r.stderr);
+  const summary = JSON.parse(r.last);
+  assert.equal(summary.status, 'pass');
+  assert.deepEqual(summary.steps, ['a', 'b']);
+});
+```
+
+- [ ] **Step 2: Run the tests and confirm they fail because the script is absent**
+
+Run: `node --test scripts/agent/agent-scripts.test.mjs`
+Expected: 5 failing tests (`Cannot find module … verify.mjs` / status mismatch).
+
+- [ ] **Step 3: Implement `scripts/agent/verify.mjs`**
+
+```js
+#!/usr/bin/env node
+/**
+ * Objective acceptance gate for agent runs. Runs each step with a timeout, writes one log,
+ * and prints exactly one JSON summary line last so a small model (or omp's loop runner)
+ * can read the outcome without parsing build output.
+ */
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+
+const ROOT = resolve(import.meta.dirname, '../..');
+const SUSTAIN = join(ROOT, 'sites/ai-sustainability');
+
+const STEP_SETS = {
+  hub: [
+    { name: 'hub-validate', cwd: ROOT, cmd: 'bun run validate' },
+    { name: 'hub-build', cwd: ROOT, cmd: 'bun run build' },
+    { name: 'hub-test', cwd: ROOT, cmd: 'bun test' },
+  ],
+  sustain: [
+    { name: 'sustain-test', cwd: SUSTAIN, cmd: 'npm test' },
+    { name: 'sustain-check', cwd: SUSTAIN, cmd: 'npx astro check' },
+    { name: 'sustain-build', cwd: SUSTAIN, cmd: 'npm run build' },
+  ],
+};
+
+const args = process.argv.slice(2);
+const onlyIndex = args.indexOf('--only');
+const only = onlyIndex === -1 ? 'all' : args[onlyIndex + 1];
+const sets = only === 'all' ? ['hub', 'sustain'] : [only];
+if (sets.some((s) => !STEP_SETS[s])) {
+  console.error('usage: verify.mjs [--only hub|sustain] [--list]');
+  process.exit(2);
+}
+
+let steps = sets.flatMap((s) => STEP_SETS[s]);
+if (process.env.AGENT_VERIFY_STEPS) {
+  steps = JSON.parse(process.env.AGENT_VERIFY_STEPS).map((s) => ({ ...s, cwd: resolve(ROOT, s.cwd ?? '.') }));
+}
+
+if (args.includes('--list')) {
+  for (const step of steps) console.log(step.name);
+  process.exit(0);
+}
+
+// The runner may call us with a minimal PATH: put this Node and Bun first.
+const env = { ...process.env, PATH: `${dirname(process.execPath)}:${process.env.HOME}/.bun/bin:${process.env.PATH ?? ''}` };
+const timeoutMs = Number(process.env.AGENT_STEP_TIMEOUT ?? 600) * 1000;
+const logDir = join(ROOT, '.agent/logs');
+mkdirSync(logDir, { recursive: true });
+const log = join(logDir, `verify-${new Date().toISOString().replace(/[:.]/g, '-')}.log`);
+const sections = [];
+const startedAt = Date.now();
+
+for (const step of steps) {
+  const t0 = Date.now();
+  const r = spawnSync('bash', ['-c', step.cmd], { cwd: step.cwd, encoding: 'utf8', env, timeout: timeoutMs, killSignal: 'SIGTERM' });
+  const output = `${r.stdout ?? ''}${r.stderr ?? ''}`;
+  sections.push(`### ${step.name} (${step.cwd}) $ ${step.cmd}\n${output}\n`);
+  const timedOut = r.error?.code === 'ETIMEDOUT';
+  const ok = !timedOut && r.status === 0;
+  console.error(`${ok ? 'ok  ' : 'FAIL'} ${step.name} ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+  if (!ok) {
+    writeFileSync(log, sections.join('\n'));
+    const tail = output.trim().split('\n').slice(-20).join('\n');
+    console.log(JSON.stringify({
+      status: 'fail', failed_step: step.name, exit_code: r.status, timed_out: timedOut, log, tail,
+      seconds: (Date.now() - startedAt) / 1000,
+    }));
+    process.exit(1);
+  }
+}
+
+writeFileSync(log, sections.join('\n'));
+console.log(JSON.stringify({ status: 'pass', steps: steps.map((s) => s.name), log, seconds: (Date.now() - startedAt) / 1000 }));
+```
+
+- [ ] **Step 4: Run the tests and confirm they pass under both runners**
+
+Run: `node --test scripts/agent/agent-scripts.test.mjs`
+Expected: `pass 5`.
+Run: `bun test scripts/agent`
+Expected: `5 pass`.
+
+- [ ] **Step 5: Run the real gate once**
+
+Run: `node scripts/agent/verify.mjs`
+Expected (stderr): `ok   hub-validate`, `ok   hub-build`, `ok   hub-test`, `ok   sustain-test`, `ok   sustain-check`, `ok   sustain-build`; last stdout line `{"status":"pass",…}`. Takes roughly 1–2 minutes.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add scripts/agent/verify.mjs scripts/agent/agent-scripts.test.mjs
+git commit -m "Add bounded verify gate for agent runs"
+```
+
+---
+
+### Task 3: Model readiness probe (`model-check.mjs`)
+
+**Files:**
+- Create: `scripts/agent/model-check.mjs`
+- Modify: `scripts/agent/agent-scripts.test.mjs`
+
+**Interface:** `node scripts/agent/model-check.mjs`. Reads `.env.agent` (without overriding real env), GETs `/models`, then POSTs one 8-token chat completion. Prints one JSON line: `{status:"ready", base_url, model, reply, latency_s}` (exit 0) or `{status:"unreachable"|"no_model"|"not_ready", base_url, detail}` (exit 1).
+
+- [ ] **Step 1: Add failing tests with an in-process stub server**
+
+Append to `scripts/agent/agent-scripts.test.mjs`:
+
+```js
+import { spawn } from 'node:child_process';
+import { createServer } from 'node:http';
+
+const MODEL_CHECK = resolve(ROOT, 'scripts/agent/model-check.mjs');
+
+// The stub server lives in this process, so the child must run without blocking the event loop.
+function runAsync(script, args = [], env = {}) {
+  return new Promise((done) => {
+    const child = spawn(process.execPath, [script, ...args], { cwd: ROOT, env: { ...process.env, ...env } });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => { stdout += chunk; });
+    child.stderr.on('data', (chunk) => { stderr += chunk; });
+    child.on('close', (status) => {
+      const lines = stdout.trim().split('\n');
+      done({ status, stdout, stderr, last: lines[lines.length - 1] });
+    });
+  });
+}
+
+function stubServer(handler) {
+  return new Promise((done) => {
+    const server = createServer((req, res) => {
+      let body = '';
+      req.on('data', (chunk) => { body += chunk; });
+      req.on('end', () => handler(req, res, body));
+    });
+    server.listen(0, '127.0.0.1', () => done({ server, url: `http://127.0.0.1:${server.address().port}/v1` }));
+  });
+}
+
+test('model-check reports ready after a real completion', async () => {
+  const { server, url } = await stubServer((req, res, body) => {
+    res.setHeader('content-type', 'application/json');
+    if (req.url === '/v1/models') return res.end(JSON.stringify({ data: [{ id: 'stub-model' }] }));
+    assert.equal(req.url, '/v1/chat/completions');
+    assert.equal(JSON.parse(body).model, 'stub-model');
+    res.end(JSON.stringify({ choices: [{ message: { content: ' OK ' } }] }));
+  });
+  try {
+    const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url, AGENT_MODEL: '' });
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    const out = JSON.parse(r.last);
+    assert.equal(out.status, 'ready');
+    assert.equal(out.model, 'stub-model');
+    assert.equal(out.reply, 'OK');
+    assert.equal(typeof out.latency_s, 'number');
+  } finally {
+    server.close();
+  }
+});
+
+test('model-check reports unreachable when nothing listens', async () => {
+  const { server, url } = await stubServer(() => {});
+  server.close();
+  const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url });
+  assert.equal(r.status, 1);
+  assert.equal(JSON.parse(r.last).status, 'unreachable');
+});
+
+test('model-check reports not_ready when the completion fails', async () => {
+  const { server, url } = await stubServer((req, res) => {
+    res.setHeader('content-type', 'application/json');
+    if (req.url === '/v1/models') return res.end(JSON.stringify({ data: [{ id: 'm' }] }));
+    res.statusCode = 503;
+    res.end('loading');
+  });
+  try {
+    const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url });
+    assert.equal(r.status, 1);
+    const out = JSON.parse(r.last);
+    assert.equal(out.status, 'not_ready');
+    assert.match(out.detail, /503/);
+  } finally {
+    server.close();
+  }
+});
+```
+
+- [ ] **Step 2: Run the tests and confirm the three new ones fail**
+
+Run: `node --test scripts/agent/agent-scripts.test.mjs`
+Expected: `pass 5`, `fail 3`.
+
+- [ ] **Step 3: Implement `scripts/agent/model-check.mjs`**
+
+```js
+#!/usr/bin/env node
+/**
+ * Probe the local model endpoint. `/models` on mlx-lm is cached metadata, so readiness is
+ * proven only by a real (tiny) completion. Never starts a server.
+ */
+import { existsSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+
+const ROOT = resolve(import.meta.dirname, '../..');
+
+const envFile = join(ROOT, '.env.agent');
+if (existsSync(envFile)) {
+  for (const line of readFileSync(envFile, 'utf8').split('\n')) {
+    const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/);
+    if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+  }
+}
+
+const base = (process.env.AGENT_MODEL_BASE_URL || 'http://127.0.0.1:18082/v1').replace(/\/$/, '');
+const timeoutMs = Number(process.env.AGENT_MODEL_TIMEOUT || 120) * 1000;
+
+function fail(status, detail) {
+  console.log(JSON.stringify({ status, base_url: base, detail }));
+  process.exit(1);
+}
+
+let model = process.env.AGENT_MODEL || '';
+try {
+  const res = await fetch(`${base}/models`, { signal: AbortSignal.timeout(10_000) });
+  if (!res.ok) fail('unreachable', `GET /models → ${res.status}`);
+  const body = await res.json();
+  if (!model) model = body.data?.[0]?.id ?? '';
+} catch (error) {
+  fail('unreachable', error.cause?.message ?? error.message);
+}
+if (!model) fail('no_model', 'server lists no models; set AGENT_MODEL in .env.agent');
+
+const t0 = Date.now();
+try {
+  const res = await fetch(`${base}/chat/completions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ model, messages: [{ role: 'user', content: 'Reply with the single word OK.' }], max_tokens: 8, temperature: 0 }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!res.ok) fail('not_ready', `POST /chat/completions → ${res.status} ${(await res.text()).slice(0, 200)}`);
+  const body = await res.json();
+  const reply = body.choices?.[0]?.message?.content?.trim() ?? '';
+  console.log(JSON.stringify({ status: 'ready', base_url: base, model, reply, latency_s: (Date.now() - t0) / 1000 }));
+} catch (error) {
+  fail('not_ready', error.cause?.message ?? error.message);
+}
+```
+
+- [ ] **Step 4: Run the tests and confirm all pass**
+
+Run: `node --test scripts/agent/agent-scripts.test.mjs`
+Expected: `pass 8`.
+
+- [ ] **Step 5: Probe the real server (only if `omp local` has it running; do not start one)**
+
+Run: `node scripts/agent/model-check.mjs`
+Expected: `{"status":"ready","base_url":"http://127.0.0.1:18082/v1","model":"mlx-community/Qwen3.6-35B-A3B-4bit-DWQ","reply":"OK","latency_s":…}`; or `{"status":"unreachable",…}` with exit 1 if it is not running. Both prove the script; do not launch a server to turn the second into the first.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add scripts/agent/model-check.mjs scripts/agent/agent-scripts.test.mjs
+git commit -m "Add local model readiness probe"
+```
+
+---
+
+### Task 4: Request templates and renderer (`request.mjs`)
+
+**Files:**
+- Create: `docs/agents/requests/inspect.json`, `docs/agents/requests/hub-loop.json`, `docs/agents/requests/sustain-loop.json`
+- Create: `scripts/agent/request.mjs`
+- Modify: `scripts/agent/agent-scripts.test.mjs`
+
+**Interface:** `node scripts/agent/request.mjs <inspect|hub-loop|sustain-loop> "<goal>"`. Copies the template, sets `cwd` (and every command check's `cwd`) to the absolute repo root, sets `goal`, writes `.agent/requests/<name>-<timestamp>.json`, prints that path on stdout and the `omp local --run …` command on stderr. Exit 2 on usage error, 3 if goal + context files would exceed the 16 KiB prompt budget (threshold 14,000 bytes to leave room for the runner's framing).
+
+`cwd` and `goal` are empty strings in the templates by design; the renderer fills them. `AGENTS.md` (Task 5) is the only context file, so templates stay under budget.
+
+- [ ] **Step 1: Write the templates**
+
+`docs/agents/requests/inspect.json`:
+
+```json
+{
+  "schema_version": 1,
+  "mode": "task",
+  "cwd": "",
+  "goal": "",
+  "capabilities": ["read", "glob", "grep"],
+  "context_files": ["AGENTS.md"],
+  "limits": { "max_iterations": 1, "wall_seconds": 300 }
+}
+```
+
+`docs/agents/requests/hub-loop.json`:
+
+```json
+{
+  "schema_version": 1,
+  "mode": "loop",
+  "cwd": "",
+  "goal": "",
+  "capabilities": ["read", "glob", "grep", "write", "edit"],
+  "context_files": ["AGENTS.md"],
+  "limits": { "max_iterations": 3, "wall_seconds": 1800, "max_prompt_bytes": 16384 },
+  "checks": [
+    { "id": "hub", "kind": "command", "argv": ["node", "scripts/agent/verify.mjs", "--only", "hub"], "cwd": "", "timeout_seconds": 900 }
+  ]
+}
+```
+
+`docs/agents/requests/sustain-loop.json`:
+
+```json
+{
+  "schema_version": 1,
+  "mode": "loop",
+  "cwd": "",
+  "goal": "",
+  "capabilities": ["read", "glob", "grep", "write", "edit"],
+  "context_files": ["AGENTS.md", "sites/ai-sustainability/AGENTS.md"],
+  "limits": { "max_iterations": 3, "wall_seconds": 1800, "max_prompt_bytes": 16384 },
+  "checks": [
+    { "id": "sustain", "kind": "command", "argv": ["node", "scripts/agent/verify.mjs", "--only", "sustain"], "cwd": "", "timeout_seconds": 900 }
+  ]
+}
+```
+
+- [ ] **Step 2: Add failing tests**
+
+Append to `scripts/agent/agent-scripts.test.mjs`:
+
+```js
+import { readFileSync, writeFileSync } from 'node:fs';
+
+const REQUEST = resolve(ROOT, 'scripts/agent/request.mjs');
+
+test('request renders a loop template with absolute cwd and the goal', () => {
+  const r = run(REQUEST, ['hub-loop', 'Make /contribute link to /submit.']);
+  assert.equal(r.status, 0, r.stderr);
+  const out = r.stdout.trim();
+  assert.ok(out.startsWith(resolve(ROOT, '.agent/requests/hub-loop-')), out);
+  const request = JSON.parse(readFileSync(out, 'utf8'));
+  assert.equal(request.cwd, ROOT);
+  assert.equal(request.goal, 'Make /contribute link to /submit.');
+  assert.equal(request.mode, 'loop');
+  assert.equal(request.checks[0].cwd, ROOT);
+  assert.deepEqual(request.checks[0].argv, ['node', 'scripts/agent/verify.mjs', '--only', 'hub']);
+  assert.match(r.stderr, new RegExp(`omp local --run ${out}`));
+});
+
+test('request refuses a goal that would blow the prompt budget', () => {
+  const r = run(REQUEST, ['inspect', 'x'.repeat(15_000)]);
+  assert.equal(r.status, 3);
+  assert.match(r.stderr, /16384/);
+});
+
+test('request rejects a missing template or goal', () => {
+  assert.equal(run(REQUEST, ['hub-loop']).status, 2);
+  assert.equal(run(REQUEST, ['nope', 'goal']).status, 2);
+});
+```
+
+- [ ] **Step 3: Run the tests and confirm the three new ones fail**
+
+Run: `node --test scripts/agent/agent-scripts.test.mjs`
+Expected: `pass 8`, `fail 3`.
+
+- [ ] **Step 4: Implement `scripts/agent/request.mjs`**
+
+```js
+#!/usr/bin/env node
+/**
+ * Render an `omp local --run` request from docs/agents/requests/<name>.json with this repo as
+ * absolute cwd and the given goal. Fails early if the composed prompt would exceed the 16 KiB cap.
+ */
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+
+const ROOT = resolve(import.meta.dirname, '../..');
+const PROMPT_CAP = 16384;
+const PROMPT_BUDGET = 14_000; // leave room for the runner's framing and check evidence
+
+const [name, goal] = process.argv.slice(2);
+const templatePath = name ? join(ROOT, 'docs/agents/requests', `${name}.json`) : '';
+if (!name || !goal || !existsSync(templatePath)) {
+  console.error('usage: request.mjs <inspect|hub-loop|sustain-loop> "<goal>"');
+  process.exit(2);
+}
+
+const request = { ...JSON.parse(readFileSync(templatePath, 'utf8')), cwd: ROOT, goal };
+for (const check of request.checks ?? []) {
+  if (check.kind === 'command') check.cwd = ROOT;
+}
+
+const contextBytes = (request.context_files ?? []).reduce((total, file) => total + statSync(join(ROOT, file)).size, 0);
+const promptBytes = Buffer.byteLength(goal, 'utf8') + contextBytes;
+if (promptBytes > PROMPT_BUDGET) {
+  console.error(`goal + context files ≈ ${promptBytes} bytes; the runner caps the composed prompt at ${PROMPT_CAP}. Narrow the goal.`);
+  process.exit(3);
+}
+
+const outDir = join(ROOT, '.agent/requests');
+mkdirSync(outDir, { recursive: true });
+const out = join(outDir, `${name}-${Date.now()}.json`);
+writeFileSync(out, `${JSON.stringify(request, null, 2)}\n`);
+console.log(out);
+console.error(`omp local --run ${out}`);
+```
+
+- [ ] **Step 5: Run the tests and confirm all pass**
+
+Run: `node --test scripts/agent/agent-scripts.test.mjs`
+Expected: `pass 11`.
+(The prompt-budget test depends on `AGENTS.md` existing; if Task 5 has not run yet, `statSync` throws for the missing file. Create `AGENTS.md` first or run Task 5 before this step.)
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add docs/agents/requests scripts/agent/request.mjs scripts/agent/agent-scripts.test.mjs
+git commit -m "Add omp local request templates and renderer"
+```
+
+---
+
+### Task 5: Repo cards for small-context models
+
+**Files:**
+- Create: `AGENTS.md`
+- Create: `sites/ai-sustainability/AGENTS.md`
+
+Budget: root card ≤ 3 KiB, site card ≤ 1 KiB (both are sent verbatim in every request).
+
+- [ ] **Step 1: Write `AGENTS.md`**
+
+```markdown
+# Unite4AI — agent card
+
+Open-source AI education platform + federated model registry. Static Astro site on GitHub Pages.
+
+## Layout
+- `apps/web/` Astro site (unite4ai.com). Content: `apps/web/src/content/{models,datasets,compute,courses,events,posts,comments}/*.md`
+- `apps/api/` Hono Cloudflare Worker (registry API). `src/generated/` and `apps/web/public/data/registry-index.json` are generated by `bun run sync:d1`: never hand-edit.
+- `apps/cli/` publish CLI. `packages/schema` Zod schemas. `packages/core` openness score, validation.
+- `sites/ai-sustainability/` separate npm/Astro site (Sustainable Places). Not in the Bun workspace; see its own AGENTS.md.
+- `scripts/agent/` setup, verify gate, model probe, request renderer.
+
+## Toolchain
+Bun 1.4 workspace + Node 24. `bun install --frozen-lockfile`. Never edit `bun.lock` or `package-lock.json` by hand; never add dependencies without being asked.
+
+## Commands (repo root)
+- `bun run validate` content gate (schemas, licence allowlist)
+- `bun run build` site + Pagefind index → `apps/web/dist`
+- `bun test` all tests (`node:test` style, `*.test.mjs` / `*.test.ts`)
+- `bun run check` `astro check`
+- `node scripts/agent/verify.mjs [--only hub|sustain]` the acceptance gate CI mirrors; last line is JSON
+
+## Rules
+- Pages use `const base = import.meta.env.BASE_URL.replace(/\/$/, ''); const href = (p) => \`${base}${p}\` || '/';` for internal links.
+- Tests: `node:test` + `node:assert/strict`; subprocess tests pass `{ timeout: 120_000 }`.
+- Content frontmatter must satisfy `apps/web/src/content.config.ts`; `bun run validate` tells you what is missing.
+- Keep CSP in `apps/web/src/layouts/Base.astro` minimal: add a host only when the code calls it.
+- Do not run `git commit`, `git push`, deploys, or `rm -rf`; report changes and stop.
+- Finish by running the verify gate and quoting its JSON line.
+```
+
+- [ ] **Step 2: Write `sites/ai-sustainability/AGENTS.md`**
+
+```markdown
+# AI Sustainability (Sustainable Places) — agent card
+
+Standalone Astro site for sustainability.unite4ai.com. npm + Node 24, **not** Bun. Run commands from this directory.
+
+- `npm ci` · `npm test` (node:test) · `npx astro check` · `npm run build` (→ `dist/`) · `npm run dev` (port 4321)
+- Page: `src/pages/index.astro`. Client: `src/lib/sustainable-places/places-client.mjs` (MapLibre, lazy-loaded; worker bundled via `?worker&url` + `setWorkerUrl`).
+- Feeds: `evidence-service.mjs` (NASA POWER, Open-Meteo, NREL PVWatts), `feeds.mjs` (edge API first, upstream fallback), `evidence-cache.mjs` (memory + sessionStorage, 15 min).
+- TEA/scoring: `tea.mjs`, `catalog.mjs`, `demo-sites.mjs`. Deterministic; tests in `test/`.
+- Optional worker: `workers/evidence-api/` (`/api/evidence`, `/api/geocode`). `PUBLIC_API_BASE` adds its origin to the CSP in `src/layouts/Base.astro`.
+- Rules: label values live/modeled/cached/unavailable truthfully; no new basemap or API hosts without adding them to the CSP; never hand-edit `package-lock.json`.
+- Gate: `node ../../scripts/agent/verify.mjs --only sustain`.
+```
+
+- [ ] **Step 3: Check the sizes**
+
+Run: `wc -c AGENTS.md sites/ai-sustainability/AGENTS.md`
+Expected: root < 3072, site < 1024. Trim prose, not commands, if over.
+
+- [ ] **Step 4: Confirm the templates still fit the budget**
+
+Run: `node scripts/agent/request.mjs sustain-loop "Smoke goal" && node --test scripts/agent/agent-scripts.test.mjs`
+Expected: a path under `.agent/requests/`; `pass 11`.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add AGENTS.md sites/ai-sustainability/AGENTS.md
+git commit -m "Add agent cards for small-context models"
+```
+
+---
+
+### Task 6: Runbook, docs links, and CI parity
+
+**Files:**
+- Create: `docs/agents/local-llm.md`
+- Modify: `README.md` (after the "Quick start" section), `CONTRIBUTING.md` ("Local development" section)
+
+- [ ] **Step 1: Write `docs/agents/local-llm.md`**
+
+```markdown
+# Running a local-LLM coding agent against this repo
+
+Host-only setup (no containers). Covers the hub monorepo and `sites/ai-sustainability`.
+
+## 1. One-time setup
+
+```bash
+bun run agent:setup        # Node 24 (nvm), Bun, bun install, npm ci in the sustainability site, .agent/, .env.agent
+```
+
+`.env.agent` (gitignored) holds the endpoint. Defaults target the mlx-lm managed server that `omp local` runs.
+
+## 2. Serve a model (pick one; never run two)
+
+| Server | Start | `AGENT_MODEL_BASE_URL` | Notes |
+|---|---|---|---|
+| mlx-lm via `omp local` | `omp local` (recovers/starts `mlx-community/Qwen3.6-35B-A3B-4bit-DWQ` on `127.0.0.1:18082`) | `http://127.0.0.1:18082/v1` | ~20–24 GB wired; 32k context / 4k output |
+| mlx-lm directly | `mlx_lm.server --model mlx-community/Qwen3.6-35B-A3B-4bit-DWQ --port 18082` | same | Use only when `omp local` is not managing a server |
+| Ollama | `ollama pull <model>` then it listens on 11434 | `http://127.0.0.1:11434/v1` | Pick a coding model that fits RAM; set `AGENT_MODEL` to its tag |
+
+Readiness check (does a real completion; `/v1/models` alone proves nothing):
+
+```bash
+bun run agent:model
+# {"status":"ready","model":"…","reply":"OK","latency_s":0.4}
+```
+
+`unreachable` → the server is not up. `not_ready` → it is loading weights or overloaded; wait, do not restart it.
+
+## 3. Give the agent a task
+
+Requests are strict JSON for `omp local --run`. Render one from a template so `cwd` is absolute and the goal fits the 16 KiB prompt cap:
+
+```bash
+bun run agent:request inspect   "Read AGENTS.md and apps/web/src/pages/contribute.astro; list every internal link and whether it uses href()."
+bun run agent:request hub-loop  "Add a 'Suggest an edit' link to the bottom of every blog post pointing at the post's GitHub source URL."
+bun run agent:request sustain-loop "Show 'Unavailable' instead of the modeled value when all three feeds fail."
+# each prints: omp local --run /abs/path/.agent/requests/<name>-<ts>.json
+```
+
+- `inspect`: read-only, one iteration, 5 minutes.
+- `hub-loop` / `sustain-loop`: edit capabilities, up to 3 iterations / 30 minutes, acceptance = `scripts/agent/verify.mjs`. The loop stops at the first passing gate.
+
+Edits still go through `omp`'s native approval prompts; listing `write`/`edit` in the template is not approval. Prefer running loops in a `git worktree` so a failed run cannot leave `main` dirty.
+
+## 4. Verify yourself
+
+```bash
+bun run agent:verify                 # hub + sustainability, ~2 min; last line is JSON
+bun run agent:verify -- --only hub
+```
+
+Logs land in `.agent/logs/`. CI runs the same commands (`validate`, `build`, `test` for the hub; `test`, `astro check`, `build` for the site).
+
+## Writing goals a 35B model can finish
+
+- One behaviour per request; name the files when you know them.
+- State the acceptance in observable terms ("`bun test` passes and `/contribute` contains `href="/submit"`").
+- Keep goal + `AGENTS.md` under ~14 KB; `agent:request` exits 3 when it will not fit.
+- Do not ask it to commit, push, or add dependencies; `AGENTS.md` forbids it and the gate does not need it.
+
+## Memory and contention
+
+The 35B needs ~20 GB resident. If a run is slow, check what else holds memory before blaming the model; never restart the server to "fix" slowness (it reloads the same weights into the same pressure). Do not run `agent:verify` while a loop's own check is running: both write `apps/web/dist`.
+```
+
+- [ ] **Step 2: Link it from the human docs**
+
+`README.md`, after the Quick start block, add:
+
+```markdown
+## Coding agents
+
+`bun run agent:setup` prepares the host; `bun run agent:verify` is the acceptance gate CI mirrors. For agents on a locally hosted LLM see [docs/agents/local-llm.md](docs/agents/local-llm.md). `AGENTS.md` is the repo card models receive.
+```
+
+`CONTRIBUTING.md`, at the end of "Local development", add:
+
+```markdown
+Using a coding agent (hosted or local LLM)? Run `bun run agent:setup` once and point it at `AGENTS.md`; `bun run agent:verify` runs the same gate as CI. Details in `docs/agents/local-llm.md`.
+```
+
+- [ ] **Step 3: Full gate and test run**
+
+Run: `bun run agent:verify`
+Expected: six `ok` lines and `{"status":"pass",…}`.
+Run: `bun test`
+Expected: previous 26 + 11 new = `37 pass`, `0 fail`.
+
+- [ ] **Step 4: Commit, push a branch, open the PR**
+
+```bash
+git add docs/agents/local-llm.md README.md CONTRIBUTING.md
+git commit -m "Document local-LLM agent workflow"
+git push -u origin agent-dev-env
+npx -y gh-axi pr create --title "Dev environment for local-LLM coding agents" --body-file /tmp/agent-env-pr.md -R bigshort2022/unite4ai.github.io
+```
+
+PR body (`/tmp/agent-env-pr.md`):
+
+```markdown
+## Summary
+Host-only dev environment for coding agents backed by a locally hosted LLM (mlx-lm via `omp local`, or Ollama).
+
+- `scripts/agent/setup.sh`: one idempotent setup for the Bun workspace and the npm sustainability site; `.cursor/` now delegates to it.
+- `scripts/agent/verify.mjs`: bounded acceptance gate mirroring CI, JSON summary line, logs in `.agent/logs/`.
+- `scripts/agent/model-check.mjs`: readiness probe that does a real completion.
+- `scripts/agent/request.mjs` + `docs/agents/requests/*.json`: `omp local --run` templates (inspect, hub-loop, sustain-loop) with the gate as the check and a prompt-budget guard.
+- `AGENTS.md` (root, sustainability site): repo cards sized for a 16 KiB prompt.
+- `docs/agents/local-llm.md`: runbook.
+
+## Test plan
+- [ ] `bun test`: 37 pass (11 new: gate ordering, failure/timeout JSON, model probe against a stub server, request rendering and budget guard)
+- [ ] `bun run agent:verify` passes end to end
+- [ ] `bun run agent:model` against the running 35B returns `ready`
+- [ ] One `hub-loop` request completed `verified` on a trivial goal
+```
+
+Expected: CI `Validate pull request` green (it runs `bun test` bare, which now includes `scripts/agent`).
+
+---
+
+## Self-review
+
+**Spec coverage.** Local-LLM agents: Tasks 3, 4, 6 (probe, requests, runbook). Host-only: Task 1 (nvm/Bun, no containers). Hub + sustainability: Task 2 step sets and both `AGENTS.md` (Task 5). Workers excluded: nothing in the plan runs `wrangler`.
+
+**Placeholder scan.** Templates carry empty `cwd`/`goal` by design and the renderer fills them; the plan states this. No TBD/TODO.
+
+**Type consistency.** `verify.mjs` flags: `--only hub|sustain`, `--list`; env `AGENT_STEP_TIMEOUT`, `AGENT_VERIFY_STEPS` (array of `{name,cwd,cmd}`): matched in tests, templates (`argv` uses `--only`), `AGENTS.md`, and the runbook. `model-check.mjs` statuses `ready|unreachable|no_model|not_ready` and env `AGENT_MODEL_BASE_URL|AGENT_MODEL|AGENT_MODEL_TIMEOUT`: matched in `.env.agent.example`, tests, runbook. `request.mjs` exits `2|3`, output dir `.agent/requests/`: matched in tests.
+
+**Ordering note.** Task 4 step 5 needs `AGENTS.md`; execute Task 5 before Task 4 step 5, or create `AGENTS.md` first. Both are independent otherwise.
