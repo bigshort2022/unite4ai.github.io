@@ -3,8 +3,8 @@
 set -euo pipefail
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# shellcheck source=.cursor/activate-node.sh
-source .cursor/activate-node.sh
+# shellcheck source=scripts/agent/activate-node.sh
+source scripts/agent/activate-node.sh
 export PATH="$HOME/.bun/bin:$PATH"
 
 cd apps/web
