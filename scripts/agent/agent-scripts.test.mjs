@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
@@ -8,6 +9,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 const ROOT = resolve(import.meta.dirname, '../..');
 const VERIFY = resolve(ROOT, 'scripts/agent/verify.mjs');
+const MODEL_CHECK = resolve(ROOT, 'scripts/agent/model-check.mjs');
 
 function run(script, args = [], env = {}) {
   const r = spawnSync(process.execPath, [script, ...args], { cwd: ROOT, encoding: 'utf8', env: { ...process.env, ...env } });
@@ -167,4 +169,77 @@ test('verify reports pass with the step list', () => {
   const summary = JSON.parse(r.last);
   assert.equal(summary.status, 'pass');
   assert.deepEqual(summary.steps, ['a', 'b']);
+});
+
+// The stub server lives in this process, so the child must run without blocking the event loop.
+function runAsync(script, args = [], env = {}) {
+  return new Promise((done) => {
+    const child = spawn(process.execPath, [script, ...args], { cwd: ROOT, env: { ...process.env, ...env } });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => { stdout += chunk; });
+    child.stderr.on('data', (chunk) => { stderr += chunk; });
+    child.on('close', (status) => {
+      const lines = stdout.trim().split('\n');
+      done({ status, stdout, stderr, last: lines[lines.length - 1] });
+    });
+  });
+}
+
+function stubServer(handler) {
+  return new Promise((done) => {
+    const server = createServer((req, res) => {
+      let body = '';
+      req.on('data', (chunk) => { body += chunk; });
+      req.on('end', () => handler(req, res, body));
+    });
+    server.listen(0, '127.0.0.1', () => done({ server, url: `http://127.0.0.1:${server.address().port}/v1` }));
+  });
+}
+
+test('model-check reports ready after a real completion', async () => {
+  const { server, url } = await stubServer((req, res, body) => {
+    res.setHeader('content-type', 'application/json');
+    if (req.url === '/v1/models') return res.end(JSON.stringify({ data: [{ id: 'stub-model' }] }));
+    assert.equal(req.url, '/v1/chat/completions');
+    assert.equal(JSON.parse(body).model, 'stub-model');
+    res.end(JSON.stringify({ choices: [{ message: { content: ' OK ' } }] }));
+  });
+  try {
+    const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url, AGENT_MODEL: '' });
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    const out = JSON.parse(r.last);
+    assert.equal(out.status, 'ready');
+    assert.equal(out.model, 'stub-model');
+    assert.equal(out.reply, 'OK');
+    assert.equal(typeof out.latency_s, 'number');
+  } finally {
+    server.close();
+  }
+});
+
+test('model-check reports unreachable when nothing listens', async () => {
+  const { server, url } = await stubServer(() => {});
+  server.close();
+  const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url });
+  assert.equal(r.status, 1);
+  assert.equal(JSON.parse(r.last).status, 'unreachable');
+});
+
+test('model-check reports not_ready when the completion fails', async () => {
+  const { server, url } = await stubServer((req, res) => {
+    res.setHeader('content-type', 'application/json');
+    if (req.url === '/v1/models') return res.end(JSON.stringify({ data: [{ id: 'm' }] }));
+    res.statusCode = 503;
+    res.end('loading');
+  });
+  try {
+    const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url });
+    assert.equal(r.status, 1);
+    const out = JSON.parse(r.last);
+    assert.equal(out.status, 'not_ready');
+    assert.match(out.detail, /503/);
+  } finally {
+    server.close();
+  }
 });
