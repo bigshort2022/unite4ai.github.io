@@ -45,11 +45,20 @@ GitHub Pages serves one custom domain per repository, so this app cannot share t
 
 To use a different hostname, change `public/CNAME` and `SITE` in `astro.config.mjs`.
 
+## Edge evidence API (optional)
+
+`workers/evidence-api/` is a Cloudflare Worker that caches NASA POWER, Open-Meteo,
+NREL PVWatts, and Nominatim responses (`/api/evidence`, `/api/geocode`). See its
+[README](workers/evidence-api/README.md). The site works without it: the client tries
+the API first and falls back to calling the upstream feeds directly.
+
+- Same origin: route the worker to `sustainability.unite4ai.com/api/*`.
+- Separate origin: set the `PUBLIC_API_BASE` Actions variable (e.g.
+  `https://evidence.example.workers.dev`); the build adds it to the CSP `connect-src`.
+
 ## Notes
 
-- The map currently uses CARTO basemap tiles, which now require an API key and render
-  a watermark. Switching the basemap source in `src/pages/index.astro` to the
-  keyless `https://tiles.openfreemap.org` provider (already allowed in the CSP) is a
-  recommended follow-up.
+- The basemap is OpenFreeMap vector tiles (keyless). MapLibre is lazy-loaded.
+- Evidence is cached per rounded coordinate in memory and `sessionStorage` for 15 minutes.
 - The app makes client-side calls to Nominatim, NASA POWER, Open-Meteo, and NREL for
   live location evidence. These third parties are listed in the CSP `connect-src`.

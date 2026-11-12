@@ -1,0 +1,11 @@
+name = "unite4ai-evidence-api"
+main = "index.js"
+compatibility_date = "2024-08-01"
+
+# Bind KV for durable cache in production:
+# [[kv_namespaces]]
+# binding = "EVIDENCE_CACHE"
+# id = "<your-kv-namespace-id>"
+
+[vars]
+# NREL_API_KEY should be set via: wrangler secret put NREL_API_KEY
