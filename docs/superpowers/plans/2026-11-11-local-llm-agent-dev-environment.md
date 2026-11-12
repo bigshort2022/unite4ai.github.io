@@ -190,7 +190,7 @@ git commit -m "Add shared agent host setup; Cursor scripts delegate to it"
 - Create: `scripts/agent/verify.mjs`
 - Create: `scripts/agent/agent-scripts.test.mjs`
 
-**Interface:** `node scripts/agent/verify.mjs [--only hub|sustain] [--list]`. Exit 0 on pass, 1 on a failed step, 2 on usage error (unknown `--only`, or `AGENT_STEP_TIMEOUT` not a finite number > 0). Last stdout line is one JSON object: `{status:"pass", steps, log, seconds}` or `{status:"fail", failed_step, exit_code, timed_out, error, log, tail, seconds}`, where `error` is the spawn error code (`ETIMEDOUT`, `ENOENT`, …) or `null`. Steps run asynchronously, each in its own process group; verify kills that whole group on step timeout, and on SIGINT/SIGTERM/SIGHUP to verify itself (then exits 130/143/129 with no summary line). A timed-out step is reported at its deadline even if a descendant that left the group still holds the output pipes. Each stream keeps at most its last 32 Mi characters; a final `[verify] stdout|stderr truncated…` line marks that, so it shows in `tail`. The log is appended step by step. Env: `AGENT_STEP_TIMEOUT` (seconds, default 600; empty means unset), `AGENT_VERIFY_STEPS` (JSON array `[{name,cwd,cmd}]` overriding the step list; for tests).
+**Interface:** `node scripts/agent/verify.mjs [--only hub|sustain] [--list]`. Exit 0 on pass, 1 on a failed step, 2 on usage error (unknown `--only`, or `AGENT_STEP_TIMEOUT` not a finite number > 0). Last stdout line is one JSON object: `{status:"pass", steps, log, seconds}` or `{status:"fail", failed_step, exit_code, timed_out, error, log, tail, seconds}`, where `error` is the spawn error code (`ETIMEDOUT`, `ENOENT`, …) or `null`. Steps run asynchronously, each in its own process group; verify kills that whole group on step timeout, and on SIGINT/SIGTERM/SIGHUP to verify itself (then exits 130/143/129 with no summary line). A timed-out step is reported at its deadline even if a descendant that left the group still holds the output pipes. Each stream keeps at most its last 32 Mi characters; a final `[verify] stdout|stderr truncated…` line marks that, so it shows in `tail`. `tail` is the last 20 output lines, then at most their last 4096 characters, prefixed `…` when cut. The log is appended step by step. Env: `AGENT_STEP_TIMEOUT` (seconds, default 600; empty means unset), `AGENT_VERIFY_STEPS` (JSON array `[{name,cwd,cmd}]` overriding the step list; for tests).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -338,6 +338,18 @@ test('verify returns at the step deadline even if an escaped descendant holds th
   }
 });
 
+test('verify keeps the tail of oversized output and caps the summary tail at 4 KiB', { timeout: 120_000 }, () => {
+  // 70e6 characters on one line: more than twice the 32 Mi per-stream cap, so the stream is truncated.
+  const steps = JSON.stringify([{ name: 'big', cwd: '.', cmd: `head -c 70000000 /dev/zero | tr '\\0' a; echo; exit 4` }]);
+  const r = run(VERIFY, [], { AGENT_VERIFY_STEPS: steps });
+  assert.equal(r.status, 1, r.stderr);
+  const summary = JSON.parse(r.last);
+  assert.equal(summary.exit_code, 4);
+  assert.ok(summary.tail.length <= 4097, `tail is ${summary.tail.length} characters`);
+  assert.ok(summary.tail.startsWith('…a'), summary.tail.slice(0, 20));
+  assert.match(summary.tail, /\n\[verify\] stdout truncated to its last \d+ characters$/);
+});
+
 test('verify reports a spawn error such as a missing cwd', () => {
   const steps = JSON.stringify([{ name: 'nowhere', cwd: 'does-not-exist', cmd: 'true' }]);
   const r = run(VERIFY, [], { AGENT_VERIFY_STEPS: steps });
@@ -360,7 +372,7 @@ test('verify reports pass with the step list', () => {
 - [ ] **Step 2: Run the tests and confirm they fail because the script is absent**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: 10 failing tests (`Cannot find module … verify.mjs` / status mismatch).
+Expected: 11 failing tests (`Cannot find module … verify.mjs` / status mismatch).
 
 - [ ] **Step 3: Implement `scripts/agent/verify.mjs`**
 
@@ -385,6 +397,8 @@ const SUSTAIN = join(ROOT, 'sites/ai-sustainability');
 const USAGE = 'usage: verify.mjs [--only hub|sustain] [--list]  (env: AGENT_STEP_TIMEOUT=<seconds > 0>)';
 // Per stream, keep at most the last 32 Mi characters of output (the tail is what matters).
 const MAX_OUTPUT = 32 * 1024 * 1024;
+// The summary's tail: last 20 lines, then at most the last 4 Ki characters (prefixed "…" when cut).
+const TAIL_CHARS = 4096;
 
 const STEP_SETS = {
   hub: [
@@ -504,7 +518,8 @@ for (const step of steps) {
   const ok = !r.error && r.status === 0;
   console.error(`${ok ? 'ok  ' : 'FAIL'} ${step.name} ${((Date.now() - t0) / 1000).toFixed(1)}s`);
   if (!ok) {
-    const tail = output.trim().split('\n').slice(-20).join('\n');
+    let tail = output.trim().split('\n').slice(-20).join('\n');
+    if (tail.length > TAIL_CHARS) tail = `…${tail.slice(-TAIL_CHARS)}`;
     console.log(JSON.stringify({
       status: 'fail', failed_step: step.name, exit_code: r.status, timed_out: r.timedOut, error: r.error?.code ?? null, log, tail,
       seconds: (Date.now() - startedAt) / 1000,
@@ -519,9 +534,9 @@ console.log(JSON.stringify({ status: 'pass', steps: steps.map((s) => s.name), lo
 - [ ] **Step 4: Run the tests and confirm they pass under both runners**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 10`.
+Expected: `pass 11`.
 Run: `bun test scripts/agent`
-Expected: `10 pass`.
+Expected: `11 pass`.
 
 - [ ] **Step 5: Run the real gate once**
 
@@ -632,7 +647,7 @@ test('model-check reports not_ready when the completion fails', async () => {
 - [ ] **Step 2: Run the tests and confirm the three new ones fail**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 10`, `fail 3`.
+Expected: `pass 11`, `fail 3`.
 
 - [ ] **Step 3: Implement `scripts/agent/model-check.mjs`**
 
@@ -694,7 +709,7 @@ try {
 - [ ] **Step 4: Run the tests and confirm all pass**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 13`.
+Expected: `pass 14`.
 
 - [ ] **Step 5: Probe the real server (only if `omp local` has it running; do not start one)**
 
@@ -807,7 +822,7 @@ test('request rejects a missing template or goal', () => {
 - [ ] **Step 3: Run the tests and confirm the three new ones fail**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 13`, `fail 3`.
+Expected: `pass 14`, `fail 3`.
 
 - [ ] **Step 4: Implement `scripts/agent/request.mjs`**
 
@@ -854,7 +869,7 @@ console.error(`omp local --run ${out}`);
 - [ ] **Step 5: Run the tests and confirm all pass**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 16`.
+Expected: `pass 17`.
 (The prompt-budget test depends on `AGENTS.md` existing; if Task 5 has not run yet, `statSync` throws for the missing file. Create `AGENTS.md` first or run Task 5 before this step.)
 
 - [ ] **Step 6: Commit**

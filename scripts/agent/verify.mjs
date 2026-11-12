@@ -18,6 +18,8 @@ const SUSTAIN = join(ROOT, 'sites/ai-sustainability');
 const USAGE = 'usage: verify.mjs [--only hub|sustain] [--list]  (env: AGENT_STEP_TIMEOUT=<seconds > 0>)';
 // Per stream, keep at most the last 32 Mi characters of output (the tail is what matters).
 const MAX_OUTPUT = 32 * 1024 * 1024;
+// The summary's tail: last 20 lines, then at most the last 4 Ki characters (prefixed "…" when cut).
+const TAIL_CHARS = 4096;
 
 const STEP_SETS = {
   hub: [
@@ -137,7 +139,8 @@ for (const step of steps) {
   const ok = !r.error && r.status === 0;
   console.error(`${ok ? 'ok  ' : 'FAIL'} ${step.name} ${((Date.now() - t0) / 1000).toFixed(1)}s`);
   if (!ok) {
-    const tail = output.trim().split('\n').slice(-20).join('\n');
+    let tail = output.trim().split('\n').slice(-20).join('\n');
+    if (tail.length > TAIL_CHARS) tail = `…${tail.slice(-TAIL_CHARS)}`;
     console.log(JSON.stringify({
       status: 'fail', failed_step: step.name, exit_code: r.status, timed_out: r.timedOut, error: r.error?.code ?? null, log, tail,
       seconds: (Date.now() - startedAt) / 1000,

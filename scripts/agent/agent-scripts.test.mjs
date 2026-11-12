@@ -139,6 +139,18 @@ test('verify returns at the step deadline even if an escaped descendant holds th
   }
 });
 
+test('verify keeps the tail of oversized output and caps the summary tail at 4 KiB', { timeout: 120_000 }, () => {
+  // 70e6 characters on one line: more than twice the 32 Mi per-stream cap, so the stream is truncated.
+  const steps = JSON.stringify([{ name: 'big', cwd: '.', cmd: `head -c 70000000 /dev/zero | tr '\\0' a; echo; exit 4` }]);
+  const r = run(VERIFY, [], { AGENT_VERIFY_STEPS: steps });
+  assert.equal(r.status, 1, r.stderr);
+  const summary = JSON.parse(r.last);
+  assert.equal(summary.exit_code, 4);
+  assert.ok(summary.tail.length <= 4097, `tail is ${summary.tail.length} characters`);
+  assert.ok(summary.tail.startsWith('…a'), summary.tail.slice(0, 20));
+  assert.match(summary.tail, /\n\[verify\] stdout truncated to its last \d+ characters$/);
+});
+
 test('verify reports a spawn error such as a missing cwd', () => {
   const steps = JSON.stringify([{ name: 'nowhere', cwd: 'does-not-exist', cmd: 'true' }]);
   const r = run(VERIFY, [], { AGENT_VERIFY_STEPS: steps });
