@@ -33,7 +33,7 @@ Readiness check: a real one-message completion, because `GET /v1/models` is cach
 
 ```bash
 bun run agent:model
-# e.g. {"status":"ready","base_url":"http://127.0.0.1:18082/v1","model":"mlx-community/Qwen3.6-35B-A3B-4bit-DWQ","reply":"OK","latency_s":0.4}
+# {"status":"ready","base_url":"http://127.0.0.1:18082/v1","model":"mlx-community/Qwen3.6-35B-A3B-4bit-DWQ","reply":"OK","latency_s":…}
 ```
 
 The last line is JSON; anything but `ready` exits 1 and carries a `detail`:
@@ -98,7 +98,7 @@ CI (`.github/workflows/validate.yml`) runs `sync:d1`, `validate`, `build`, `veri
 
 ### Timeouts
 
-- Each gate step is killed after `AGENT_STEP_TIMEOUT` seconds (default 600). The gate reads it from its environment only, not from `.env.agent`; export it before `omp local --run` to change it, since checks inherit the runner's environment.
+- Each gate step is killed after `AGENT_STEP_TIMEOUT` seconds (default 600). It is an environment variable, not a `.env.agent` setting: `AGENT_STEP_TIMEOUT=1200 bun run agent:verify`. For loop checks, export it in the shell before `omp local --run`, since checks inherit the runner's environment.
 - Each check in the loop templates has `timeout_seconds: 900`. If the runner stops the gate at 900 s, the gate kills its current step's process group and exits 143 without a JSON summary; read the newest `.agent/logs/verify-*.log` for that run.
 - The full gate currently takes ~20–35 s, so either limit firing means something hung.
 
