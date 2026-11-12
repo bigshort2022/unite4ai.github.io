@@ -1016,13 +1016,13 @@ Bun 1.4 workspace + Node 24. `bun install --frozen-lockfile`. Never edit `bun.lo
 ## Commands (repo root)
 - `bun run validate` content gate (schemas, licence allowlist)
 - `bun run build` site + Pagefind index → `apps/web/dist`
-- `bun test` all tests (`node:test` style, `*.test.mjs` / `*.test.ts`)
+- `bun test` all tests (`*.test.mjs` use `node:test`; `apps/api/test/*.test.ts` use `bun:test`)
 - `bun run check` `astro check`
-- `node scripts/agent/verify.mjs [--only hub|sustain]` the acceptance gate CI mirrors; last line is JSON
+- `node scripts/agent/verify.mjs [--only hub|sustain]` the acceptance gate (same validate/build/test as CI); last line is JSON
 
 ## Rules
-- Pages use `const base = import.meta.env.BASE_URL.replace(/\/$/, ''); const href = (p) => \`${base}${p}\` || '/';` for internal links.
-- Tests: `node:test` + `node:assert/strict`; subprocess tests pass `{ timeout: 120_000 }`.
+- Pages use `const base = import.meta.env.BASE_URL.replace(/\/$/, '');` and `` const href = (p: string) => `${base}${p}` || '/'; `` for internal links.
+- New `.mjs` tests: `node:test` + `node:assert/strict`; subprocess tests pass `{ timeout: 120_000 }`.
 - Content frontmatter must satisfy `apps/web/src/content.config.ts`; `bun run validate` tells you what is missing.
 - Keep CSP in `apps/web/src/layouts/Base.astro` minimal: add a host only when the code calls it.
 - Do not run `git commit`, `git push`, deploys, or `rm -rf`; report changes and stop.
@@ -1032,16 +1032,16 @@ Bun 1.4 workspace + Node 24. `bun install --frozen-lockfile`. Never edit `bun.lo
 - [ ] **Step 2: Write `sites/ai-sustainability/AGENTS.md`**
 
 ```markdown
-# AI Sustainability (Sustainable Places) — agent card
+# Sustainable Places — agent card
 
-Standalone Astro site for sustainability.unite4ai.com. npm + Node 24, **not** Bun. Run commands from this directory.
+Astro site for sustainability.unite4ai.com. npm + Node 24, **not** Bun. Run commands in this directory.
 
 - `npm ci` · `npm test` (node:test) · `npx astro check` · `npm run build` (→ `dist/`) · `npm run dev` (port 4321)
-- Page: `src/pages/index.astro`. Client: `src/lib/sustainable-places/places-client.mjs` (MapLibre, lazy-loaded; worker bundled via `?worker&url` + `setWorkerUrl`).
-- Feeds: `evidence-service.mjs` (NASA POWER, Open-Meteo, NREL PVWatts), `feeds.mjs` (edge API first, upstream fallback), `evidence-cache.mjs` (memory + sessionStorage, 15 min).
-- TEA/scoring: `tea.mjs`, `catalog.mjs`, `demo-sites.mjs`. Deterministic; tests in `test/`.
-- Optional worker: `workers/evidence-api/` (`/api/evidence`, `/api/geocode`). `PUBLIC_API_BASE` adds its origin to the CSP in `src/layouts/Base.astro`.
-- Rules: label values live/modeled/cached/unavailable truthfully; no new basemap or API hosts without adding them to the CSP; never hand-edit `package-lock.json`.
+- Page: `src/pages/index.astro`. Client: `src/lib/sustainable-places/places-client.mjs` (lazy MapLibre; worker via `?worker&url` + `setWorkerUrl`).
+- Feeds: `evidence-service.mjs` (NASA POWER, Open-Meteo, PVWatts), `feeds.mjs` (edge API first, upstream fallback), `evidence-cache.mjs` (memory + sessionStorage, 15 min).
+- Deterministic: `tea.mjs`, `catalog.mjs`, `demo-sites.mjs` (tests in `test/`).
+- Optional worker: `workers/evidence-api/` (`/api/evidence`, `/api/geocode`). `PUBLIC_API_BASE` adds its origin to the `src/layouts/Base.astro` CSP.
+- Rules: label data live/modeled/cached/unavailable truthfully; add any new host to the CSP; never hand-edit `package-lock.json`.
 - Gate: `node ../../scripts/agent/verify.mjs --only sustain`.
 ```
 
