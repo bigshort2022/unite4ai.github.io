@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "mode": "loop",
+  "cwd": "",
+  "goal": "",
+  "capabilities": ["read", "glob", "grep", "write", "edit"],
+  "context_files": ["AGENTS.md", "sites/ai-sustainability/AGENTS.md"],
+  "limits": { "max_iterations": 3, "wall_seconds": 1800, "max_prompt_bytes": 16384 },
+  "checks": [
+    { "id": "sustain", "kind": "command", "argv": ["node", "scripts/agent/verify.mjs", "--only", "sustain"], "cwd": "", "timeout_seconds": 900 }
+  ]
+}

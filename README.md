@@ -25,6 +25,10 @@ bun test             # all tests
 bun run sync:d1      # refresh registry JSON from markdown
 ```
 
+## Coding agents
+
+`bun run agent:setup` prepares the host (Node 24, Bun, both sites' dependencies). `bun run agent:verify` is the acceptance gate: CI's validate/build/test commands for the hub, plus the sustainability site's `npm test`, `astro check` and build, which CI does not run. `AGENTS.md` is the repo card models receive. For agents on a locally hosted LLM see [docs/agents/local-llm.md](docs/agents/local-llm.md).
+
 ## API worker
 
 See [apps/api/README.md](apps/api/README.md). Deploy to Cloudflare Workers (free tier: 100k req/day).

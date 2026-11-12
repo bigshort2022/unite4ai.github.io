@@ -8,3 +8,5 @@ dist/
 !.env.example
 .vscode/
 .idea/
+.agent/
+!.env.agent.example
