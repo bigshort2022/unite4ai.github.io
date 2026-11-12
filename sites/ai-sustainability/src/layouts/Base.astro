@@ -12,6 +12,8 @@ const {
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const href = (p: string) => `${base}${p}` || '/';
+// Optional edge evidence API on another origin (workers/evidence-api); same-origin needs no entry.
+const apiOrigin = import.meta.env.PUBLIC_API_BASE ? new URL(import.meta.env.PUBLIC_API_BASE).origin : '';
 ---
 <!doctype html>
 <html lang="en">
@@ -30,7 +32,7 @@ const href = (p: string) => `${base}${p}` || '/';
     <!-- GitHub Pages cannot set HTTP headers, so CSP ships as a meta tag. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; worker-src 'self' blob:; connect-src 'self' https://tiles.openfreemap.org https://*.basemaps.cartocdn.com https://power.larc.nasa.gov https://api.open-meteo.com https://developer.nrel.gov https://nominatim.openstreetmap.org; base-uri 'self'; form-action 'self'"
+      content={`default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; worker-src 'self' blob:; connect-src 'self'${apiOrigin ? ` ${apiOrigin}` : ''} https://tiles.openfreemap.org https://power.larc.nasa.gov https://api.open-meteo.com https://developer.nrel.gov https://nominatim.openstreetmap.org; base-uri 'self'; form-action 'self'`}
     />
   </head>
   <body>
