@@ -26,7 +26,7 @@ function fail(status, detail) {
   process.exit(1);
 }
 
-const timeoutS = Number(process.env.AGENT_MODEL_TIMEOUT || 120);
+const timeoutS = Number(process.env.AGENT_MODEL_TIMEOUT || 180);
 if (!Number.isFinite(timeoutS) || timeoutS <= 0) {
   fail('not_ready', `AGENT_MODEL_TIMEOUT must be a positive number of seconds, got ${JSON.stringify(process.env.AGENT_MODEL_TIMEOUT)}`);
 }

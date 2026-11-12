@@ -1,20 +1,28 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import test from 'node:test';
+import test, { after } from 'node:test';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { pathToFileURL } from 'node:url';
 
 const ROOT = resolve(import.meta.dirname, '../..');
 const VERIFY = resolve(ROOT, 'scripts/agent/verify.mjs');
+// verify's logs from these tests (one is ~33 MB) go to a temp dir, never ROOT/.agent/logs.
+const LOG_DIR = mkdtempSync(join(tmpdir(), 'verify-logs-'));
+after(() => rmSync(LOG_DIR, { recursive: true, force: true }));
 const MODEL_CHECK = resolve(ROOT, 'scripts/agent/model-check.mjs');
 
 function run(script, args = [], env = {}) {
   const r = spawnSync(process.execPath, [script, ...args], { cwd: ROOT, encoding: 'utf8', env: { ...process.env, ...env } });
   const lines = r.stdout.trim().split('\n');
   return { ...r, last: lines[lines.length - 1] };
+}
+
+function runVerify(args = [], env = {}) {
+  return run(VERIFY, args, { AGENT_VERIFY_LOG_DIR: LOG_DIR, ...env });
 }
 
 /** Waits (bounded) until `pid` no longer exists; returns false if it is still alive. */
@@ -42,13 +50,13 @@ async function readPid(pidFile, attempts = 100) {
 }
 
 test('verify --list names the hub steps in order', () => {
-  const r = run(VERIFY, ['--list', '--only', 'hub']);
+  const r = runVerify(['--list', '--only', 'hub']);
   assert.equal(r.status, 0, r.stderr);
   assert.deepEqual(r.stdout.trim().split('\n'), ['hub-validate', 'hub-build', 'hub-test']);
 });
 
 test('verify --list without --only names all six steps in order', () => {
-  const r = run(VERIFY, ['--list']);
+  const r = runVerify(['--list']);
   assert.equal(r.status, 0, r.stderr);
   assert.deepEqual(r.stdout.trim().split('\n'), [
     'hub-validate', 'hub-build', 'hub-test', 'sustain-test', 'sustain-check', 'sustain-build',
@@ -56,11 +64,29 @@ test('verify --list without --only names all six steps in order', () => {
 });
 
 test('verify rejects an unknown --only value', () => {
-  assert.equal(run(VERIFY, ['--only', 'nope']).status, 2);
+  assert.equal(runVerify(['--only', 'nope']).status, 2);
+});
+
+test('verify rejects an unknown flag', () => {
+  assert.equal(runVerify(['--onyl', 'hub']).status, 2);
+});
+
+test('verify refuses to run under a Node other than 24', () => {
+  // Fake an older Node in-process: a second Node install is not needed (or available in CI).
+  const shim = join(LOG_DIR, 'fake-node-22.mjs');
+  writeFileSync(shim, [
+    "Object.defineProperty(process.versions, 'node', { value: '22.0.0' });",
+    'delete process.versions.bun;',
+    `await import(${JSON.stringify(pathToFileURL(VERIFY).href)});`,
+  ].join('\n'));
+  const r = run(shim, ['--list'], { AGENT_VERIFY_LOG_DIR: LOG_DIR });
+  assert.equal(r.status, 2);
+  assert.equal(r.stdout, '');
+  assert.match(r.stderr, /Node 24 \(running 22\.0\.0\).*source scripts\/agent\/activate-node\.sh/);
 });
 
 test('verify rejects a non-numeric AGENT_STEP_TIMEOUT', () => {
-  assert.equal(run(VERIFY, ['--list'], { AGENT_STEP_TIMEOUT: 'abc' }).status, 2);
+  assert.equal(runVerify(['--list'], { AGENT_STEP_TIMEOUT: 'abc' }).status, 2);
 });
 
 test('verify stops at the first failing step and reports it as JSON', () => {
@@ -69,7 +95,7 @@ test('verify stops at the first failing step and reports it as JSON', () => {
     { name: 'boom', cwd: '.', cmd: 'echo bad >&2; exit 3' },
     { name: 'never', cwd: '.', cmd: 'echo unreachable' },
   ]);
-  const r = run(VERIFY, [], { AGENT_VERIFY_STEPS: steps });
+  const r = runVerify([], { AGENT_VERIFY_STEPS: steps });
   assert.equal(r.status, 1);
   const summary = JSON.parse(r.last);
   assert.equal(summary.status, 'fail');
@@ -77,6 +103,7 @@ test('verify stops at the first failing step and reports it as JSON', () => {
   assert.equal(summary.exit_code, 3);
   assert.equal(summary.timed_out, false);
   assert.match(summary.tail, /bad/);
+  assert.ok(summary.log.startsWith(`${LOG_DIR}/`), `log outside the test log dir: ${summary.log}`);
   assert.ok(existsSync(summary.log), `log missing: ${summary.log}`);
   assert.doesNotMatch(r.stderr, /never/);
 });
@@ -85,7 +112,7 @@ test('verify kills the whole process group of a step that exceeds AGENT_STEP_TIM
   const pidFile = join(tmpdir(), `verify-orphan-${process.pid}-${Date.now()}.pid`);
   try {
     const steps = JSON.stringify([{ name: 'slow', cwd: '.', cmd: `sleep 30 & echo $! > '${pidFile}'; wait` }]);
-    const r = run(VERIFY, [], { AGENT_VERIFY_STEPS: steps, AGENT_STEP_TIMEOUT: '1' });
+    const r = runVerify([], { AGENT_VERIFY_STEPS: steps, AGENT_STEP_TIMEOUT: '1' });
     assert.equal(r.status, 1);
     const summary = JSON.parse(r.last);
     assert.equal(summary.failed_step, 'slow');
@@ -103,7 +130,7 @@ test('verify kills the step group and exits 143 when it receives SIGTERM', async
   try {
     const steps = JSON.stringify([{ name: 'slow', cwd: '.', cmd: `sleep 30 & echo $! > '${pidFile}'; wait` }]);
     const child = spawn(process.execPath, [VERIFY], {
-      cwd: ROOT, env: { ...process.env, AGENT_VERIFY_STEPS: steps, AGENT_STEP_TIMEOUT: '60' }, stdio: 'ignore',
+      cwd: ROOT, env: { ...process.env, AGENT_VERIFY_LOG_DIR: LOG_DIR, AGENT_VERIFY_STEPS: steps, AGENT_STEP_TIMEOUT: '60' }, stdio: 'ignore',
     });
     const exited = new Promise((settle) => child.on('exit', (code, signal) => settle({ code, signal })));
     const pid = await readPid(pidFile);
@@ -123,7 +150,7 @@ test('verify returns at the step deadline even if an escaped descendant holds th
     const escape = `perl -MPOSIX -e 'POSIX::setsid() or die; open my $f, ">", $ARGV[0] or die; print $f $$; close $f; sleep 30' '${pidFile}'`;
     const steps = JSON.stringify([{ name: 'held', cwd: '.', cmd: `${escape} & wait` }]);
     const t0 = Date.now();
-    const r = run(VERIFY, [], { AGENT_VERIFY_STEPS: steps, AGENT_STEP_TIMEOUT: '1' });
+    const r = runVerify([], { AGENT_VERIFY_STEPS: steps, AGENT_STEP_TIMEOUT: '1' });
     const elapsed = Date.now() - t0;
     assert.equal(r.status, 1, r.stderr);
     const summary = JSON.parse(r.last);
@@ -144,7 +171,7 @@ test('verify returns at the step deadline even if an escaped descendant holds th
 test('verify keeps the tail of oversized output and caps the summary tail at 4 KiB', { timeout: 120_000 }, () => {
   // 70e6 characters on one line: more than twice the 32 Mi per-stream cap, so the stream is truncated.
   const steps = JSON.stringify([{ name: 'big', cwd: '.', cmd: `head -c 70000000 /dev/zero | tr '\\0' a; echo; exit 4` }]);
-  const r = run(VERIFY, [], { AGENT_VERIFY_STEPS: steps });
+  const r = runVerify([], { AGENT_VERIFY_STEPS: steps });
   assert.equal(r.status, 1, r.stderr);
   const summary = JSON.parse(r.last);
   assert.equal(summary.exit_code, 4);
@@ -155,7 +182,7 @@ test('verify keeps the tail of oversized output and caps the summary tail at 4 K
 
 test('verify reports a spawn error such as a missing cwd', () => {
   const steps = JSON.stringify([{ name: 'nowhere', cwd: 'does-not-exist', cmd: 'true' }]);
-  const r = run(VERIFY, [], { AGENT_VERIFY_STEPS: steps });
+  const r = runVerify([], { AGENT_VERIFY_STEPS: steps });
   assert.equal(r.status, 1);
   const summary = JSON.parse(r.last);
   assert.equal(summary.failed_step, 'nowhere');
@@ -164,7 +191,7 @@ test('verify reports a spawn error such as a missing cwd', () => {
 
 test('verify reports pass with the step list', () => {
   const steps = JSON.stringify([{ name: 'a', cwd: '.', cmd: 'true' }, { name: 'b', cwd: 'apps', cmd: 'test -d web' }]);
-  const r = run(VERIFY, [], { AGENT_VERIFY_STEPS: steps });
+  const r = runVerify([], { AGENT_VERIFY_STEPS: steps });
   assert.equal(r.status, 0, r.stderr);
   const summary = JSON.parse(r.last);
   assert.equal(summary.status, 'pass');

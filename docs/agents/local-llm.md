@@ -40,7 +40,7 @@ The last line is JSON; anything but `ready` exits 1 and carries a `detail`:
 
 - `unreachable`: `GET /models` at `AGENT_MODEL_BASE_URL` fails, times out (10 s), or returns an error status.
 - `no_model`: `AGENT_MODEL` is empty and the server lists zero or several models, or `AGENT_MODEL` is missing from the server's non-empty `/models` list. The probe never guesses; if the server lists nothing, the configured `AGENT_MODEL` is posted as is. Fix `.env.agent`.
-- `not_ready`: the completion failed or did not finish within `AGENT_MODEL_TIMEOUT` seconds (default 120; also reported when that value is not a positive number): loading, busy, or weights paged out. Wait and retry; do not restart the server.
+- `not_ready`: the completion failed or did not finish within `AGENT_MODEL_TIMEOUT` seconds (default 180; also reported when that value is not a positive number): loading, busy, or weights paged out. Wait and retry; do not restart the server.
 
 ## 3. Give the agent a task
 

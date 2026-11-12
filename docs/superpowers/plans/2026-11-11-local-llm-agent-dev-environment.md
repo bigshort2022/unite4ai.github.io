@@ -119,7 +119,7 @@ AGENT_MODEL_BASE_URL=http://127.0.0.1:18082/v1
 # Empty only works when the server lists exactly one model.
 AGENT_MODEL=mlx-community/Qwen3.6-35B-A3B-4bit-DWQ
 # Seconds to wait for the readiness completion (cold weights can take 30-130 s).
-AGENT_MODEL_TIMEOUT=120
+AGENT_MODEL_TIMEOUT=180
 ```
 
 - [ ] **Step 4: Point the Cursor scripts at the shared ones**
@@ -190,7 +190,7 @@ git commit -m "Add shared agent host setup; Cursor scripts delegate to it"
 - Create: `scripts/agent/verify.mjs`
 - Create: `scripts/agent/agent-scripts.test.mjs`
 
-**Interface:** `node scripts/agent/verify.mjs [--only hub|sustain] [--list]`. Exit 0 on pass, 1 on a failed step, 2 on usage error (unknown `--only`, or `AGENT_STEP_TIMEOUT` not a finite number > 0). Last stdout line is one JSON object: `{status:"pass", steps, log, seconds}` or `{status:"fail", failed_step, exit_code, timed_out, error, log, tail, seconds}`, where `error` is the spawn error code (`ETIMEDOUT`, `ENOENT`, …) or `null`. Steps run asynchronously, each in its own process group; verify kills that whole group on step timeout, and on SIGINT/SIGTERM/SIGHUP to verify itself (then exits 130/143/129 with no summary line). A timed-out step is reported at its deadline even if a descendant that left the group still holds the output pipes. Each stream keeps at most its last 32 Mi characters; a final `[verify] stdout|stderr truncated…` line marks that, so it shows in `tail`. `tail` is the last 20 output lines, then at most their last 4096 characters, prefixed `…` when cut. The log is appended step by step. Env: `AGENT_STEP_TIMEOUT` (seconds, default 600; empty means unset), `AGENT_VERIFY_STEPS` (JSON array `[{name,cwd,cmd}]` overriding the step list; for tests).
+**Interface:** `node scripts/agent/verify.mjs [--only hub|sustain] [--list]`. Exit 0 on pass, 1 on a failed step, 2 on usage error (any argument other than `--only hub|sustain` and `--list`, or `AGENT_STEP_TIMEOUT` not a finite number > 0) and when run under a Node other than 24 (Bun is accepted, since `bun test` runs it with Bun; the error names `source scripts/agent/activate-node.sh`). Last stdout line is one JSON object: `{status:"pass", steps, log, seconds}` or `{status:"fail", failed_step, exit_code, timed_out, error, log, tail, seconds}`, where `error` is the spawn error code (`ETIMEDOUT`, `ENOENT`, …) or `null`. Steps run asynchronously, each in its own process group; verify kills that whole group on step timeout, and on SIGINT/SIGTERM/SIGHUP to verify itself (then exits 130/143/129 with no summary line). A timed-out step is reported at its deadline even if a descendant that left the group still holds the output pipes. Each stream keeps at most its last 32 Mi characters; a final `[verify] stdout|stderr truncated…` line marks that, so it shows in `tail`. `tail` is the last 20 output lines, then at most their last 4096 characters, prefixed `…` when cut. The log is appended step by step. Env: `AGENT_STEP_TIMEOUT` (seconds, default 600; empty means unset), `AGENT_VERIFY_STEPS` (JSON array `[{name,cwd,cmd}]` overriding the step list; for tests), `AGENT_VERIFY_LOG_DIR` (log directory, resolved against the repo root, default `.agent/logs`; the tests point it at a temp dir they delete, so `bun test` never writes into `.agent/logs`).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -199,19 +199,27 @@ git commit -m "Add shared agent host setup; Cursor scripts delegate to it"
 ```js
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import test from 'node:test';
+import test, { after } from 'node:test';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { pathToFileURL } from 'node:url';
 
 const ROOT = resolve(import.meta.dirname, '../..');
 const VERIFY = resolve(ROOT, 'scripts/agent/verify.mjs');
+// verify's logs from these tests (one is ~33 MB) go to a temp dir, never ROOT/.agent/logs.
+const LOG_DIR = mkdtempSync(join(tmpdir(), 'verify-logs-'));
+after(() => rmSync(LOG_DIR, { recursive: true, force: true }));
 
 function run(script, args = [], env = {}) {
   const r = spawnSync(process.execPath, [script, ...args], { cwd: ROOT, encoding: 'utf8', env: { ...process.env, ...env } });
   const lines = r.stdout.trim().split('\n');
   return { ...r, last: lines[lines.length - 1] };
+}
+
+function runVerify(args = [], env = {}) {
+  return run(VERIFY, args, { AGENT_VERIFY_LOG_DIR: LOG_DIR, ...env });
 }
 
 /** Waits (bounded) until `pid` no longer exists; returns false if it is still alive. */
@@ -239,13 +247,13 @@ async function readPid(pidFile, attempts = 100) {
 }
 
 test('verify --list names the hub steps in order', () => {
-  const r = run(VERIFY, ['--list', '--only', 'hub']);
+  const r = runVerify(['--list', '--only', 'hub']);
   assert.equal(r.status, 0, r.stderr);
   assert.deepEqual(r.stdout.trim().split('\n'), ['hub-validate', 'hub-build', 'hub-test']);
 });
 
 test('verify --list without --only names all six steps in order', () => {
-  const r = run(VERIFY, ['--list']);
+  const r = runVerify(['--list']);
   assert.equal(r.status, 0, r.stderr);
   assert.deepEqual(r.stdout.trim().split('\n'), [
     'hub-validate', 'hub-build', 'hub-test', 'sustain-test', 'sustain-check', 'sustain-build',
@@ -253,11 +261,29 @@ test('verify --list without --only names all six steps in order', () => {
 });
 
 test('verify rejects an unknown --only value', () => {
-  assert.equal(run(VERIFY, ['--only', 'nope']).status, 2);
+  assert.equal(runVerify(['--only', 'nope']).status, 2);
+});
+
+test('verify rejects an unknown flag', () => {
+  assert.equal(runVerify(['--onyl', 'hub']).status, 2);
+});
+
+test('verify refuses to run under a Node other than 24', () => {
+  // Fake an older Node in-process: a second Node install is not needed (or available in CI).
+  const shim = join(LOG_DIR, 'fake-node-22.mjs');
+  writeFileSync(shim, [
+    "Object.defineProperty(process.versions, 'node', { value: '22.0.0' });",
+    'delete process.versions.bun;',
+    `await import(${JSON.stringify(pathToFileURL(VERIFY).href)});`,
+  ].join('\n'));
+  const r = run(shim, ['--list'], { AGENT_VERIFY_LOG_DIR: LOG_DIR });
+  assert.equal(r.status, 2);
+  assert.equal(r.stdout, '');
+  assert.match(r.stderr, /Node 24 \(running 22\.0\.0\).*source scripts\/agent\/activate-node\.sh/);
 });
 
 test('verify rejects a non-numeric AGENT_STEP_TIMEOUT', () => {
-  assert.equal(run(VERIFY, ['--list'], { AGENT_STEP_TIMEOUT: 'abc' }).status, 2);
+  assert.equal(runVerify(['--list'], { AGENT_STEP_TIMEOUT: 'abc' }).status, 2);
 });
 
 test('verify stops at the first failing step and reports it as JSON', () => {
@@ -266,7 +292,7 @@ test('verify stops at the first failing step and reports it as JSON', () => {
     { name: 'boom', cwd: '.', cmd: 'echo bad >&2; exit 3' },
     { name: 'never', cwd: '.', cmd: 'echo unreachable' },
   ]);
-  const r = run(VERIFY, [], { AGENT_VERIFY_STEPS: steps });
+  const r = runVerify([], { AGENT_VERIFY_STEPS: steps });
   assert.equal(r.status, 1);
   const summary = JSON.parse(r.last);
   assert.equal(summary.status, 'fail');
@@ -274,6 +300,7 @@ test('verify stops at the first failing step and reports it as JSON', () => {
   assert.equal(summary.exit_code, 3);
   assert.equal(summary.timed_out, false);
   assert.match(summary.tail, /bad/);
+  assert.ok(summary.log.startsWith(`${LOG_DIR}/`), `log outside the test log dir: ${summary.log}`);
   assert.ok(existsSync(summary.log), `log missing: ${summary.log}`);
   assert.doesNotMatch(r.stderr, /never/);
 });
@@ -282,7 +309,7 @@ test('verify kills the whole process group of a step that exceeds AGENT_STEP_TIM
   const pidFile = join(tmpdir(), `verify-orphan-${process.pid}-${Date.now()}.pid`);
   try {
     const steps = JSON.stringify([{ name: 'slow', cwd: '.', cmd: `sleep 30 & echo $! > '${pidFile}'; wait` }]);
-    const r = run(VERIFY, [], { AGENT_VERIFY_STEPS: steps, AGENT_STEP_TIMEOUT: '1' });
+    const r = runVerify([], { AGENT_VERIFY_STEPS: steps, AGENT_STEP_TIMEOUT: '1' });
     assert.equal(r.status, 1);
     const summary = JSON.parse(r.last);
     assert.equal(summary.failed_step, 'slow');
@@ -300,7 +327,7 @@ test('verify kills the step group and exits 143 when it receives SIGTERM', async
   try {
     const steps = JSON.stringify([{ name: 'slow', cwd: '.', cmd: `sleep 30 & echo $! > '${pidFile}'; wait` }]);
     const child = spawn(process.execPath, [VERIFY], {
-      cwd: ROOT, env: { ...process.env, AGENT_VERIFY_STEPS: steps, AGENT_STEP_TIMEOUT: '60' }, stdio: 'ignore',
+      cwd: ROOT, env: { ...process.env, AGENT_VERIFY_LOG_DIR: LOG_DIR, AGENT_VERIFY_STEPS: steps, AGENT_STEP_TIMEOUT: '60' }, stdio: 'ignore',
     });
     const exited = new Promise((settle) => child.on('exit', (code, signal) => settle({ code, signal })));
     const pid = await readPid(pidFile);
@@ -320,7 +347,7 @@ test('verify returns at the step deadline even if an escaped descendant holds th
     const escape = `perl -MPOSIX -e 'POSIX::setsid() or die; open my $f, ">", $ARGV[0] or die; print $f $$; close $f; sleep 30' '${pidFile}'`;
     const steps = JSON.stringify([{ name: 'held', cwd: '.', cmd: `${escape} & wait` }]);
     const t0 = Date.now();
-    const r = run(VERIFY, [], { AGENT_VERIFY_STEPS: steps, AGENT_STEP_TIMEOUT: '1' });
+    const r = runVerify([], { AGENT_VERIFY_STEPS: steps, AGENT_STEP_TIMEOUT: '1' });
     const elapsed = Date.now() - t0;
     assert.equal(r.status, 1, r.stderr);
     const summary = JSON.parse(r.last);
@@ -341,7 +368,7 @@ test('verify returns at the step deadline even if an escaped descendant holds th
 test('verify keeps the tail of oversized output and caps the summary tail at 4 KiB', { timeout: 120_000 }, () => {
   // 70e6 characters on one line: more than twice the 32 Mi per-stream cap, so the stream is truncated.
   const steps = JSON.stringify([{ name: 'big', cwd: '.', cmd: `head -c 70000000 /dev/zero | tr '\\0' a; echo; exit 4` }]);
-  const r = run(VERIFY, [], { AGENT_VERIFY_STEPS: steps });
+  const r = runVerify([], { AGENT_VERIFY_STEPS: steps });
   assert.equal(r.status, 1, r.stderr);
   const summary = JSON.parse(r.last);
   assert.equal(summary.exit_code, 4);
@@ -352,7 +379,7 @@ test('verify keeps the tail of oversized output and caps the summary tail at 4 K
 
 test('verify reports a spawn error such as a missing cwd', () => {
   const steps = JSON.stringify([{ name: 'nowhere', cwd: 'does-not-exist', cmd: 'true' }]);
-  const r = run(VERIFY, [], { AGENT_VERIFY_STEPS: steps });
+  const r = runVerify([], { AGENT_VERIFY_STEPS: steps });
   assert.equal(r.status, 1);
   const summary = JSON.parse(r.last);
   assert.equal(summary.failed_step, 'nowhere');
@@ -361,7 +388,7 @@ test('verify reports a spawn error such as a missing cwd', () => {
 
 test('verify reports pass with the step list', () => {
   const steps = JSON.stringify([{ name: 'a', cwd: '.', cmd: 'true' }, { name: 'b', cwd: 'apps', cmd: 'test -d web' }]);
-  const r = run(VERIFY, [], { AGENT_VERIFY_STEPS: steps });
+  const r = runVerify([], { AGENT_VERIFY_STEPS: steps });
   assert.equal(r.status, 0, r.stderr);
   const summary = JSON.parse(r.last);
   assert.equal(summary.status, 'pass');
@@ -372,7 +399,7 @@ test('verify reports pass with the step list', () => {
 - [ ] **Step 2: Run the tests and confirm they fail because the script is absent**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: 11 failing tests (`Cannot find module … verify.mjs` / status mismatch).
+Expected: 13 failing tests (`Cannot find module … verify.mjs` / status mismatch).
 
 - [ ] **Step 3: Implement `scripts/agent/verify.mjs`**
 
@@ -392,9 +419,15 @@ import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { constants } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
+// Bun (bun test runs this with bun) is fine; under Node, the repo's toolchain is Node 24.
+if (!process.versions.bun && Number(process.versions.node.split('.')[0]) !== 24) {
+  console.error(`verify.mjs needs Node 24 (running ${process.versions.node}); run \`source scripts/agent/activate-node.sh\` first.`);
+  process.exit(2);
+}
+
 const ROOT = resolve(import.meta.dirname, '../..');
 const SUSTAIN = join(ROOT, 'sites/ai-sustainability');
-const USAGE = 'usage: verify.mjs [--only hub|sustain] [--list]  (env: AGENT_STEP_TIMEOUT=<seconds > 0>)';
+const USAGE = 'usage: verify.mjs [--only hub|sustain] [--list]  (env: AGENT_STEP_TIMEOUT=<seconds > 0>, AGENT_VERIFY_LOG_DIR=<dir>)';
 // Per stream, keep at most the last 32 Mi characters of output (the tail is what matters).
 const MAX_OUTPUT = 32 * 1024 * 1024;
 // The summary's tail: last 20 lines, then at most the last 4 Ki characters (prefixed "…" when cut).
@@ -413,22 +446,29 @@ const STEP_SETS = {
   ],
 };
 
-const args = process.argv.slice(2);
-const onlyIndex = args.indexOf('--only');
-const only = onlyIndex === -1 ? 'all' : args[onlyIndex + 1];
-const sets = only === 'all' ? ['hub', 'sustain'] : [only];
-const timeoutSeconds = Number(process.env.AGENT_STEP_TIMEOUT || 600);
-if (sets.some((s) => !STEP_SETS[s]) || !Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0) {
+function usage() {
   console.error(USAGE);
   process.exit(2);
 }
+
+const args = process.argv.slice(2);
+let only = 'all';
+let list = false;
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === '--list') list = true;
+  else if (args[i] === '--only' && Object.hasOwn(STEP_SETS, args[i + 1])) only = args[++i];
+  else usage();
+}
+const sets = only === 'all' ? ['hub', 'sustain'] : [only];
+const timeoutSeconds = Number(process.env.AGENT_STEP_TIMEOUT || 600);
+if (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0) usage();
 
 let steps = sets.flatMap((s) => STEP_SETS[s]);
 if (process.env.AGENT_VERIFY_STEPS) {
   steps = JSON.parse(process.env.AGENT_VERIFY_STEPS).map((s) => ({ ...s, cwd: resolve(ROOT, s.cwd ?? '.') }));
 }
 
-if (args.includes('--list')) {
+if (list) {
   for (const step of steps) console.log(step.name);
   process.exit(0);
 }
@@ -503,7 +543,8 @@ function runStep(step, env, timeoutMs) {
 
 // The runner may call us with a minimal PATH: put this Node and Bun first.
 const env = { ...process.env, PATH: `${dirname(process.execPath)}:${process.env.HOME}/.bun/bin:${process.env.PATH ?? ''}` };
-const logDir = join(ROOT, '.agent/logs');
+// AGENT_VERIFY_LOG_DIR (relative to the repo root) lets tests keep their logs out of the repo.
+const logDir = resolve(ROOT, process.env.AGENT_VERIFY_LOG_DIR || '.agent/logs');
 mkdirSync(logDir, { recursive: true });
 const log = join(logDir, `verify-${new Date().toISOString().replace(/[:.]/g, '-')}.log`);
 writeFileSync(log, '');
@@ -534,14 +575,14 @@ console.log(JSON.stringify({ status: 'pass', steps: steps.map((s) => s.name), lo
 - [ ] **Step 4: Run the tests and confirm they pass under both runners**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 11`.
+Expected: `pass 13`.
 Run: `bun test scripts/agent`
-Expected: `11 pass`.
+Expected: `13 pass`.
 
 - [ ] **Step 5: Run the real gate once**
 
 Run: `node scripts/agent/verify.mjs`
-Expected (stderr): `ok   hub-validate`, `ok   hub-build`, `ok   hub-test`, `ok   sustain-test`, `ok   sustain-check`, `ok   sustain-build`; last stdout line `{"status":"pass",…}`. Takes roughly 1–2 minutes.
+Expected (stderr): `ok   hub-validate`, `ok   hub-build`, `ok   hub-test`, `ok   sustain-test`, `ok   sustain-check`, `ok   sustain-build`; last stdout line `{"status":"pass",…}`. Takes ~20–35 s.
 
 - [ ] **Step 6: Commit**
 
@@ -737,7 +778,7 @@ test('model-check reports not_ready with a plain message when the completion tim
 - [ ] **Step 2: Run the tests and confirm the eight new ones fail**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 11`, `fail 8`.
+Expected: `pass 13`, `fail 8`.
 
 - [ ] **Step 3: Implement `scripts/agent/model-check.mjs`**
 
@@ -770,7 +811,7 @@ function fail(status, detail) {
   process.exit(1);
 }
 
-const timeoutS = Number(process.env.AGENT_MODEL_TIMEOUT || 120);
+const timeoutS = Number(process.env.AGENT_MODEL_TIMEOUT || 180);
 if (!Number.isFinite(timeoutS) || timeoutS <= 0) {
   fail('not_ready', `AGENT_MODEL_TIMEOUT must be a positive number of seconds, got ${JSON.stringify(process.env.AGENT_MODEL_TIMEOUT)}`);
 }
@@ -814,7 +855,7 @@ try {
 - [ ] **Step 4: Run the tests and confirm all pass**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 19`.
+Expected: `pass 21`.
 
 - [ ] **Step 5: Probe the real server (only if `omp local` has it running; do not start one)**
 
@@ -953,7 +994,7 @@ test('request rejects a missing template or goal', () => {
 - [ ] **Step 3: Run the tests and confirm the four new ones fail**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 19`, `fail 4`.
+Expected: `pass 21`, `fail 4`.
 
 - [ ] **Step 4: Implement `scripts/agent/request.mjs`**
 
@@ -1036,7 +1077,7 @@ console.error(`omp local --run ${out}`);
 - [ ] **Step 5: Run the tests and confirm all pass**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs && bun test scripts/agent`
-Expected: `pass 23` under both runners. The context files must exist (Task 5's `AGENTS.md` cards); otherwise `realpathSync` throws.
+Expected: `pass 25` under both runners. The context files must exist (Task 5's `AGENTS.md` cards); otherwise `realpathSync` throws.
 
 Then prove the renders against the runner's own validator, which is a pure function (`agent_run.load_request` parses, validates and composes the first prompt; it starts no job and never contacts the model). Render each template, then run `~/.agents/skills/omp-local/.venv-agent/bin/python -c "import sys; sys.path.insert(0, '$HOME/.agents/skills/omp-local/scripts'); import agent_run; [agent_run.load_request(p) for p in sys.argv[1:]]" <rendered paths>`. Expected: no `RunError`. Do not use `omp local --run` for this.
 
@@ -1114,7 +1155,7 @@ Expected: root < 3072, site < 1024. Trim prose, not commands, if over.
 - [ ] **Step 4: Confirm the templates still fit the budget**
 
 Run: `node scripts/agent/request.mjs sustain-loop "Smoke goal" && node --test scripts/agent/agent-scripts.test.mjs`
-Expected: a path under `.agent/requests/`; `pass 11`.
+Expected: a path under `.agent/requests/`; `pass 25`.
 
 - [ ] **Step 5: Commit**
 
@@ -1176,7 +1217,7 @@ The last line is JSON; anything but `ready` exits 1 and carries a `detail`:
 
 - `unreachable`: `GET /models` at `AGENT_MODEL_BASE_URL` fails, times out (10 s), or returns an error status.
 - `no_model`: `AGENT_MODEL` is empty and the server lists zero or several models, or `AGENT_MODEL` is missing from the server's non-empty `/models` list. The probe never guesses; if the server lists nothing, the configured `AGENT_MODEL` is posted as is. Fix `.env.agent`.
-- `not_ready`: the completion failed or did not finish within `AGENT_MODEL_TIMEOUT` seconds (default 120; also reported when that value is not a positive number): loading, busy, or weights paged out. Wait and retry; do not restart the server.
+- `not_ready`: the completion failed or did not finish within `AGENT_MODEL_TIMEOUT` seconds (default 180; also reported when that value is not a positive number): loading, busy, or weights paged out. Wait and retry; do not restart the server.
 
 ## 3. Give the agent a task
 
@@ -1282,7 +1323,7 @@ Using a coding agent (hosted or local LLM)? Run `bun run agent:setup` once and p
 Run: `bun run agent:verify`
 Expected: six `ok` lines and `{"status":"pass","steps":["hub-validate","hub-build","hub-test","sustain-test","sustain-check","sustain-build"],…}` (observed: 22.4 s).
 Run: `bun test`
-Expected: `52 pass`, `0 fail` across 12 files, 23 of them in `scripts/agent/agent-scripts.test.mjs`.
+Expected: `54 pass`, `0 fail` across 12 files, 25 of them in `scripts/agent/agent-scripts.test.mjs`.
 
 - [ ] **Step 4: Commit, push a branch, open the PR**
 
@@ -1307,7 +1348,7 @@ Host-only dev environment for coding agents backed by a locally hosted LLM (mlx-
 - `docs/agents/local-llm.md`: runbook.
 
 ## Test plan
-- [ ] `bun test`: 52 pass, 0 fail (23 in `scripts/agent/agent-scripts.test.mjs`: gate ordering, failure/timeout/signal handling, model probe against a stub server, request rendering and budget guard)
+- [ ] `bun test`: 54 pass, 0 fail (25 in `scripts/agent/agent-scripts.test.mjs`: gate ordering, failure/timeout/signal handling, model probe against a stub server, request rendering and budget guard)
 - [ ] `bun run agent:verify` passes end to end
 - [ ] `bun run agent:model` against the running 35B returns `ready`
 - [ ] One `hub-loop` request completed `verified` on a trivial goal
@@ -1323,6 +1364,6 @@ Expected: CI `Validate pull request` green (it runs `bun test` bare, which now i
 
 **Placeholder scan.** Templates carry empty `cwd`/`goal` by design and the renderer fills them; the plan states this. No TBD/TODO.
 
-**Type consistency.** `verify.mjs` flags: `--only hub|sustain`, `--list`; env `AGENT_STEP_TIMEOUT`, `AGENT_VERIFY_STEPS` (array of `{name,cwd,cmd}`): matched in tests, templates (`argv` uses `--only`), `AGENTS.md`, and the runbook. `model-check.mjs` statuses `ready|unreachable|no_model|not_ready` and env `AGENT_MODEL_BASE_URL|AGENT_MODEL|AGENT_MODEL_TIMEOUT`: matched in `.env.agent.example`, tests, runbook. `request.mjs` exits `2|3`, output dir `.agent/requests/`: matched in tests.
+**Type consistency.** `verify.mjs` flags: `--only hub|sustain`, `--list`; env `AGENT_STEP_TIMEOUT`, `AGENT_VERIFY_STEPS` (array of `{name,cwd,cmd}`), `AGENT_VERIFY_LOG_DIR`: matched in tests, templates (`argv` uses `--only`), `AGENTS.md`, and the runbook. `model-check.mjs` statuses `ready|unreachable|no_model|not_ready` and env `AGENT_MODEL_BASE_URL|AGENT_MODEL|AGENT_MODEL_TIMEOUT`: matched in `.env.agent.example`, tests, runbook. `request.mjs` exits `2|3`, output dir `.agent/requests/`: matched in tests.
 
 **Ordering note.** Task 4 step 5 needs `AGENTS.md`; execute Task 5 before Task 4 step 5, or create `AGENTS.md` first. Both are independent otherwise.

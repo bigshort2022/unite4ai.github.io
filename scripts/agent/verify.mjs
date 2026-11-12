@@ -13,9 +13,15 @@ import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { constants } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
+// Bun (bun test runs this with bun) is fine; under Node, the repo's toolchain is Node 24.
+if (!process.versions.bun && Number(process.versions.node.split('.')[0]) !== 24) {
+  console.error(`verify.mjs needs Node 24 (running ${process.versions.node}); run \`source scripts/agent/activate-node.sh\` first.`);
+  process.exit(2);
+}
+
 const ROOT = resolve(import.meta.dirname, '../..');
 const SUSTAIN = join(ROOT, 'sites/ai-sustainability');
-const USAGE = 'usage: verify.mjs [--only hub|sustain] [--list]  (env: AGENT_STEP_TIMEOUT=<seconds > 0>)';
+const USAGE = 'usage: verify.mjs [--only hub|sustain] [--list]  (env: AGENT_STEP_TIMEOUT=<seconds > 0>, AGENT_VERIFY_LOG_DIR=<dir>)';
 // Per stream, keep at most the last 32 Mi characters of output (the tail is what matters).
 const MAX_OUTPUT = 32 * 1024 * 1024;
 // The summary's tail: last 20 lines, then at most the last 4 Ki characters (prefixed "…" when cut).
@@ -34,22 +40,29 @@ const STEP_SETS = {
   ],
 };
 
-const args = process.argv.slice(2);
-const onlyIndex = args.indexOf('--only');
-const only = onlyIndex === -1 ? 'all' : args[onlyIndex + 1];
-const sets = only === 'all' ? ['hub', 'sustain'] : [only];
-const timeoutSeconds = Number(process.env.AGENT_STEP_TIMEOUT || 600);
-if (sets.some((s) => !STEP_SETS[s]) || !Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0) {
+function usage() {
   console.error(USAGE);
   process.exit(2);
 }
+
+const args = process.argv.slice(2);
+let only = 'all';
+let list = false;
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === '--list') list = true;
+  else if (args[i] === '--only' && Object.hasOwn(STEP_SETS, args[i + 1])) only = args[++i];
+  else usage();
+}
+const sets = only === 'all' ? ['hub', 'sustain'] : [only];
+const timeoutSeconds = Number(process.env.AGENT_STEP_TIMEOUT || 600);
+if (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0) usage();
 
 let steps = sets.flatMap((s) => STEP_SETS[s]);
 if (process.env.AGENT_VERIFY_STEPS) {
   steps = JSON.parse(process.env.AGENT_VERIFY_STEPS).map((s) => ({ ...s, cwd: resolve(ROOT, s.cwd ?? '.') }));
 }
 
-if (args.includes('--list')) {
+if (list) {
   for (const step of steps) console.log(step.name);
   process.exit(0);
 }
@@ -124,7 +137,8 @@ function runStep(step, env, timeoutMs) {
 
 // The runner may call us with a minimal PATH: put this Node and Bun first.
 const env = { ...process.env, PATH: `${dirname(process.execPath)}:${process.env.HOME}/.bun/bin:${process.env.PATH ?? ''}` };
-const logDir = join(ROOT, '.agent/logs');
+// AGENT_VERIFY_LOG_DIR (relative to the repo root) lets tests keep their logs out of the repo.
+const logDir = resolve(ROOT, process.env.AGENT_VERIFY_LOG_DIR || '.agent/logs');
 mkdirSync(logDir, { recursive: true });
 const log = join(logDir, `verify-${new Date().toISOString().replace(/[:.]/g, '-')}.log`);
 writeFileSync(log, '');
