@@ -190,7 +190,7 @@ git commit -m "Add shared agent host setup; Cursor scripts delegate to it"
 - Create: `scripts/agent/verify.mjs`
 - Create: `scripts/agent/agent-scripts.test.mjs`
 
-**Interface:** `node scripts/agent/verify.mjs [--only hub|sustain] [--list]`. Exit 0 on pass, 1 on a failed step, 2 on usage error. Last stdout line is one JSON object: `{status:"pass", steps, log, seconds}` or `{status:"fail", failed_step, exit_code, timed_out, log, tail, seconds}`. Env: `AGENT_STEP_TIMEOUT` (seconds, default 600), `AGENT_VERIFY_STEPS` (JSON array `[{name,cwd,cmd}]` overriding the step list; for tests).
+**Interface:** `node scripts/agent/verify.mjs [--only hub|sustain] [--list]`. Exit 0 on pass, 1 on a failed step, 2 on usage error (unknown `--only`, or `AGENT_STEP_TIMEOUT` not a finite number > 0). Last stdout line is one JSON object: `{status:"pass", steps, log, seconds}` or `{status:"fail", failed_step, exit_code, timed_out, error, log, tail, seconds}`, where `error` is the spawn error code (`ETIMEDOUT`, `ENOENT`, `ENOBUFS`, …) or `null`. Each step runs in its own process group; on timeout the whole group is killed. The log is appended step by step. Env: `AGENT_STEP_TIMEOUT` (seconds, default 600), `AGENT_VERIFY_STEPS` (JSON array `[{name,cwd,cmd}]` overriding the step list; for tests).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -199,9 +199,11 @@ git commit -m "Add shared agent host setup; Cursor scripts delegate to it"
 ```js
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import test from 'node:test';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 const ROOT = resolve(import.meta.dirname, '../..');
 const VERIFY = resolve(ROOT, 'scripts/agent/verify.mjs');
@@ -218,8 +220,20 @@ test('verify --list names the hub steps in order', () => {
   assert.deepEqual(r.stdout.trim().split('\n'), ['hub-validate', 'hub-build', 'hub-test']);
 });
 
+test('verify --list without --only names all six steps in order', () => {
+  const r = run(VERIFY, ['--list']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(r.stdout.trim().split('\n'), [
+    'hub-validate', 'hub-build', 'hub-test', 'sustain-test', 'sustain-check', 'sustain-build',
+  ]);
+});
+
 test('verify rejects an unknown --only value', () => {
   assert.equal(run(VERIFY, ['--only', 'nope']).status, 2);
+});
+
+test('verify rejects a non-numeric AGENT_STEP_TIMEOUT', () => {
+  assert.equal(run(VERIFY, ['--list'], { AGENT_STEP_TIMEOUT: 'abc' }).status, 2);
 });
 
 test('verify stops at the first failing step and reports it as JSON', () => {
@@ -240,13 +254,41 @@ test('verify stops at the first failing step and reports it as JSON', () => {
   assert.doesNotMatch(r.stderr, /never/);
 });
 
-test('verify kills a step that exceeds AGENT_STEP_TIMEOUT', () => {
-  const steps = JSON.stringify([{ name: 'slow', cwd: '.', cmd: 'sleep 5' }]);
-  const r = run(VERIFY, [], { AGENT_VERIFY_STEPS: steps, AGENT_STEP_TIMEOUT: '1' });
+test('verify kills the whole process group of a step that exceeds AGENT_STEP_TIMEOUT', async () => {
+  const pidFile = join(tmpdir(), `verify-orphan-${process.pid}-${Date.now()}.pid`);
+  try {
+    const steps = JSON.stringify([{ name: 'slow', cwd: '.', cmd: `sleep 30 & echo $! > '${pidFile}'; wait` }]);
+    const r = run(VERIFY, [], { AGENT_VERIFY_STEPS: steps, AGENT_STEP_TIMEOUT: '1' });
+    assert.equal(r.status, 1);
+    const summary = JSON.parse(r.last);
+    assert.equal(summary.failed_step, 'slow');
+    assert.equal(summary.exit_code, null);
+    assert.equal(summary.timed_out, true);
+    const pid = Number(readFileSync(pidFile, 'utf8').trim());
+    assert.ok(pid > 0, `no pid recorded in ${pidFile}`);
+    let alive = true;
+    for (let i = 0; i < 10 && alive; i++) {
+      try {
+        process.kill(pid, 0);
+        await sleep(20);
+      } catch (error) {
+        assert.equal(error.code, 'ESRCH');
+        alive = false;
+      }
+    }
+    assert.equal(alive, false, `orphaned grandchild ${pid} survived the timeout`);
+  } finally {
+    rmSync(pidFile, { force: true });
+  }
+});
+
+test('verify reports a spawn error such as a missing cwd', () => {
+  const steps = JSON.stringify([{ name: 'nowhere', cwd: 'does-not-exist', cmd: 'true' }]);
+  const r = run(VERIFY, [], { AGENT_VERIFY_STEPS: steps });
   assert.equal(r.status, 1);
   const summary = JSON.parse(r.last);
-  assert.equal(summary.failed_step, 'slow');
-  assert.equal(summary.timed_out, true);
+  assert.equal(summary.failed_step, 'nowhere');
+  assert.equal(summary.error, 'ENOENT');
 });
 
 test('verify reports pass with the step list', () => {
@@ -262,7 +304,7 @@ test('verify reports pass with the step list', () => {
 - [ ] **Step 2: Run the tests and confirm they fail because the script is absent**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: 5 failing tests (`Cannot find module … verify.mjs` / status mismatch).
+Expected: 8 failing tests (`Cannot find module … verify.mjs` / status mismatch).
 
 - [ ] **Step 3: Implement `scripts/agent/verify.mjs`**
 
@@ -274,11 +316,12 @@ Expected: 5 failing tests (`Cannot find module … verify.mjs` / status mismatch
  * can read the outcome without parsing build output.
  */
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 const ROOT = resolve(import.meta.dirname, '../..');
 const SUSTAIN = join(ROOT, 'sites/ai-sustainability');
+const USAGE = 'usage: verify.mjs [--only hub|sustain] [--list]  (env: AGENT_STEP_TIMEOUT=<seconds > 0>)';
 
 const STEP_SETS = {
   hub: [
@@ -297,8 +340,9 @@ const args = process.argv.slice(2);
 const onlyIndex = args.indexOf('--only');
 const only = onlyIndex === -1 ? 'all' : args[onlyIndex + 1];
 const sets = only === 'all' ? ['hub', 'sustain'] : [only];
-if (sets.some((s) => !STEP_SETS[s])) {
-  console.error('usage: verify.mjs [--only hub|sustain] [--list]');
+const timeoutSeconds = Number(process.env.AGENT_STEP_TIMEOUT ?? 600);
+if (sets.some((s) => !STEP_SETS[s]) || !Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0) {
+  console.error(USAGE);
   process.exit(2);
 }
 
@@ -314,42 +358,47 @@ if (args.includes('--list')) {
 
 // The runner may call us with a minimal PATH: put this Node and Bun first.
 const env = { ...process.env, PATH: `${dirname(process.execPath)}:${process.env.HOME}/.bun/bin:${process.env.PATH ?? ''}` };
-const timeoutMs = Number(process.env.AGENT_STEP_TIMEOUT ?? 600) * 1000;
 const logDir = join(ROOT, '.agent/logs');
 mkdirSync(logDir, { recursive: true });
 const log = join(logDir, `verify-${new Date().toISOString().replace(/[:.]/g, '-')}.log`);
-const sections = [];
+writeFileSync(log, '');
 const startedAt = Date.now();
 
 for (const step of steps) {
   const t0 = Date.now();
-  const r = spawnSync('bash', ['-c', step.cmd], { cwd: step.cwd, encoding: 'utf8', env, timeout: timeoutMs, killSignal: 'SIGTERM' });
-  const output = `${r.stdout ?? ''}${r.stderr ?? ''}`;
-  sections.push(`### ${step.name} (${step.cwd}) $ ${step.cmd}\n${output}\n`);
+  // detached: the step leads its own process group, so a timeout can kill its whole tree.
+  const r = spawnSync('bash', ['-c', step.cmd], {
+    cwd: step.cwd, encoding: 'utf8', env, timeout: timeoutSeconds * 1000, killSignal: 'SIGTERM',
+    detached: true, maxBuffer: 32 * 1024 * 1024,
+  });
   const timedOut = r.error?.code === 'ETIMEDOUT';
-  const ok = !timedOut && r.status === 0;
+  if (timedOut) {
+    try { process.kill(-r.pid, 'SIGKILL'); } catch {} // ESRCH: the group is already gone.
+  }
+  const output = `${r.stdout ?? ''}${r.stderr ?? ''}`;
+  const spawnError = r.error ? `\n[verify] ${r.error.message}\n` : '';
+  appendFileSync(log, `### ${step.name} (${step.cwd}) $ ${step.cmd}\n${output}${spawnError}\n`);
+  const ok = !r.error && r.status === 0;
   console.error(`${ok ? 'ok  ' : 'FAIL'} ${step.name} ${((Date.now() - t0) / 1000).toFixed(1)}s`);
   if (!ok) {
-    writeFileSync(log, sections.join('\n'));
     const tail = output.trim().split('\n').slice(-20).join('\n');
     console.log(JSON.stringify({
-      status: 'fail', failed_step: step.name, exit_code: r.status, timed_out: timedOut, log, tail,
+      status: 'fail', failed_step: step.name, exit_code: r.status, timed_out: timedOut, error: r.error?.code ?? null, log, tail,
       seconds: (Date.now() - startedAt) / 1000,
     }));
     process.exit(1);
   }
 }
 
-writeFileSync(log, sections.join('\n'));
 console.log(JSON.stringify({ status: 'pass', steps: steps.map((s) => s.name), log, seconds: (Date.now() - startedAt) / 1000 }));
 ```
 
 - [ ] **Step 4: Run the tests and confirm they pass under both runners**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 5`.
+Expected: `pass 8`.
 Run: `bun test scripts/agent`
-Expected: `5 pass`.
+Expected: `8 pass`.
 
 - [ ] **Step 5: Run the real gate once**
 
@@ -460,7 +509,7 @@ test('model-check reports not_ready when the completion fails', async () => {
 - [ ] **Step 2: Run the tests and confirm the three new ones fail**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 5`, `fail 3`.
+Expected: `pass 8`, `fail 3`.
 
 - [ ] **Step 3: Implement `scripts/agent/model-check.mjs`**
 
@@ -522,7 +571,7 @@ try {
 - [ ] **Step 4: Run the tests and confirm all pass**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 8`.
+Expected: `pass 11`.
 
 - [ ] **Step 5: Probe the real server (only if `omp local` has it running; do not start one)**
 
@@ -604,7 +653,7 @@ git commit -m "Add local model readiness probe"
 Append to `scripts/agent/agent-scripts.test.mjs`:
 
 ```js
-import { readFileSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 
 const REQUEST = resolve(ROOT, 'scripts/agent/request.mjs');
 
@@ -637,7 +686,7 @@ test('request rejects a missing template or goal', () => {
 - [ ] **Step 3: Run the tests and confirm the three new ones fail**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 8`, `fail 3`.
+Expected: `pass 11`, `fail 3`.
 
 - [ ] **Step 4: Implement `scripts/agent/request.mjs`**
 
@@ -684,7 +733,7 @@ console.error(`omp local --run ${out}`);
 - [ ] **Step 5: Run the tests and confirm all pass**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 11`.
+Expected: `pass 14`.
 (The prompt-budget test depends on `AGENTS.md` existing; if Task 5 has not run yet, `statSync` throws for the missing file. Create `AGENTS.md` first or run Task 5 before this step.)
 
 - [ ] **Step 6: Commit**
