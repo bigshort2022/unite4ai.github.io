@@ -277,6 +277,20 @@ test('model-check refuses to pick among several listed models and never posts', 
   }
 });
 
+test('model-check refuses an AGENT_MODEL the server does not list and never posts', async () => {
+  const { server, url, requests } = await stubServer(listModels(['a', 'b']));
+  try {
+    const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url, AGENT_MODEL: 'c', AGENT_MODEL_TIMEOUT: '5' });
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    const out = JSON.parse(r.last);
+    assert.equal(out.status, 'no_model');
+    assert.match(out.detail, /"c"/);
+    assert.deepEqual(requests, ['GET /v1/models']);
+  } finally {
+    server.close();
+  }
+});
+
 test('model-check reports no_model when the server lists none', async () => {
   const { server, url, requests } = await stubServer(listModels([]));
   try {

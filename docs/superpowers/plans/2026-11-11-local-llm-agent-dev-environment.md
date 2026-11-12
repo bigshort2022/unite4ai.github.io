@@ -560,7 +560,7 @@ git commit -m "Add bounded verify gate for agent runs"
 - Create: `scripts/agent/model-check.mjs`
 - Modify: `scripts/agent/agent-scripts.test.mjs`
 
-**Interface:** `node scripts/agent/model-check.mjs`. Reads `.env.agent` (without overriding real env; accepts `export `, strips unquoted ` #` comments), validates `AGENT_MODEL_TIMEOUT` before any request, GETs `/models`, then POSTs one 8-token chat completion naming `AGENT_MODEL`. If `AGENT_MODEL` is empty it uses the listed model only when exactly one is listed; with several it fails `no_model` without posting, because mlx-lm lists every cached MLX model and a POST naming a different one makes it (or Ollama) swap the loaded model. Prints one JSON line: `{status:"ready", base_url, model, reply, latency_s}` (exit 0) or `{status:"unreachable"|"no_model"|"not_ready", base_url, detail}` (exit 1).
+**Interface:** `node scripts/agent/model-check.mjs`. Reads `.env.agent` (without overriding real env; accepts `export `, strips unquoted ` #` comments), validates `AGENT_MODEL_TIMEOUT` before any request, GETs `/models`, then POSTs one 8-token chat completion naming `AGENT_MODEL`. If `AGENT_MODEL` is empty it uses the listed model only when exactly one is listed; with several it fails `no_model` without posting. A set `AGENT_MODEL` that the server does not list (when it lists at least one) also fails `no_model` without posting; when the server lists nothing, a set `AGENT_MODEL` is posted as-is. Reason: mlx-lm lists every cached MLX model and a POST naming a different one makes it (or Ollama) swap the loaded model. Prints one JSON line: `{status:"ready", base_url, model, reply, latency_s}` (exit 0) or `{status:"unreachable"|"no_model"|"not_ready", base_url, detail}` (exit 1).
 
 - [ ] **Step 1: Add failing tests with an in-process stub server**
 
@@ -678,6 +678,20 @@ test('model-check refuses to pick among several listed models and never posts', 
   }
 });
 
+test('model-check refuses an AGENT_MODEL the server does not list and never posts', async () => {
+  const { server, url, requests } = await stubServer(listModels(['a', 'b']));
+  try {
+    const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url, AGENT_MODEL: 'c', AGENT_MODEL_TIMEOUT: '5' });
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    const out = JSON.parse(r.last);
+    assert.equal(out.status, 'no_model');
+    assert.match(out.detail, /"c"/);
+    assert.deepEqual(requests, ['GET /v1/models']);
+  } finally {
+    server.close();
+  }
+});
+
 test('model-check reports no_model when the server lists none', async () => {
   const { server, url, requests } = await stubServer(listModels([]));
   try {
@@ -722,10 +736,10 @@ test('model-check reports not_ready with a plain message when the completion tim
 });
 ```
 
-- [ ] **Step 2: Run the tests and confirm the seven new ones fail**
+- [ ] **Step 2: Run the tests and confirm the eight new ones fail**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 11`, `fail 7`.
+Expected: `pass 11`, `fail 8`.
 
 - [ ] **Step 3: Implement `scripts/agent/model-check.mjs`**
 
@@ -777,6 +791,8 @@ if (!model) {
   if (ids.length > 1) fail('no_model', `server lists ${ids.length} models (${ids.join(', ')}); set AGENT_MODEL in .env.agent`);
   if (ids.length === 0) fail('no_model', 'server lists no models; set AGENT_MODEL in .env.agent');
   model = ids[0];
+} else if (ids.length > 0 && !ids.includes(model)) {
+  fail('no_model', `AGENT_MODEL "${model}" is not listed by the server (${ids.join(', ')}); posting it would make the server load it`);
 }
 
 const t0 = Date.now();
@@ -800,7 +816,7 @@ try {
 - [ ] **Step 4: Run the tests and confirm all pass**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 18`.
+Expected: `pass 19`.
 
 - [ ] **Step 5: Probe the real server (only if `omp local` has it running; do not start one)**
 
@@ -913,7 +929,7 @@ test('request rejects a missing template or goal', () => {
 - [ ] **Step 3: Run the tests and confirm the three new ones fail**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 18`, `fail 3`.
+Expected: `pass 19`, `fail 3`.
 
 - [ ] **Step 4: Implement `scripts/agent/request.mjs`**
 
@@ -960,7 +976,7 @@ console.error(`omp local --run ${out}`);
 - [ ] **Step 5: Run the tests and confirm all pass**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 21`.
+Expected: `pass 22`.
 (The prompt-budget test depends on `AGENTS.md` existing; if Task 5 has not run yet, `statSync` throws for the missing file. Create `AGENTS.md` first or run Task 5 before this step.)
 
 - [ ] **Step 6: Commit**

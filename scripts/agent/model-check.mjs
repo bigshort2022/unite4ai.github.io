@@ -45,6 +45,8 @@ if (!model) {
   if (ids.length > 1) fail('no_model', `server lists ${ids.length} models (${ids.join(', ')}); set AGENT_MODEL in .env.agent`);
   if (ids.length === 0) fail('no_model', 'server lists no models; set AGENT_MODEL in .env.agent');
   model = ids[0];
+} else if (ids.length > 0 && !ids.includes(model)) {
+  fail('no_model', `AGENT_MODEL "${model}" is not listed by the server (${ids.join(', ')}); posting it would make the server load it`);
 }
 
 const t0 = Date.now();
