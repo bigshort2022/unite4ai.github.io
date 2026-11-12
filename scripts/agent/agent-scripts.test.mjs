@@ -186,15 +186,33 @@ function runAsync(script, args = [], env = {}) {
   });
 }
 
+/** In-process OpenAI-style stub. Records `METHOD url` per request; a throwing handler answers 500 with the error. */
 function stubServer(handler) {
+  const requests = [];
   return new Promise((done) => {
     const server = createServer((req, res) => {
       let body = '';
       req.on('data', (chunk) => { body += chunk; });
-      req.on('end', () => handler(req, res, body));
+      req.on('end', () => {
+        requests.push(`${req.method} ${req.url}`);
+        try {
+          handler(req, res, body);
+        } catch (error) {
+          res.statusCode = 500;
+          res.end(String(error?.message ?? error));
+        }
+      });
     });
-    server.listen(0, '127.0.0.1', () => done({ server, url: `http://127.0.0.1:${server.address().port}/v1` }));
+    server.listen(0, '127.0.0.1', () => done({ server, requests, url: `http://127.0.0.1:${server.address().port}/v1` }));
   });
+}
+
+function listModels(ids) {
+  return (req, res) => {
+    res.setHeader('content-type', 'application/json');
+    if (req.url === '/v1/models') return res.end(JSON.stringify({ data: ids.map((id) => ({ id })) }));
+    res.end(JSON.stringify({ choices: [{ message: { content: 'OK' } }] }));
+  };
 }
 
 test('model-check reports ready after a real completion', async () => {
@@ -206,7 +224,7 @@ test('model-check reports ready after a real completion', async () => {
     res.end(JSON.stringify({ choices: [{ message: { content: ' OK ' } }] }));
   });
   try {
-    const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url, AGENT_MODEL: '' });
+    const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url, AGENT_MODEL: '', AGENT_MODEL_TIMEOUT: '5' });
     assert.equal(r.status, 0, r.stdout + r.stderr);
     const out = JSON.parse(r.last);
     assert.equal(out.status, 'ready');
@@ -221,7 +239,7 @@ test('model-check reports ready after a real completion', async () => {
 test('model-check reports unreachable when nothing listens', async () => {
   const { server, url } = await stubServer(() => {});
   server.close();
-  const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url });
+  const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url, AGENT_MODEL: '', AGENT_MODEL_TIMEOUT: '5' });
   assert.equal(r.status, 1);
   assert.equal(JSON.parse(r.last).status, 'unreachable');
 });
@@ -234,11 +252,69 @@ test('model-check reports not_ready when the completion fails', async () => {
     res.end('loading');
   });
   try {
-    const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url });
+    const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url, AGENT_MODEL: '', AGENT_MODEL_TIMEOUT: '5' });
     assert.equal(r.status, 1);
     const out = JSON.parse(r.last);
     assert.equal(out.status, 'not_ready');
     assert.match(out.detail, /503/);
+  } finally {
+    server.close();
+  }
+});
+
+test('model-check refuses to pick among several listed models and never posts', async () => {
+  const { server, url, requests } = await stubServer(listModels(['big-model', 'small-model']));
+  try {
+    const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url, AGENT_MODEL: '', AGENT_MODEL_TIMEOUT: '5' });
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    const out = JSON.parse(r.last);
+    assert.equal(out.status, 'no_model');
+    assert.match(out.detail, /big-model/);
+    assert.match(out.detail, /small-model/);
+    assert.deepEqual(requests, ['GET /v1/models']);
+  } finally {
+    server.close();
+  }
+});
+
+test('model-check reports no_model when the server lists none', async () => {
+  const { server, url, requests } = await stubServer(listModels([]));
+  try {
+    const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url, AGENT_MODEL: '', AGENT_MODEL_TIMEOUT: '5' });
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.equal(JSON.parse(r.last).status, 'no_model');
+    assert.deepEqual(requests, ['GET /v1/models']);
+  } finally {
+    server.close();
+  }
+});
+
+test('model-check rejects a non-numeric AGENT_MODEL_TIMEOUT before any request', async () => {
+  const { server, url, requests } = await stubServer(listModels(['m']));
+  try {
+    const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url, AGENT_MODEL: '', AGENT_MODEL_TIMEOUT: 'abc' });
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    const out = JSON.parse(r.last);
+    assert.equal(out.status, 'not_ready');
+    assert.match(out.detail, /AGENT_MODEL_TIMEOUT/);
+    assert.deepEqual(requests, []);
+  } finally {
+    server.close();
+  }
+});
+
+test('model-check reports not_ready with a plain message when the completion times out', async () => {
+  const { server, url } = await stubServer((req, res) => {
+    res.setHeader('content-type', 'application/json');
+    if (req.url === '/v1/models') return res.end(JSON.stringify({ data: [{ id: 'm' }] }));
+    setTimeout(() => res.end(JSON.stringify({ choices: [{ message: { content: 'late' } }] })), 3_000);
+  });
+  try {
+    const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url, AGENT_MODEL: '', AGENT_MODEL_TIMEOUT: '0.5' });
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    const out = JSON.parse(r.last);
+    assert.equal(out.status, 'not_ready');
+    assert.match(out.detail, /no completion within 0\.5s/);
   } finally {
     server.close();
   }

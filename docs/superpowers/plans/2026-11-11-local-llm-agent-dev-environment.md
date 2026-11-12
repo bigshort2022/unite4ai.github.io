@@ -114,8 +114,10 @@ echo "setup complete"
 # mlx-lm managed server (omp local):  http://127.0.0.1:18082/v1
 # Ollama:                              http://127.0.0.1:11434/v1
 AGENT_MODEL_BASE_URL=http://127.0.0.1:18082/v1
-# Leave empty to use the first model the server lists.
-AGENT_MODEL=
+# Must name the model the server already has loaded: posting any other id makes mlx-lm/Ollama
+# load it (mlx-lm lists every MLX model in the HF cache, not just the loaded one).
+# Empty only works when the server lists exactly one model.
+AGENT_MODEL=mlx-community/Qwen3.6-35B-A3B-4bit-DWQ
 # Seconds to wait for the readiness completion (cold weights can take 30-130 s).
 AGENT_MODEL_TIMEOUT=120
 # Seconds per verify step before it is killed.
@@ -558,7 +560,7 @@ git commit -m "Add bounded verify gate for agent runs"
 - Create: `scripts/agent/model-check.mjs`
 - Modify: `scripts/agent/agent-scripts.test.mjs`
 
-**Interface:** `node scripts/agent/model-check.mjs`. Reads `.env.agent` (without overriding real env), GETs `/models`, then POSTs one 8-token chat completion. Prints one JSON line: `{status:"ready", base_url, model, reply, latency_s}` (exit 0) or `{status:"unreachable"|"no_model"|"not_ready", base_url, detail}` (exit 1).
+**Interface:** `node scripts/agent/model-check.mjs`. Reads `.env.agent` (without overriding real env; accepts `export `, strips unquoted ` #` comments), validates `AGENT_MODEL_TIMEOUT` before any request, GETs `/models`, then POSTs one 8-token chat completion naming `AGENT_MODEL`. If `AGENT_MODEL` is empty it uses the listed model only when exactly one is listed; with several it fails `no_model` without posting, because mlx-lm lists every cached MLX model and a POST naming a different one makes it (or Ollama) swap the loaded model. Prints one JSON line: `{status:"ready", base_url, model, reply, latency_s}` (exit 0) or `{status:"unreachable"|"no_model"|"not_ready", base_url, detail}` (exit 1).
 
 - [ ] **Step 1: Add failing tests with an in-process stub server**
 
@@ -585,15 +587,33 @@ function runAsync(script, args = [], env = {}) {
   });
 }
 
+/** In-process OpenAI-style stub. Records `METHOD url` per request; a throwing handler answers 500 with the error. */
 function stubServer(handler) {
+  const requests = [];
   return new Promise((done) => {
     const server = createServer((req, res) => {
       let body = '';
       req.on('data', (chunk) => { body += chunk; });
-      req.on('end', () => handler(req, res, body));
+      req.on('end', () => {
+        requests.push(`${req.method} ${req.url}`);
+        try {
+          handler(req, res, body);
+        } catch (error) {
+          res.statusCode = 500;
+          res.end(String(error?.message ?? error));
+        }
+      });
     });
-    server.listen(0, '127.0.0.1', () => done({ server, url: `http://127.0.0.1:${server.address().port}/v1` }));
+    server.listen(0, '127.0.0.1', () => done({ server, requests, url: `http://127.0.0.1:${server.address().port}/v1` }));
   });
+}
+
+function listModels(ids) {
+  return (req, res) => {
+    res.setHeader('content-type', 'application/json');
+    if (req.url === '/v1/models') return res.end(JSON.stringify({ data: ids.map((id) => ({ id })) }));
+    res.end(JSON.stringify({ choices: [{ message: { content: 'OK' } }] }));
+  };
 }
 
 test('model-check reports ready after a real completion', async () => {
@@ -605,7 +625,7 @@ test('model-check reports ready after a real completion', async () => {
     res.end(JSON.stringify({ choices: [{ message: { content: ' OK ' } }] }));
   });
   try {
-    const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url, AGENT_MODEL: '' });
+    const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url, AGENT_MODEL: '', AGENT_MODEL_TIMEOUT: '5' });
     assert.equal(r.status, 0, r.stdout + r.stderr);
     const out = JSON.parse(r.last);
     assert.equal(out.status, 'ready');
@@ -620,7 +640,7 @@ test('model-check reports ready after a real completion', async () => {
 test('model-check reports unreachable when nothing listens', async () => {
   const { server, url } = await stubServer(() => {});
   server.close();
-  const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url });
+  const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url, AGENT_MODEL: '', AGENT_MODEL_TIMEOUT: '5' });
   assert.equal(r.status, 1);
   assert.equal(JSON.parse(r.last).status, 'unreachable');
 });
@@ -633,7 +653,7 @@ test('model-check reports not_ready when the completion fails', async () => {
     res.end('loading');
   });
   try {
-    const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url });
+    const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url, AGENT_MODEL: '', AGENT_MODEL_TIMEOUT: '5' });
     assert.equal(r.status, 1);
     const out = JSON.parse(r.last);
     assert.equal(out.status, 'not_ready');
@@ -642,12 +662,70 @@ test('model-check reports not_ready when the completion fails', async () => {
     server.close();
   }
 });
+
+test('model-check refuses to pick among several listed models and never posts', async () => {
+  const { server, url, requests } = await stubServer(listModels(['big-model', 'small-model']));
+  try {
+    const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url, AGENT_MODEL: '', AGENT_MODEL_TIMEOUT: '5' });
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    const out = JSON.parse(r.last);
+    assert.equal(out.status, 'no_model');
+    assert.match(out.detail, /big-model/);
+    assert.match(out.detail, /small-model/);
+    assert.deepEqual(requests, ['GET /v1/models']);
+  } finally {
+    server.close();
+  }
+});
+
+test('model-check reports no_model when the server lists none', async () => {
+  const { server, url, requests } = await stubServer(listModels([]));
+  try {
+    const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url, AGENT_MODEL: '', AGENT_MODEL_TIMEOUT: '5' });
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    assert.equal(JSON.parse(r.last).status, 'no_model');
+    assert.deepEqual(requests, ['GET /v1/models']);
+  } finally {
+    server.close();
+  }
+});
+
+test('model-check rejects a non-numeric AGENT_MODEL_TIMEOUT before any request', async () => {
+  const { server, url, requests } = await stubServer(listModels(['m']));
+  try {
+    const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url, AGENT_MODEL: '', AGENT_MODEL_TIMEOUT: 'abc' });
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    const out = JSON.parse(r.last);
+    assert.equal(out.status, 'not_ready');
+    assert.match(out.detail, /AGENT_MODEL_TIMEOUT/);
+    assert.deepEqual(requests, []);
+  } finally {
+    server.close();
+  }
+});
+
+test('model-check reports not_ready with a plain message when the completion times out', async () => {
+  const { server, url } = await stubServer((req, res) => {
+    res.setHeader('content-type', 'application/json');
+    if (req.url === '/v1/models') return res.end(JSON.stringify({ data: [{ id: 'm' }] }));
+    setTimeout(() => res.end(JSON.stringify({ choices: [{ message: { content: 'late' } }] })), 3_000);
+  });
+  try {
+    const r = await runAsync(MODEL_CHECK, [], { AGENT_MODEL_BASE_URL: url, AGENT_MODEL: '', AGENT_MODEL_TIMEOUT: '0.5' });
+    assert.equal(r.status, 1, r.stdout + r.stderr);
+    const out = JSON.parse(r.last);
+    assert.equal(out.status, 'not_ready');
+    assert.match(out.detail, /no completion within 0\.5s/);
+  } finally {
+    server.close();
+  }
+});
 ```
 
-- [ ] **Step 2: Run the tests and confirm the three new ones fail**
+- [ ] **Step 2: Run the tests and confirm the seven new ones fail**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 11`, `fail 3`.
+Expected: `pass 11`, `fail 7`.
 
 - [ ] **Step 3: Implement `scripts/agent/model-check.mjs`**
 
@@ -655,7 +733,8 @@ Expected: `pass 11`, `fail 3`.
 #!/usr/bin/env node
 /**
  * Probe the local model endpoint. `/models` on mlx-lm is cached metadata, so readiness is
- * proven only by a real (tiny) completion. Never starts a server.
+ * proven only by a real (tiny) completion. Never starts a server, and never guesses a model:
+ * posting an id the server has not loaded makes mlx-lm/Ollama swap to it.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -665,29 +744,40 @@ const ROOT = resolve(import.meta.dirname, '../..');
 const envFile = join(ROOT, '.env.agent');
 if (existsSync(envFile)) {
   for (const line of readFileSync(envFile, 'utf8').split('\n')) {
-    const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/);
-    if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+    const m = line.match(/^\s*(?:export\s+)?([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/);
+    if (!m || m[1] in process.env) continue;
+    const quoted = m[2].match(/^(["'])(.*?)\1/);
+    process.env[m[1]] = quoted ? quoted[2] : m[2].replace(/(?:^|\s)#.*$/, '').trim();
   }
 }
 
 const base = (process.env.AGENT_MODEL_BASE_URL || 'http://127.0.0.1:18082/v1').replace(/\/$/, '');
-const timeoutMs = Number(process.env.AGENT_MODEL_TIMEOUT || 120) * 1000;
 
 function fail(status, detail) {
   console.log(JSON.stringify({ status, base_url: base, detail }));
   process.exit(1);
 }
 
+const timeoutS = Number(process.env.AGENT_MODEL_TIMEOUT || 120);
+if (!Number.isFinite(timeoutS) || timeoutS <= 0) {
+  fail('not_ready', `AGENT_MODEL_TIMEOUT must be a positive number of seconds, got ${JSON.stringify(process.env.AGENT_MODEL_TIMEOUT)}`);
+}
+
 let model = process.env.AGENT_MODEL || '';
+let ids = [];
 try {
   const res = await fetch(`${base}/models`, { signal: AbortSignal.timeout(10_000) });
   if (!res.ok) fail('unreachable', `GET /models → ${res.status}`);
   const body = await res.json();
-  if (!model) model = body.data?.[0]?.id ?? '';
+  ids = (Array.isArray(body?.data) ? body.data : []).map((m) => m?.id).filter(Boolean);
 } catch (error) {
-  fail('unreachable', error.cause?.message ?? error.message);
+  fail('unreachable', error.cause?.message || error.message);
 }
-if (!model) fail('no_model', 'server lists no models; set AGENT_MODEL in .env.agent');
+if (!model) {
+  if (ids.length > 1) fail('no_model', `server lists ${ids.length} models (${ids.join(', ')}); set AGENT_MODEL in .env.agent`);
+  if (ids.length === 0) fail('no_model', 'server lists no models; set AGENT_MODEL in .env.agent');
+  model = ids[0];
+}
 
 const t0 = Date.now();
 try {
@@ -695,26 +785,27 @@ try {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ model, messages: [{ role: 'user', content: 'Reply with the single word OK.' }], max_tokens: 8, temperature: 0 }),
-    signal: AbortSignal.timeout(timeoutMs),
+    signal: AbortSignal.timeout(Math.round(timeoutS * 1000)),
   });
   if (!res.ok) fail('not_ready', `POST /chat/completions → ${res.status} ${(await res.text()).slice(0, 200)}`);
   const body = await res.json();
   const reply = body.choices?.[0]?.message?.content?.trim() ?? '';
   console.log(JSON.stringify({ status: 'ready', base_url: base, model, reply, latency_s: (Date.now() - t0) / 1000 }));
 } catch (error) {
-  fail('not_ready', error.cause?.message ?? error.message);
+  if (error.name === 'TimeoutError') fail('not_ready', `no completion within ${timeoutS}s (server busy, loading, or weights paged out)`);
+  fail('not_ready', error.cause?.message || error.message);
 }
 ```
 
 - [ ] **Step 4: Run the tests and confirm all pass**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 14`.
+Expected: `pass 18`.
 
 - [ ] **Step 5: Probe the real server (only if `omp local` has it running; do not start one)**
 
 Run: `node scripts/agent/model-check.mjs`
-Expected: `{"status":"ready","base_url":"http://127.0.0.1:18082/v1","model":"mlx-community/Qwen3.6-35B-A3B-4bit-DWQ","reply":"OK","latency_s":…}`; or `{"status":"unreachable",…}` with exit 1 if it is not running. Both prove the script; do not launch a server to turn the second into the first.
+Expected: `{"status":"ready","base_url":"http://127.0.0.1:18082/v1","model":"mlx-community/Qwen3.6-35B-A3B-4bit-DWQ","reply":"OK","latency_s":…}`; or `{"status":"unreachable",…}` / `{"status":"not_ready",…}` with exit 1 if it is not running or busy. All prove the script; do not launch or restart a server to turn the others into the first.
 
 - [ ] **Step 6: Commit**
 
@@ -822,7 +913,7 @@ test('request rejects a missing template or goal', () => {
 - [ ] **Step 3: Run the tests and confirm the three new ones fail**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 14`, `fail 3`.
+Expected: `pass 18`, `fail 3`.
 
 - [ ] **Step 4: Implement `scripts/agent/request.mjs`**
 
@@ -869,7 +960,7 @@ console.error(`omp local --run ${out}`);
 - [ ] **Step 5: Run the tests and confirm all pass**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 17`.
+Expected: `pass 21`.
 (The prompt-budget test depends on `AGENTS.md` existing; if Task 5 has not run yet, `statSync` throws for the missing file. Create `AGENTS.md` first or run Task 5 before this step.)
 
 - [ ] **Step 6: Commit**
@@ -990,10 +1081,10 @@ Readiness check (does a real completion; `/v1/models` alone proves nothing):
 
 ```bash
 bun run agent:model
-# {"status":"ready","model":"…","reply":"OK","latency_s":0.4}
+# {"status":"ready","base_url":"http://127.0.0.1:18082/v1","model":"mlx-community/Qwen3.6-35B-A3B-4bit-DWQ","reply":"OK","latency_s":0.4}
 ```
 
-`unreachable` → the server is not up. `not_ready` → it is loading weights or overloaded; wait, do not restart it.
+`unreachable` → the server is not up. `not_ready` → it is loading weights or overloaded; wait, do not restart it. `no_model` → set `AGENT_MODEL` in `.env.agent` to the model the server already has loaded; the probe never guesses among several listed models, because posting a different id makes mlx-lm/Ollama load it.
 
 ## 3. Give the agent a task
 
