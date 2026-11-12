@@ -92,24 +92,31 @@ function runStep(step, env, timeoutMs) {
     const err = collector(child.stderr);
     let timedOut = false;
     let done = false;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      killGroup(child);
-    }, timeoutMs);
     const finish = (status, error) => {
       if (done) return;
       done = true;
       clearTimeout(timer);
       current = null;
-      const trim = (sink, name) =>
-        sink.text.length > MAX_OUTPUT || sink.truncated
-          ? `[verify] ${name} truncated to its last ${MAX_OUTPUT} characters\n${sink.text.slice(-MAX_OUTPUT)}`
-          : sink.text;
+      // The marker goes last so it shows up in the summary's tail.
+      const trim = (sink, name) => {
+        if (sink.text.length <= MAX_OUTPUT && !sink.truncated) return sink.text;
+        const kept = sink.text.slice(-MAX_OUTPUT);
+        return `${kept}${kept.endsWith('\n') ? '' : '\n'}[verify] ${name} truncated to its last ${MAX_OUTPUT} characters\n`;
+      };
       settle({ status, timedOut, error, stdout: trim(out, 'stdout'), stderr: trim(err, 'stderr') });
     };
+    // At the deadline, kill the group and return now: a descendant that left the group
+    // (setsid, daemon) may hold the pipes open, so 'close' might never fire.
+    const timer = setTimeout(() => {
+      timedOut = true;
+      killGroup(child);
+      child.stdout.destroy();
+      child.stderr.destroy();
+      finish(null, Object.assign(new Error(`step timed out after ${timeoutMs / 1000}s`), { code: 'ETIMEDOUT' }));
+    }, timeoutMs);
     // A failed spawn (missing cwd, no bash) has no pid; a running child reports via 'close'.
     child.on('error', (error) => { if (!(child.pid > 0)) finish(null, error); });
-    child.on('close', (status) => finish(status, timedOut ? Object.assign(new Error(`step timed out after ${timeoutMs / 1000}s`), { code: 'ETIMEDOUT' }) : null));
+    child.on('close', (status) => finish(status, null));
   });
 }
 

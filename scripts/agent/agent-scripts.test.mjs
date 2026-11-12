@@ -114,6 +114,31 @@ test('verify kills the step group and exits 143 when it receives SIGTERM', async
   }
 });
 
+test('verify returns at the step deadline even if an escaped descendant holds the pipe', async () => {
+  const pidFile = join(tmpdir(), `verify-escaped-${process.pid}-${Date.now()}.pid`);
+  try {
+    // perl leaves the step's process group (setsid) but keeps the inherited stdout/stderr pipes open.
+    const escape = `perl -MPOSIX -e 'POSIX::setsid() or die; open my $f, ">", $ARGV[0] or die; print $f $$; close $f; sleep 30' '${pidFile}'`;
+    const steps = JSON.stringify([{ name: 'held', cwd: '.', cmd: `${escape} & wait` }]);
+    const t0 = Date.now();
+    const r = run(VERIFY, [], { AGENT_VERIFY_STEPS: steps, AGENT_STEP_TIMEOUT: '1' });
+    const elapsed = Date.now() - t0;
+    assert.equal(r.status, 1, r.stderr);
+    const summary = JSON.parse(r.last);
+    assert.equal(summary.failed_step, 'held');
+    assert.equal(summary.timed_out, true);
+    assert.equal(summary.error, 'ETIMEDOUT');
+    assert.equal(summary.exit_code, null);
+    assert.ok(elapsed < 3000, `verify took ${elapsed} ms`);
+    const pid = await readPid(pidFile);
+    assert.equal(await gone(pid, 1), false, `escaped process ${pid} should still be alive (test setup)`);
+  } finally {
+    const pid = existsSync(pidFile) ? Number(readFileSync(pidFile, 'utf8').trim()) : 0;
+    if (pid > 0) try { process.kill(pid, 'SIGKILL'); } catch {}
+    rmSync(pidFile, { force: true });
+  }
+});
+
 test('verify reports a spawn error such as a missing cwd', () => {
   const steps = JSON.stringify([{ name: 'nowhere', cwd: 'does-not-exist', cmd: 'true' }]);
   const r = run(VERIFY, [], { AGENT_VERIFY_STEPS: steps });

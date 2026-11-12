@@ -190,7 +190,7 @@ git commit -m "Add shared agent host setup; Cursor scripts delegate to it"
 - Create: `scripts/agent/verify.mjs`
 - Create: `scripts/agent/agent-scripts.test.mjs`
 
-**Interface:** `node scripts/agent/verify.mjs [--only hub|sustain] [--list]`. Exit 0 on pass, 1 on a failed step, 2 on usage error (unknown `--only`, or `AGENT_STEP_TIMEOUT` not a finite number > 0). Last stdout line is one JSON object: `{status:"pass", steps, log, seconds}` or `{status:"fail", failed_step, exit_code, timed_out, error, log, tail, seconds}`, where `error` is the spawn error code (`ETIMEDOUT`, `ENOENT`, …) or `null`. Steps run asynchronously, each in its own process group; verify kills that whole group on step timeout, and on SIGINT/SIGTERM/SIGHUP to verify itself (then exits 130/143/129 with no summary line). Each stream keeps at most its last 32 Mi characters (marked as truncated in the log). The log is appended step by step. Env: `AGENT_STEP_TIMEOUT` (seconds, default 600; empty means unset), `AGENT_VERIFY_STEPS` (JSON array `[{name,cwd,cmd}]` overriding the step list; for tests).
+**Interface:** `node scripts/agent/verify.mjs [--only hub|sustain] [--list]`. Exit 0 on pass, 1 on a failed step, 2 on usage error (unknown `--only`, or `AGENT_STEP_TIMEOUT` not a finite number > 0). Last stdout line is one JSON object: `{status:"pass", steps, log, seconds}` or `{status:"fail", failed_step, exit_code, timed_out, error, log, tail, seconds}`, where `error` is the spawn error code (`ETIMEDOUT`, `ENOENT`, …) or `null`. Steps run asynchronously, each in its own process group; verify kills that whole group on step timeout, and on SIGINT/SIGTERM/SIGHUP to verify itself (then exits 130/143/129 with no summary line). A timed-out step is reported at its deadline even if a descendant that left the group still holds the output pipes. Each stream keeps at most its last 32 Mi characters; a final `[verify] stdout|stderr truncated…` line marks that, so it shows in `tail`. The log is appended step by step. Env: `AGENT_STEP_TIMEOUT` (seconds, default 600; empty means unset), `AGENT_VERIFY_STEPS` (JSON array `[{name,cwd,cmd}]` overriding the step list; for tests).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -313,6 +313,31 @@ test('verify kills the step group and exits 143 when it receives SIGTERM', async
   }
 });
 
+test('verify returns at the step deadline even if an escaped descendant holds the pipe', async () => {
+  const pidFile = join(tmpdir(), `verify-escaped-${process.pid}-${Date.now()}.pid`);
+  try {
+    // perl leaves the step's process group (setsid) but keeps the inherited stdout/stderr pipes open.
+    const escape = `perl -MPOSIX -e 'POSIX::setsid() or die; open my $f, ">", $ARGV[0] or die; print $f $$; close $f; sleep 30' '${pidFile}'`;
+    const steps = JSON.stringify([{ name: 'held', cwd: '.', cmd: `${escape} & wait` }]);
+    const t0 = Date.now();
+    const r = run(VERIFY, [], { AGENT_VERIFY_STEPS: steps, AGENT_STEP_TIMEOUT: '1' });
+    const elapsed = Date.now() - t0;
+    assert.equal(r.status, 1, r.stderr);
+    const summary = JSON.parse(r.last);
+    assert.equal(summary.failed_step, 'held');
+    assert.equal(summary.timed_out, true);
+    assert.equal(summary.error, 'ETIMEDOUT');
+    assert.equal(summary.exit_code, null);
+    assert.ok(elapsed < 3000, `verify took ${elapsed} ms`);
+    const pid = await readPid(pidFile);
+    assert.equal(await gone(pid, 1), false, `escaped process ${pid} should still be alive (test setup)`);
+  } finally {
+    const pid = existsSync(pidFile) ? Number(readFileSync(pidFile, 'utf8').trim()) : 0;
+    if (pid > 0) try { process.kill(pid, 'SIGKILL'); } catch {}
+    rmSync(pidFile, { force: true });
+  }
+});
+
 test('verify reports a spawn error such as a missing cwd', () => {
   const steps = JSON.stringify([{ name: 'nowhere', cwd: 'does-not-exist', cmd: 'true' }]);
   const r = run(VERIFY, [], { AGENT_VERIFY_STEPS: steps });
@@ -335,7 +360,7 @@ test('verify reports pass with the step list', () => {
 - [ ] **Step 2: Run the tests and confirm they fail because the script is absent**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: 9 failing tests (`Cannot find module … verify.mjs` / status mismatch).
+Expected: 10 failing tests (`Cannot find module … verify.mjs` / status mismatch).
 
 - [ ] **Step 3: Implement `scripts/agent/verify.mjs`**
 
@@ -434,24 +459,31 @@ function runStep(step, env, timeoutMs) {
     const err = collector(child.stderr);
     let timedOut = false;
     let done = false;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      killGroup(child);
-    }, timeoutMs);
     const finish = (status, error) => {
       if (done) return;
       done = true;
       clearTimeout(timer);
       current = null;
-      const trim = (sink, name) =>
-        sink.text.length > MAX_OUTPUT || sink.truncated
-          ? `[verify] ${name} truncated to its last ${MAX_OUTPUT} characters\n${sink.text.slice(-MAX_OUTPUT)}`
-          : sink.text;
+      // The marker goes last so it shows up in the summary's tail.
+      const trim = (sink, name) => {
+        if (sink.text.length <= MAX_OUTPUT && !sink.truncated) return sink.text;
+        const kept = sink.text.slice(-MAX_OUTPUT);
+        return `${kept}${kept.endsWith('\n') ? '' : '\n'}[verify] ${name} truncated to its last ${MAX_OUTPUT} characters\n`;
+      };
       settle({ status, timedOut, error, stdout: trim(out, 'stdout'), stderr: trim(err, 'stderr') });
     };
+    // At the deadline, kill the group and return now: a descendant that left the group
+    // (setsid, daemon) may hold the pipes open, so 'close' might never fire.
+    const timer = setTimeout(() => {
+      timedOut = true;
+      killGroup(child);
+      child.stdout.destroy();
+      child.stderr.destroy();
+      finish(null, Object.assign(new Error(`step timed out after ${timeoutMs / 1000}s`), { code: 'ETIMEDOUT' }));
+    }, timeoutMs);
     // A failed spawn (missing cwd, no bash) has no pid; a running child reports via 'close'.
     child.on('error', (error) => { if (!(child.pid > 0)) finish(null, error); });
-    child.on('close', (status) => finish(status, timedOut ? Object.assign(new Error(`step timed out after ${timeoutMs / 1000}s`), { code: 'ETIMEDOUT' }) : null));
+    child.on('close', (status) => finish(status, null));
   });
 }
 
@@ -487,9 +519,9 @@ console.log(JSON.stringify({ status: 'pass', steps: steps.map((s) => s.name), lo
 - [ ] **Step 4: Run the tests and confirm they pass under both runners**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 9`.
+Expected: `pass 10`.
 Run: `bun test scripts/agent`
-Expected: `9 pass`.
+Expected: `10 pass`.
 
 - [ ] **Step 5: Run the real gate once**
 
@@ -600,7 +632,7 @@ test('model-check reports not_ready when the completion fails', async () => {
 - [ ] **Step 2: Run the tests and confirm the three new ones fail**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 9`, `fail 3`.
+Expected: `pass 10`, `fail 3`.
 
 - [ ] **Step 3: Implement `scripts/agent/model-check.mjs`**
 
@@ -662,7 +694,7 @@ try {
 - [ ] **Step 4: Run the tests and confirm all pass**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 12`.
+Expected: `pass 13`.
 
 - [ ] **Step 5: Probe the real server (only if `omp local` has it running; do not start one)**
 
@@ -775,7 +807,7 @@ test('request rejects a missing template or goal', () => {
 - [ ] **Step 3: Run the tests and confirm the three new ones fail**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 12`, `fail 3`.
+Expected: `pass 13`, `fail 3`.
 
 - [ ] **Step 4: Implement `scripts/agent/request.mjs`**
 
@@ -822,7 +854,7 @@ console.error(`omp local --run ${out}`);
 - [ ] **Step 5: Run the tests and confirm all pass**
 
 Run: `node --test scripts/agent/agent-scripts.test.mjs`
-Expected: `pass 15`.
+Expected: `pass 16`.
 (The prompt-budget test depends on `AGENTS.md` existing; if Task 5 has not run yet, `statSync` throws for the missing file. Create `AGENTS.md` first or run Task 5 before this step.)
 
 - [ ] **Step 6: Commit**
