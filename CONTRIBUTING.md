@@ -47,6 +47,31 @@ bun run verify-artifacts
 
 Using a coding agent (hosted or local LLM)? Run `bun run agent:setup` once and point it at `AGENTS.md`. `bun run agent:verify` runs CI's validate/build/test commands for the hub, plus the sustainability site's `npm test`, `astro check` and build, which CI does not run; its last line is a JSON verdict. Details in [docs/agents/local-llm.md](docs/agents/local-llm.md).
 
+## Submitting an evaluation result
+
+Evaluation results are data in this repository. One run is one JSON file directly in
+`apps/web/src/content/evals/`, named
+`<model>--<benchmark>--<your-github-handle>--<YYYY-MM-DD>--<first 8 characters of evidence.sha256>.json`
+(handle in lowercase).
+
+- The model must already have a card in `apps/web/src/content/models/`, and the benchmark a
+  definition in `apps/web/src/content/benchmarks/`.
+- Run it on your own hardware and report the setup honestly: runtime, format, quantization, device.
+- Keep the raw output yourself. The result file carries only its `sha256` (and, if you host
+  it, an HTTPS link). Files over 16 KB are rejected.
+- Include the exact command, so someone else can reproduce the run. A result that others have
+  reproduced is shown as such; a lone result is shown as not yet reproduced.
+- Reproducing someone else's result is as valuable as a new one: submit your own file for the
+  same model, benchmark, format and quantization.
+
+`bun run validate` checks the file the same way CI does.
+
+Adding a benchmark is a pull request with one markdown file in `apps/web/src/content/benchmarks/`.
+Scoring must be deterministic (exact match, multiple choice, canary detection, or a measured
+quantity), the data must be openly licensed, and the page must state the benchmark's weaknesses.
+When the method changes, raise `version` and add the old one to `previous_versions`: results for
+a listed previous version are kept but leave the leaderboard, and any other version is rejected.
+
 ## What gets checked
 
 Every pull request runs the same gate:
@@ -54,7 +79,8 @@ Every pull request runs the same gate:
 1. **Schemas** — required fields present and well-formed
 2. **License allowlist** — restrictive "open" licenses are rejected with an explanation
 3. **Checksums** — `sha256` values must be valid 64-character hex digests
-4. **Build** — the site must build cleanly with your change
+4. **Evaluations** — a result file matches the schema with no unknown keys; references a real model and benchmark, and the benchmark's current version or a listed previous one; is a full run (`n` equals the benchmark's item count); has a filename ending in the first 8 hex characters of its evidence hash; shares that hash with no other file; stays under 16 KB; and has a score within the benchmark's range. Model cards must not set `slug`
+5. **Build** — the site must build cleanly with your change
 
 A red check is information, not judgment. The message names the file and the field.
 

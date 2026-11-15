@@ -1,6 +1,14 @@
 import { defineCollection, z } from 'astro:content';
 import { glob } from 'astro/loaders';
-import { OPEN_LICENSES } from '@unite4ai/schema';
+import {
+  CONTENT_ID,
+  EVAL_ACCELERATORS,
+  EVAL_CATEGORIES,
+  EVAL_FORMATS,
+  EVAL_RUNTIMES,
+  EVAL_SCORING,
+  OPEN_LICENSES,
+} from '@unite4ai/schema';
 
 /**
  * THE DATA MODEL.
@@ -167,4 +175,102 @@ const comments = defineCollection({
   }),
 });
 
-export const collections = { models, datasets, compute, courses, events, posts, comments };
+const httpsUrl = z.string().url().refine((value) => value.startsWith('https://'), { message: 'must be an https URL' });
+const sha256Hex = z.string().regex(/^[a-f0-9]{64}$/, 'must be a 64-character lowercase hex sha256');
+const contentId = z.string().regex(CONTENT_ID, 'must be a lowercase id like my-model-7b');
+
+/**
+ * Free text that readers see or paste: one bounded line, no control or invisible formatting
+ * characters. `wrongType` replaces the message for a value that is not a string at all.
+ */
+const line = (max: number, wrongType?: string) => z.string(wrongType ? { error: wrongType } : undefined).min(1).max(max).regex(
+  /^[^\p{Cc}\p{Cf}\p{Zl}\p{Zp}]+$/u,
+  'must be a single line without control or invisible formatting characters',
+);
+
+/** A contributor's link, printed as an href. */
+const evidenceUrl = line(500).url().refine((value) => value.startsWith('https://'), { message: 'must be an https URL' });
+
+/**
+ * A benchmark definition. Mirrors benchmarkSchema in @unite4ai/schema field for field.
+ * The directory is flat: the validator rejects subfolders, so the loader does not read them.
+ */
+const benchmarks = defineCollection({
+  loader: glob({ pattern: '*.md', base: './src/content/benchmarks' }),
+  schema: z.strictObject({
+    name: z.string().min(1),
+    summary: z.string().max(300),
+    category: z.enum(EVAL_CATEGORIES),
+    version: line(50, 'must be a quoted string, e.g. version: "1"'),
+    previous_versions: z.array(line(50)).default([]),
+    metric: z.strictObject({
+      name: z.string().min(1),
+      unit: z.string(),
+      higher_is_better: z.boolean(),
+      min: z.number().optional(),
+      max: z.number().optional(),
+    }).refine((metric) => metric.min === undefined || metric.max === undefined || metric.min <= metric.max, {
+      path: ['min'],
+      message: 'must not be greater than max',
+    }),
+    scoring: z.enum(EVAL_SCORING),
+    items: z.number().int().nonnegative(),
+    source_url: httpsUrl,
+    source_sha256: sha256Hex.optional(),
+    license: openLicenseEnum,
+    updated: z.coerce.date(),
+  }).refine((benchmark) => benchmark.scoring === 'measured' || benchmark.items > 0, {
+    path: ['items'],
+    message: 'must be greater than 0 unless scoring is "measured"',
+  }).refine((benchmark) => benchmark.scoring !== 'measured' || benchmark.items === 0, {
+    path: ['items'],
+    message: 'must be 0 when scoring is "measured"',
+  }),
+});
+
+/**
+ * One evaluation run per JSON file, in a flat directory. Mirrors evalResultSchema in
+ * @unite4ai/schema field for field. U4AI_EVALS_DIR lets the page tests build against fixtures;
+ * production never sets it, and an empty value falls back rather than globbing the app root.
+ */
+const evals = defineCollection({
+  loader: glob({ pattern: '*.json', base: process.env.U4AI_EVALS_DIR || './src/content/evals' }),
+  schema: z.strictObject({
+    schema_version: z.literal(1),
+    model: contentId,
+    benchmark: contentId,
+    benchmark_version: line(50),
+    score: z.number(),
+    n: z.number().int().positive(),
+    run: z.strictObject({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD'),
+      submitter: z.string().regex(/^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,38}$/, 'must be a lowercase GitHub handle'),
+      harness: z.strictObject({ name: line(100), version: line(100) }),
+      command: line(2000),
+    }),
+    setup: z.strictObject({
+      runtime: z.enum(EVAL_RUNTIMES),
+      runtime_version: line(100),
+      format: z.enum(EVAL_FORMATS),
+      quantization: line(100),
+      hardware: z.strictObject({
+        device: line(200),
+        accelerator: z.enum(EVAL_ACCELERATORS),
+        memory_gb: z.number().positive(),
+      }),
+    }),
+    perf: z.strictObject({
+      tokens_per_second: z.number().positive().optional(),
+      time_to_first_token_ms: z.number().positive().optional(),
+      peak_memory_gb: z.number().positive().optional(),
+      energy_wh_per_1k_tokens: z.number().positive().optional(),
+    }).optional(),
+    evidence: z.strictObject({
+      sha256: sha256Hex,
+      url: evidenceUrl.optional(),
+      bytes: z.number().int().positive().optional(),
+    }),
+  }),
+});
+
+export const collections = { models, datasets, compute, courses, events, posts, comments, benchmarks, evals };

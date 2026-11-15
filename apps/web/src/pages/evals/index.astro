@@ -1,0 +1,162 @@
+---
+import Base from '../../layouts/Base.astro';
+import { leaderboard, reproductionLabel } from '@unite4ai/core';
+import { CATEGORIES, CATEGORY_LABELS, SUBMIT_GUIDE, formatNumber, loadEvals, scoreRange } from '../../lib/evals';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (p: string) => `${base}${p}` || '/';
+
+const { benchmarks, groups, modelNames } = await loadEvals();
+const boards = benchmarks.map((benchmark) => ({
+  benchmark,
+  rows: leaderboard(groups, {
+    id: benchmark.id,
+    version: benchmark.data.version,
+    higher_is_better: benchmark.data.metric.higher_is_better,
+  }),
+}));
+const categories = CATEGORIES.filter((category) => boards.some((b) => b.benchmark.data.category === category));
+const runtimes = [...new Set(boards.flatMap((b) => b.rows.flatMap((row) => row.runtimes)))].sort();
+const accelerators = [...new Set(boards.flatMap((b) => b.rows.flatMap((row) => row.accelerators)))].sort();
+const hasRows = boards.some((b) => b.rows.length > 0);
+---
+<Base title="Evaluations" description="Open models measured on contributors' own hardware: scores, speed, setup, and the command to reproduce each result.">
+  <section class="wrap section">
+    <p class="eyebrow">Evaluations</p>
+    <h1>Open models, <span class="grad-text">measured</span> on real hardware</h1>
+    <p class="lede">
+      Every number here was produced on a contributor's own machine and is published with the
+      exact command, the setup, and a hash of the raw output. Results are self-reported: give
+      the most weight to the ones other people have reproduced.
+    </p>
+    <p style="margin-top:1rem">
+      <a class="btn btn-primary" href={SUBMIT_GUIDE}>Submit a result</a>
+      <a class="btn btn-ghost" href={href('/data/evals.json')}>Data feed (JSON)</a>
+    </p>
+
+    {categories.length > 0 && (
+      <div class="registry-controls" style="margin-top:1.5rem">
+        <label>
+          <span class="sr-only">Filter by category</span>
+          <select data-eval-category>
+            <option value="">All categories</option>
+            {categories.map((category) => <option value={category}>{CATEGORY_LABELS[category]}</option>)}
+          </select>
+        </label>
+        {hasRows && (
+          <label>
+            <span class="sr-only">Filter by runtime</span>
+            <select data-eval-filter="runtimes">
+              <option value="">All runtimes</option>
+              {runtimes.map((runtime) => <option value={runtime}>{runtime}</option>)}
+            </select>
+          </label>
+        )}
+        {hasRows && (
+          <label>
+            <span class="sr-only">Filter by accelerator</span>
+            <select data-eval-filter="accelerators">
+              <option value="">All hardware</option>
+              {accelerators.map((accelerator) => <option value={accelerator}>{accelerator}</option>)}
+            </select>
+          </label>
+        )}
+      </div>
+    )}
+
+    {boards.length === 0 && (
+      <div class="empty" style="margin-top:2rem">No benchmarks are defined yet.</div>
+    )}
+
+    {categories.map((category) => (
+      <section style="margin-top:3rem" aria-labelledby={`category-${category}`} data-category={category}>
+        <h2 id={`category-${category}`}>{CATEGORY_LABELS[category]}</h2>
+        {boards.filter((b) => b.benchmark.data.category === category).map(({ benchmark, rows }) => (
+          <div style="margin-top:1.5rem" data-eval-board>
+            <h3><a href={href(`/evals/${benchmark.id}`)}>{benchmark.data.name}</a></h3>
+            <p style="color:var(--u-text-dim);max-width:70ch">{benchmark.data.summary}</p>
+            {rows.length === 0 ? (
+              <div class="empty" style="margin-top:1rem">
+                No results yet. Results arrive by pull request from people who ran this benchmark
+                on their own hardware. <a href={SUBMIT_GUIDE}>How to submit one.</a>
+              </div>
+            ) : (
+              <div class="eval-scroll" tabindex="0" role="region" aria-label={`Leaderboard for ${benchmark.data.name}`}>
+                <table class="eval-table">
+                  <caption class="sr-only">Leaderboard for {benchmark.data.name}</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col"><span class="sr-only">Rank</span><span aria-hidden="true">#</span></th>
+                      <th scope="col">Model</th>
+                      <th scope="col">{benchmark.data.metric.name}</th>
+                      <th scope="col">Setup</th>
+                      <th scope="col">Speed</th>
+                      <th scope="col">Runs</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row, index) => (
+                      <tr data-runtimes={row.runtimes.join(',')} data-accelerators={row.accelerators.join(',')}>
+                        <td class="rank num">{index + 1}</td>
+                        <td><a href={href(`/registry/models/${row.model}`)}>{modelNames.get(row.model) ?? row.model}</a></td>
+                        <td class="num">
+                          <span class="score">{formatNumber(row.score)}</span>{benchmark.data.metric.unit}
+                          {scoreRange(row) && <small>range {scoreRange(row)}</small>}
+                          {benchmark.data.items > 0 && <small>n = {row.n}</small>}
+                        </td>
+                        <td>
+                          {row.format} · {row.quantization}
+                          <small>{row.runtimes.join(', ')} · {row.accelerators.join(', ')}</small>
+                        </td>
+                        <td class="num">{row.tokens_per_second === null ? '—' : `${formatNumber(row.tokens_per_second)} tok/s`}</td>
+                        <td>
+                          <span class={`tag${row.submitters.length > 1 ? ' tag-open' : ''}`}>{reproductionLabel(row)}</span>
+                          <small>{row.runs} {row.runs === 1 ? 'run' : 'runs'} · latest {row.latest}</small>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {rows.length > 0 && (
+              <p class="empty" style="margin-top:1rem" hidden data-eval-none>No results match these filters.</p>
+            )}
+          </div>
+        ))}
+      </section>
+    ))}
+  </section>
+
+  <script is:inline>
+    (() => {
+      const category = document.querySelector('[data-eval-category]');
+      const filters = [...document.querySelectorAll('[data-eval-filter]')];
+      const sections = [...document.querySelectorAll('[data-category]')];
+      const boards = [...document.querySelectorAll('[data-eval-none]')].map((none) => ({
+        none,
+        rows: [...none.closest('[data-eval-board]').querySelectorAll('tbody tr')],
+      }));
+      function apply() {
+        const wantedCategory = category ? category.value : '';
+        sections.forEach((section) => {
+          section.hidden = wantedCategory !== '' && section.dataset.category !== wantedCategory;
+        });
+        boards.forEach(({ none, rows }) => {
+          rows.forEach((row) => {
+            row.hidden = filters.some((filter) => {
+              const wanted = filter.value;
+              return wanted !== '' && !(row.dataset[filter.dataset.evalFilter] ?? '').split(',').includes(wanted);
+            });
+          });
+          none.hidden = rows.some((row) => !row.hidden);
+        });
+      }
+      if (category) category.addEventListener('change', apply);
+      filters.forEach((filter) => filter.addEventListener('change', apply));
+      // A reload or a return via history restores the selects; some browsers do it only after this script.
+      apply();
+      window.addEventListener('pageshow', apply);
+    })();
+  </script>
+</Base>

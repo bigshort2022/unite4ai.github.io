@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "model": "darsy-xray-analysis",
+  "benchmark": "gsm8k-200",
+  "benchmark_version": "1",
+  "score": 64,
+  "n": 200,
+  "run": {
+    "date": "2026-11-02",
+    "submitter": "fixture-bot-2",
+    "harness": { "name": "unite4ai-eval", "version": "0.0.0-fixture" },
+    "command": "bun run eval -- --benchmark gsm8k-200 --model darsy-xray-analysis --fixture-two"
+  },
+  "setup": {
+    "runtime": "mlx-lm",
+    "runtime_version": "0.0.0",
+    "format": "mlx",
+    "quantization": "4bit",
+    "hardware": { "device": "Fixture Laptop", "accelerator": "apple-silicon", "memory_gb": 32 }
+  },
+  "perf": { "tokens_per_second": 70 },
+  "evidence": { "sha256": "2222222222222222222222222222222222222222222222222222222222222222" }
+}

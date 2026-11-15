@@ -8,3 +8,15 @@ export {
   hasDecentralizedStorage,
 } from './stack-layers.ts';
 export { buildRegistryIndex, type RegistryEntry, type RegistryIndexItem } from './registry-index.ts';
+export {
+  byCodeUnit,
+  groupEvals,
+  leaderboard,
+  localSetups,
+  median,
+  reproductionLabel,
+  type BenchmarkRef,
+  type EvalGroup,
+  type EvalRun,
+  type LocalSetup,
+} from './evals.ts';

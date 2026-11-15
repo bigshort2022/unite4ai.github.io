@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 
@@ -24,4 +24,31 @@ test('production build targets the unite4ai.com custom domain', { timeout: 120_0
 
   assert.match(homeHtml, /Equitable AI/);
   assert.match(homeHtml, /href="\/registry"/);
+
+  // Evaluation pages and feed exist in the real build, and test fixtures never reach it.
+  const evalsHtml = await readFile(new URL('dist/evals/index.html', ROOT), 'utf8');
+  assert.match(evalsHtml, /GSM8K \(first 200\)/);
+  const feedJson = await readFile(new URL('dist/data/evals.json', ROOT), 'utf8');
+  assert.equal(JSON.parse(feedJson).schema_version, 1);
+  // The rig fixture's device contains markup, so it appears escaped (or raw, if escaping broke).
+  const fixtureMarkers = /fixture-bot|Fixture Laptop|Fixture (?:&lt;b&gt;|<b>)?Rig|Q4_K_M|ghost-model/;
+  assert.doesNotMatch(evalsHtml, fixtureMarkers);
+  assert.doesNotMatch(feedJson, fixtureMarkers);
+  // Submitters and devices are only printed on the benchmark and model pages.
+  for (const path of ['dist/evals/gsm8k-200/index.html', 'dist/registry/models/darsy-xray-analysis/index.html']) {
+    assert.doesNotMatch(await readFile(new URL(path, ROOT), 'utf8'), fixtureMarkers, path);
+  }
+
+  // Cost guard: GitHub Pages serves at most 1 GB; fail long before that.
+  const bytes = await directorySize(new URL('dist/', ROOT));
+  assert.ok(bytes < 250 * 1024 * 1024, `dist is ${bytes} bytes; the budget is 250 MB`);
 });
+
+async function directorySize(dir) {
+  let total = 0;
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const url = new URL(entry.isDirectory() ? `${entry.name}/` : entry.name, dir);
+    total += entry.isDirectory() ? await directorySize(url) : (await stat(url)).size;
+  }
+  return total;
+}

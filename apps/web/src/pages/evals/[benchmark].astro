@@ -1,0 +1,127 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getCollection, render } from 'astro:content';
+import { byCodeUnit, leaderboard, reproductionLabel } from '@unite4ai/core';
+import { CATEGORY_LABELS, SUBMIT_GUIDE, formatNumber, loadEvals, scoreRange } from '../../lib/evals';
+
+export async function getStaticPaths() {
+  const benchmarks = await getCollection('benchmarks');
+  return benchmarks.map((entry) => ({ params: { benchmark: entry.id }, props: { entry } }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+const d = entry.data;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (p: string) => `${base}${p}` || '/';
+
+const { groups, runs, modelNames } = await loadEvals();
+const rows = leaderboard(groups, { id: entry.id, version: d.version, higher_is_better: d.metric.higher_is_better });
+// Newest first; runs on the same date order by id. The two lists below keep this order.
+const ownRuns = runs
+  .filter((run) => run.benchmark === entry.id)
+  .sort((a, b) => byCodeUnit(b.run.date, a.run.date) || byCodeUnit(a.id, b.id));
+const runTables = [
+  {
+    title: 'Every run',
+    caption: `Every run of ${d.name}, version ${d.version}`,
+    list: ownRuns.filter((run) => run.benchmark_version === d.version),
+  },
+  {
+    title: 'Previous versions',
+    caption: `Runs of previous versions of ${d.name}`,
+    list: ownRuns.filter((run) => run.benchmark_version !== d.version),
+  },
+];
+const modelName = (id: string) => modelNames.get(id) ?? id;
+---
+<Base title={d.name} description={d.summary}>
+  <article class="wrap section" data-pagefind-body>
+    <p class="eyebrow"><a href={href('/evals')}>Evaluations</a> · {CATEGORY_LABELS[d.category]} · Benchmark</p>
+    <h1>{d.name}</h1>
+    <p class="lede">{d.summary}</p>
+
+    <div class="card-meta" style="margin:1.2rem 0 2rem">
+      <span class="tag tag-open">{d.license}</span>
+      <span class="tag">version {d.version}</span>
+      <span class="tag">{d.scoring}</span>
+      {d.items > 0 && <span class="tag">{d.items} items</span>}
+      <span class="tag">{d.metric.name}{d.metric.unit && ` (${d.metric.unit})`}, {d.metric.higher_is_better ? 'higher' : 'lower'} is better</span>
+    </div>
+
+    <h2>Leaderboard</h2>
+    {rows.length === 0 ? (
+      <div class="empty" style="margin-top:1rem">
+        No results for version {d.version} yet. <a href={SUBMIT_GUIDE}>How to submit one.</a>
+      </div>
+    ) : (
+      <div class="eval-scroll" tabindex="0" role="region" aria-label={`Leaderboard for ${d.name}`}>
+        <table class="eval-table">
+          <caption class="sr-only">Leaderboard for {d.name}</caption>
+          <thead>
+            <tr><th scope="col"><span class="sr-only">Rank</span><span aria-hidden="true">#</span></th><th scope="col">Model</th><th scope="col">{d.metric.name}</th><th scope="col">Setup</th><th scope="col">Speed</th><th scope="col">Runs</th></tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => (
+              <tr>
+                <td class="rank num">{index + 1}</td>
+                <td><a href={href(`/registry/models/${row.model}`)}>{modelName(row.model)}</a></td>
+                <td class="num">
+                  <span class="score">{formatNumber(row.score)}</span>{d.metric.unit}
+                  {scoreRange(row) && <small>range {scoreRange(row)}</small>}
+                </td>
+                <td>{row.format} · {row.quantization}<small>{row.runtimes.join(', ')} · {row.accelerators.join(', ')}</small></td>
+                <td class="num">{row.tokens_per_second === null ? '—' : `${formatNumber(row.tokens_per_second)} tok/s`}</td>
+                <td><span class={`tag${row.submitters.length > 1 ? ' tag-open' : ''}`}>{reproductionLabel(row)}</span><small>{row.runs} {row.runs === 1 ? 'run' : 'runs'}</small></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+
+    <div class="prose" style="margin-top:2.5rem"><Content /></div>
+
+    <p style="margin-top:1.5rem;font-size:.88rem;color:var(--u-text-faint)">
+      Source: <a href={d.source_url}>{d.source_url}</a>
+      {d.source_sha256 && <> · sha256 <code>{d.source_sha256}</code></>}
+      · Updated {d.updated.toISOString().slice(0, 10)}
+    </p>
+
+    {runTables.map(({ title, caption, list }) => list.length > 0 && (
+      <section style="margin-top:2.5rem" data-pagefind-ignore>
+        <h2>{title}</h2>
+        <p style="color:var(--u-text-dim)">Self-reported. Each row carries the command that produced it and the hash of its raw output.</p>
+        <div class="eval-scroll" tabindex="0" role="region" aria-label={caption}>
+          <table class="eval-table">
+            <caption class="sr-only">{caption}</caption>
+            <thead>
+              <tr><th scope="col">Date</th><th scope="col">Model</th><th scope="col">Score</th><th scope="col">Setup</th><th scope="col">Submitter</th><th scope="col">Reproduce and verify</th></tr>
+            </thead>
+            <tbody>
+              {list.map((run) => (
+                <tr>
+                  <td class="num">{run.run.date}<small>v{run.benchmark_version}</small></td>
+                  <td><a href={href(`/registry/models/${run.model}`)}>{modelName(run.model)}</a></td>
+                  <td class="num"><span class="score">{formatNumber(run.score)}</span>{d.metric.unit}{d.items > 0 && <small>n = {run.n}</small>}</td>
+                  <td>
+                    {run.setup.format} · {run.setup.quantization}
+                    <small>{run.setup.runtime} {run.setup.runtime_version}</small>
+                    <small>{run.setup.hardware.device} · {run.setup.hardware.accelerator} · {run.setup.hardware.memory_gb} GB</small>
+                    {run.perf?.tokens_per_second && <small>{formatNumber(run.perf.tokens_per_second)} tok/s</small>}
+                  </td>
+                  <td><a href={`https://github.com/${run.run.submitter}`} rel="nofollow ugc noopener">{run.run.submitter}</a><small>{run.run.harness.name} {run.run.harness.version}</small></td>
+                  <td>
+                    <code>{run.run.command}</code>
+                    <small>sha256 <code>{run.evidence.sha256}</code></small>
+                    {run.evidence.url && <small><a href={run.evidence.url} rel="nofollow ugc noopener">raw output</a></small>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    ))}
+  </article>
+</Base>
