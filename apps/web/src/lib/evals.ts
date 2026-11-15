@@ -1,5 +1,5 @@
 import { getCollection } from 'astro:content';
-import { byCodeUnit, groupEvals, type EvalGroup, type EvalRun } from '@unite4ai/core';
+import { byCodeUnit, groupEvals, leaderboard, type EvalGroup, type EvalRun } from '@unite4ai/core';
 import { EVAL_CATEGORIES } from '@unite4ai/schema';
 
 export const REPO = 'https://github.com/bigshort2022/unite4ai.github.io';
@@ -39,14 +39,27 @@ export async function loadEvals() {
 
   // A measured quantity such as speed only compares on one machine, so those groups are per machine and runtime.
   const byHardware = new Set(benchmarks.filter((b) => b.data.scoring === 'measured').map((b) => b.id));
+  const ordered = benchmarks.sort((a, b) =>
+    CATEGORIES.indexOf(a.data.category) - CATEGORIES.indexOf(b.data.category)
+    || byCodeUnit(a.data.name, b.data.name)
+    || byCodeUnit(a.id, b.id));
+  const groups = groupEvals(runs, { byHardware });
   return {
-    benchmarks: benchmarks.sort((a, b) =>
-      CATEGORIES.indexOf(a.data.category) - CATEGORIES.indexOf(b.data.category)
-      || byCodeUnit(a.data.name, b.data.name)
-      || byCodeUnit(a.id, b.id)),
+    benchmarks: ordered,
     runs,
-    groups: groupEvals(runs, { byHardware }),
+    groups,
     modelNames,
+    /** Each benchmark, in the same order, with the leaderboard of its current version (empty when it has no result). */
+    boards: ordered.map((benchmark) => ({
+      benchmark,
+      // A speed on one machine does not outrank a speed on another: measured boards are sorted, not ranked.
+      measured: byHardware.has(benchmark.id),
+      rows: leaderboard(groups, {
+        id: benchmark.id,
+        version: benchmark.data.version,
+        higher_is_better: benchmark.data.metric.higher_is_better,
+      }),
+    })),
   };
 }
 
@@ -66,6 +79,11 @@ export function runtimeLabel(group: EvalGroup): string {
   return group.runtime === null
     ? group.runtimes.join(', ')
     : `${group.runtime} ${(group.runtime_versions ?? []).join(', ')}`;
+}
+
+/** The machine behind a group grouped by hardware ("MacBook Pro · 32 GB"); null for a group that pools machines. */
+export function deviceLine(group: EvalGroup): string | null {
+  return group.device === null ? null : `${group.device} · ${group.memory_gb} GB`;
 }
 
 /** "60–64" when the group's runs disagree, null when they all scored the same. */

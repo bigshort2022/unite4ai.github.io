@@ -2,7 +2,7 @@
 import Base from '../../layouts/Base.astro';
 import { getCollection, render } from 'astro:content';
 import { byCodeUnit, leaderboard, reproductionLabel } from '@unite4ai/core';
-import { CATEGORY_LABELS, SUBMIT_GUIDE, formatNumber, loadEvals, runtimeLabel, scoreRange, withUnit } from '../../lib/evals';
+import { CATEGORY_LABELS, SUBMIT_GUIDE, deviceLine, formatNumber, loadEvals, runtimeLabel, scoreRange, withUnit } from '../../lib/evals';
 
 export async function getStaticPaths() {
   const benchmarks = await getCollection('benchmarks');
@@ -79,7 +79,7 @@ const measured = d.scoring === 'measured';
                 <td>
                   {row.format} · {row.quantization}
                   <small>{runtimeLabel(row)} · {row.accelerators.join(', ')}</small>
-                  {row.device !== null && <small>{row.device} · {row.memory_gb} GB</small>}
+                  {deviceLine(row) && <small>{deviceLine(row)}</small>}
                 </td>
                 {!measured && (
                   <td class="num">{row.tokens_per_second === null ? '—' : `${formatNumber(row.tokens_per_second)} tok/s`}</td>
