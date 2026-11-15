@@ -1,12 +1,15 @@
 import type { ChatMessage } from './gsm8k.ts';
 
 export interface Completion {
+  /** The visible reply: content only, without any reasoning the server streams separately. */
   text: string;
-  /** Milliseconds until the first content token; null when the reply was empty. */
+  /** Milliseconds until the first generated token, reasoning included; null when nothing was generated. */
   ttftMs: number | null;
   seconds: number;
   /** From the stream's usage chunk; null when the server does not send one. */
   completionTokens: number | null;
+  /** Why the server stopped, e.g. "stop" or "length"; null when it sent only `[DONE]`. */
+  finishReason: string | null;
 }
 
 export async function listModels(baseUrl: string): Promise<string[]> {
@@ -66,6 +69,7 @@ export async function streamChat(request: {
   let text = '';
   let ttftMs: number | null = null;
   let completionTokens: number | null = null;
+  let finishReason: string | null = null;
   let finished = false;
   for await (const payload of dataPayloads(response.body)) {
     if (payload === '') continue;
@@ -74,7 +78,7 @@ export async function streamChat(request: {
       continue;
     }
     const event = JSON.parse(payload) as {
-      choices?: { delta?: { content?: unknown }; finish_reason?: unknown }[];
+      choices?: { delta?: { content?: unknown; reasoning?: unknown; reasoning_content?: unknown }; finish_reason?: unknown }[];
       usage?: { completion_tokens?: unknown };
       error?: unknown;
     };
@@ -84,13 +88,17 @@ export async function streamChat(request: {
     }
     const choice = event.choices?.[0];
     if (choice?.finish_reason != null) finished = true;
-    const delta = choice?.delta?.content;
-    if (typeof delta === 'string' && delta !== '') {
-      if (ttftMs === null) ttftMs = performance.now() - started;
-      text += delta;
+    if (typeof choice?.finish_reason === 'string') finishReason = choice.finish_reason;
+    // Servers stream a model's reasoning under either name; it is generated output, so it
+    // starts the clock, but only content is the reply.
+    const delta = choice?.delta;
+    const generated = [delta?.content, delta?.reasoning, delta?.reasoning_content];
+    if (ttftMs === null && generated.some((part) => typeof part === 'string' && part !== '')) {
+      ttftMs = performance.now() - started;
     }
+    if (typeof delta?.content === 'string') text += delta.content;
     if (typeof event.usage?.completion_tokens === 'number') completionTokens = event.usage.completion_tokens;
   }
   if (!finished) throw new Error('stream ended before the reply was complete');
-  return { text, ttftMs, seconds: (performance.now() - started) / 1000, completionTokens };
+  return { text, ttftMs, seconds: (performance.now() - started) / 1000, completionTokens, finishReason };
 }

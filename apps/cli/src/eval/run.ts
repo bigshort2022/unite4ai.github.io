@@ -41,7 +41,11 @@ export interface EvalOutcome {
 interface TranscriptItem {
   type: 'item';
   index: number;
+  /** sha256 of the JSON of the messages that were sent, so a reader can check the prompt. */
+  prompt_sha256: string;
   reply: string;
+  /** Why the server stopped; "length" means the reply was cut at the token limit. */
+  finish_reason: string | null;
   extracted: string | null;
   expected: string;
   correct: boolean;
@@ -173,7 +177,9 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
     const line: TranscriptItem = {
       type: 'item',
       index: item.index,
+      prompt_sha256: sha256(JSON.stringify(item.messages)),
       reply: completion.text,
+      finish_reason: completion.finishReason,
       extracted: verdict.extracted,
       expected: item.expected,
       correct: verdict.correct,

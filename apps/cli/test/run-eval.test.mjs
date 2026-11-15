@@ -210,6 +210,10 @@ test('a complete run writes a result the content gate accepts, with evidence for
   assert.ok(medianTtft > 0);
   assert.equal(result.perf.time_to_first_token_ms, Number(medianTtft.toFixed(1)));
 
+  // Each line says how its reply ended and pins the prompt that produced it.
+  assert.deepEqual(lines.map((line) => line.finish_reason), ['stop', 'stop', 'stop']);
+  assert.deepEqual(lines.map((line) => line.prompt_sha256), stub.bodies.map((body) => sha256(JSON.stringify(body.messages))));
+
   // Every request is exactly what the benchmark page promises, sent one at a time.
   assert.deepEqual(stub.bodies, ['Q1?', 'Q2?', 'Q3?'].map((question) => ({
     model: 'stub-model',

@@ -33,6 +33,8 @@ const chat = (baseUrl, overrides = {}) => streamChat({
   ...overrides,
 });
 
+const pick = ({ text, finishReason }) => ({ text, finishReason });
+
 test('comment lines such as keepalives are ignored', async () => {
   const baseUrl = await streamServer((res) => {
     res.write(': keepalive\n\n');
@@ -50,15 +52,39 @@ test('a reply is complete on a finish_reason or on [DONE], whichever the server 
     res.write(delta({ content: '18' }));
     res.end(delta({}, 'stop'));
   });
-  assert.equal((await chat(finishOnly)).text, '18');
+  assert.deepEqual(pick(await chat(finishOnly)), { text: '18', finishReason: 'stop' });
 
   // No newline after the last line: some servers close the stream right behind it.
   const doneOnly = await streamServer((res) => {
     res.write(delta({ content: '18' }));
     res.end('data: [DONE]');
   });
-  assert.equal((await chat(doneOnly)).text, '18');
+  assert.deepEqual(pick(await chat(doneOnly)), { text: '18', finishReason: null });
+
+  const cut = await streamServer((res) => {
+    res.write(delta({ content: 'First, 9 times' }, 'length'));
+    res.end('data: [DONE]\n\n');
+  });
+  assert.deepEqual(pick(await chat(cut)), { text: 'First, 9 times', finishReason: 'length' });
 
   const neither = await streamServer((res) => res.end(delta({ content: '18' })));
   await assert.rejects(chat(neither), /stream ended before the reply was complete/);
+});
+
+test('the clock starts at the first generated token of any kind, and reasoning stays out of the text', async () => {
+  for (const field of ['reasoning', 'reasoning_content']) {
+    const baseUrl = await streamServer((res) => {
+      res.write(delta({ [field]: 'Nine eggs at 2 each: ' }));
+      setTimeout(() => {
+        res.write(delta({ [field]: '18.' }));
+        res.write(delta({ content: 'It is 18' }));
+        res.write(delta({}, 'stop'));
+        res.end('data: [DONE]\n\n');
+      }, 200);
+    });
+    const completion = await chat(baseUrl);
+    assert.equal(completion.text, 'It is 18', field);
+    assert.ok(completion.ttftMs < 150, `${field}: first token counted after ${completion.ttftMs} ms`);
+    assert.ok(completion.seconds > 0.15, field);
+  }
 });
