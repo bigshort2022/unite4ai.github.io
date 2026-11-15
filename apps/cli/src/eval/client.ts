@@ -36,18 +36,32 @@ async function* dataPayloads(body: ReadableStream<Uint8Array>): AsyncGenerator<s
   if (last.startsWith('data:')) yield last.slice(5).trim();
 }
 
-/**
- * One streamed chat completion at temperature 0. Throws when the server reports an error inside
- * the stream or the stream ends without a finish_reason or `[DONE]`, so a failed or partial
- * reply is never scored.
- */
-export async function streamChat(request: {
+export interface ChatRequest {
   baseUrl: string;
   model: string;
   messages: ChatMessage[];
   maxTokens: number;
+  /** Limit for the whole request, from sending it to the end of the reply. */
   timeoutMs: number;
-}): Promise<Completion> {
+}
+
+/**
+ * One streamed chat completion at temperature 0. Throws when the server reports an error inside
+ * the stream, the stream ends without a finish_reason or `[DONE]`, or the reply is not complete
+ * within the timeout, so a failed or partial reply is never scored.
+ */
+export async function streamChat(request: ChatRequest): Promise<Completion> {
+  const signal = AbortSignal.timeout(request.timeoutMs);
+  try {
+    return await readCompletion(request, signal);
+  } catch (error) {
+    // The abort surfaces as a bare "The operation timed out."; say which limit was hit.
+    if (signal.aborted) throw new Error(`request timed out after ${request.timeoutMs} ms`);
+    throw error;
+  }
+}
+
+async function readCompletion(request: ChatRequest, signal: AbortSignal): Promise<Completion> {
   const started = performance.now();
   const response = await fetch(`${request.baseUrl}/chat/completions`, {
     method: 'POST',
@@ -60,7 +74,7 @@ export async function streamChat(request: {
       stream: true,
       stream_options: { include_usage: true },
     }),
-    signal: AbortSignal.timeout(request.timeoutMs),
+    signal,
   });
   if (!response.ok || !response.body) {
     throw new Error(`POST /chat/completions → ${response.status} ${(await response.text()).slice(0, 200)}`);

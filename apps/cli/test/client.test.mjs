@@ -88,3 +88,8 @@ test('the clock starts at the first generated token of any kind, and reasoning s
     assert.ok(completion.seconds > 0.15, field);
   }
 });
+
+test('the request timeout covers the whole reply, so a stream that stalls is not waited on', async () => {
+  const stalled = await streamServer((res) => res.write(delta({ content: 'It is' })));
+  await assert.rejects(chat(stalled, { timeoutMs: 100 }), /request timed out after 100 ms/);
+});

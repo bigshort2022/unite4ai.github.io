@@ -81,10 +81,10 @@ function requestProblem(body, question) {
 
 /**
  * OpenAI-compatible stub. `replies` maps a question to the reply text, to a status code, to
- * `{ error }` (an error event inside a 200 stream) or to `{ truncate }` (one content chunk,
- * then the response ends with neither a finish_reason nor [DONE]). A completion request that
- * departs from the published method gets a 500 that says how. `delayMs` is how long a reply
- * takes after its first chunk.
+ * `{ error }` (an error event inside a 200 stream), to `{ truncate }` (one content chunk, then
+ * the response ends with neither a finish_reason nor [DONE]) or to `{ hang: true }` (no answer
+ * at all). A completion request that departs from the published method gets a 500 that says
+ * how. `delayMs` is how long a reply takes after its first chunk.
  */
 function stubServer(replies, { models = ['stub-model'], delayMs = 15 } = {}) {
   const requests = [];
@@ -111,6 +111,7 @@ function stubServer(replies, { models = ['stub-model'], delayMs = 15 } = {}) {
         const problem = reply === undefined ? `no reply for ${JSON.stringify(question)}` : requestProblem(parsed, question);
         if (problem) return json(500, { error: { message: `stub: ${problem}` } });
         if (typeof reply === 'number') return json(reply, { error: { message: 'stub failure' } });
+        if (reply.hang) return undefined;
 
         active += 1;
         maxActive = Math.max(maxActive, active);
@@ -360,4 +361,13 @@ test('the stub refuses a request that departs from the published method', async 
   const stub = await stubServer({ ...GOOD });
   await assert.rejects(runEval(options(workspace, stub, { maxTokens: 256 })), /item 1 failed: .*stub: max_tokens must be 512, got 256/);
   assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), []);
+});
+
+test('a request the server never answers fails the item at the request timeout', async () => {
+  const workspace = makeWorkspace();
+  const stub = await stubServer({ ...GOOD, 'Q2?': { hang: true } });
+  await assert.rejects(runEval(options(workspace, stub, { requestTimeoutMs: 100 })), /item 2 failed: request timed out after 100 ms/);
+  assert.equal(stub.posts(), 2);
+  assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), []);
+  assert.deepEqual(transcriptItems(workspace), [0]);
 });
