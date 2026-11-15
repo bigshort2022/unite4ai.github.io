@@ -34,6 +34,14 @@ const ESCAPED_DEVICE = /Fixture &lt;b&gt;Rig&lt;\/b&gt; &amp;/;
 const RAW_DEVICE = /<b>Rig<\/b>/;
 const CONTRIBUTOR_REL = 'rel="nofollow ugc noopener"';
 
+/** One category's section of the evaluations page, from its opening tag to the next section. */
+const categorySection = (board, category) => board
+  .split(/<section[^>]* data-category="/)
+  .slice(1)
+  .find((section) => section.startsWith(`${category}"`));
+/** A benchmark page's leaderboard, without the method prose and run tables that follow it. */
+const leaderboardOf = (detail) => detail.slice(detail.indexOf('<h2>Leaderboard</h2>'), detail.indexOf('<div class="prose"'));
+
 test('leaderboard and benchmark page render fixture results', { timeout: 120_000 }, () => {
   const build = buildWith('./test/fixtures/evals', out);
   assert.equal(build.status, 0, `${build.stdout}${build.stderr}`);
@@ -99,13 +107,63 @@ test('leaderboard and benchmark page render fixture results', { timeout: 120_000
   assert.ok(detail.includes(`<a href="https://example.org/fixture-raw-output.jsonl" ${CONTRIBUTOR_REL}>`));
 });
 
+test('a measured benchmark ranks each device on its own; quality rows name no device', () => {
+  const board = page('evals/index.html');
+  const efficiency = categorySection(board, 'efficiency');
+  assert.ok(efficiency, 'the evaluations page must have an efficiency section');
+  assert.match(efficiency, /<h2 id="category-efficiency"[^>]*>Efficiency<\/h2>/);
+  assert.match(efficiency, /<a href="\/evals\/decode-speed-gsm8k-200"[^>]*>Decode speed on GSM8K-200<\/a>/);
+  assert.match(board, /<option value="efficiency">Efficiency<\/option>/);
+  assert.match(efficiency, /<caption class="sr-only">Leaderboard for Decode speed on GSM8K-200<\/caption>/);
+
+  // The two runs share a model, format and quantization: only the machine tells them apart.
+  for (const html of [efficiency, leaderboardOf(page('evals/decode-speed-gsm8k-200/index.html'))]) {
+    const tower = html.indexOf('Fixture Tower');
+    const laptop = html.indexOf('Fixture Laptop');
+    assert.notEqual(tower, -1, 'the tower must have its own row');
+    assert.notEqual(laptop, -1, 'the laptop must have its own row');
+    assert.ok(tower < laptop, 'higher speed must rank first');
+    assert.match(html, /<td class="rank num">2<\/td>/);
+    assert.match(html, /<span class="score">140\.25<\/span> tok\/s/);
+    assert.match(html, /<span class="score">61\.5<\/span> tok\/s/);
+    assert.match(html, /<small>Fixture Tower · 24 GB<\/small>/);
+    assert.match(html, /<small>Fixture Laptop · 32 GB<\/small>/);
+    // The score is the speed, so it is not repeated in a column of its own.
+    assert.doesNotMatch(html, /<th scope="col">Speed<\/th>/);
+  }
+  // A measured benchmark has no items to count.
+  assert.doesNotMatch(efficiency, /<small>n = /);
+
+  // Hardware does not change a score, so quality rows are not split by device and do not name one.
+  for (const html of [categorySection(board, 'quality'), leaderboardOf(page('evals/gsm8k-200/index.html'))]) {
+    assert.match(html, /<th scope="col">Speed<\/th>/);
+    assert.match(html, /<td class="rank num">2<\/td>/);
+    assert.doesNotMatch(html, /Fixture/);
+  }
+
+  // A benchmark without results keeps its section and says how results arrive.
+  assert.match(
+    categorySection(board, 'security').replace(/\s+/g, ' '),
+    /No results yet\. Results arrive by pull request from people who ran this benchmark on their own hardware\./,
+  );
+});
+
 test('model page lists its evaluations and local setups; the feed publishes the groups', () => {
   const model = page('registry/models/darsy-xray-analysis/index.html');
   assert.match(model, /Evaluations/);
   assert.match(model, /href="\/evals\/gsm8k-200"/);
   assert.match(model, /Runs locally on/);
-  assert.match(model, /Fixture Laptop/);
-  assert.match(model, /70 tok\/s/);
+  // The local-run matrix: each setup's best speed and its shortest time to the first token.
+  const [evaluations, matrix] = model.split('Runs locally on');
+  assert.match(matrix, /<th scope="col">First token<\/th>/);
+  assert.match(matrix, /Fixture Tower<small>nvidia · 24 GB<\/small><\/td>\s*<td class="num">140\.25 tok\/s<\/td>\s*<td class="num">95 ms<\/td>/);
+  assert.match(matrix, /Fixture Laptop<small>apple-silicon · 32 GB<\/small><\/td>\s*<td class="num">61\.5 tok\/s<\/td>\s*<td class="num">480 ms<\/td>/);
+  // The mlx setup measured its speed but not its time to the first token.
+  assert.match(matrix, /<td class="num">70 tok\/s<\/td>\s*<td class="num">—<\/td>/);
+  // Its results on a measured benchmark say which machine each one is from.
+  assert.match(evaluations, /href="\/evals\/decode-speed-gsm8k-200"/);
+  assert.match(evaluations, /<small>Fixture Tower · 24 GB<\/small>/);
+  assert.match(evaluations, /<small>Fixture Laptop · 32 GB<\/small>/);
   assert.match(model, /<caption class="sr-only">Evaluation results for Darsy X-Ray Analysis<\/caption>/);
   assert.match(model, ESCAPED_DEVICE);
   assert.doesNotMatch(model, RAW_DEVICE);
@@ -118,8 +176,15 @@ test('model page lists its evaluations and local setups; the feed publishes the 
   );
   assert.deepEqual(feed.benchmarks.map((b) => b.id), ['gsm8k-200', 'canary-injection-v1', 'decode-speed-gsm8k-200']);
   assert.equal(feed.benchmarks[0].higher_is_better, true);
-  assert.equal(feed.groups.length, 3);
-  const current = feed.groups.filter((g) => g.benchmark_version === feed.benchmarks[0].version);
+  // Groups of a measured benchmark carry their machine; quality groups do not.
+  assert.equal(feed.groups.length, 5);
+  const quality = feed.groups.filter((g) => g.benchmark === 'gsm8k-200');
+  assert.deepEqual(quality.map((g) => [g.device, g.memory_gb]), [[null, null], [null, null], [null, null]]);
+  assert.deepEqual(
+    feed.groups.filter((g) => g.benchmark === 'decode-speed-gsm8k-200').map((g) => [g.device, g.memory_gb, g.score]),
+    [['Fixture Laptop', 32, 61.5], ['Fixture Tower', 24, 140.25]],
+  );
+  const current = quality.filter((g) => g.benchmark_version === feed.benchmarks[0].version);
   assert.equal(current.length, 2);
   const mlx = current.find((g) => g.format === 'mlx');
   assert.equal(mlx.score, 62);
@@ -129,7 +194,7 @@ test('model page lists its evaluations and local setups; the feed publishes the 
     'darsy-xray-analysis--gsm8k-200--fixture-bot--2026-11-01--11111111',
     'darsy-xray-analysis--gsm8k-200--fixture-bot-2--2026-11-02--22222222',
   ]);
-  assert.equal(feed.runs, 4);
+  assert.equal(feed.runs, 6);
 
   assert.match(page('index.html'), /href="\/evals"/);
 });

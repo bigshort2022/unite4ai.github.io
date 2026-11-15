@@ -59,7 +59,7 @@ const modelName = (id: string) => modelNames.get(id) ?? id;
         <table class="eval-table">
           <caption class="sr-only">Leaderboard for {d.name}</caption>
           <thead>
-            <tr><th scope="col"><span class="sr-only">Rank</span><span aria-hidden="true">#</span></th><th scope="col">Model</th><th scope="col">{d.metric.name}</th><th scope="col">Setup</th><th scope="col">Speed</th><th scope="col">Runs</th></tr>
+            <tr><th scope="col"><span class="sr-only">Rank</span><span aria-hidden="true">#</span></th><th scope="col">Model</th><th scope="col">{d.metric.name}</th><th scope="col">Setup</th>{d.scoring !== 'measured' && <th scope="col">Speed</th>}<th scope="col">Runs</th></tr>
           </thead>
           <tbody>
             {rows.map((row, index) => (
@@ -70,8 +70,14 @@ const modelName = (id: string) => modelNames.get(id) ?? id;
                   <span class="score">{formatNumber(row.score)}</span>{d.metric.unit}
                   {scoreRange(row) && <small>range {scoreRange(row)}</small>}
                 </td>
-                <td>{row.format} · {row.quantization}<small>{row.runtimes.join(', ')} · {row.accelerators.join(', ')}</small></td>
-                <td class="num">{row.tokens_per_second === null ? '—' : `${formatNumber(row.tokens_per_second)} tok/s`}</td>
+                <td>
+                  {row.format} · {row.quantization}
+                  <small>{row.runtimes.join(', ')} · {row.accelerators.join(', ')}</small>
+                  {row.device !== null && <small>{row.device} · {row.memory_gb} GB</small>}
+                </td>
+                {d.scoring !== 'measured' && (
+                  <td class="num">{row.tokens_per_second === null ? '—' : `${formatNumber(row.tokens_per_second)} tok/s`}</td>
+                )}
                 <td><span class={`tag${row.submitters.length > 1 ? ' tag-open' : ''}`}>{reproductionLabel(row)}</span><small>{row.runs} {row.runs === 1 ? 'run' : 'runs'}</small></td>
               </tr>
             ))}

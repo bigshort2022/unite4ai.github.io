@@ -94,7 +94,7 @@ const hasRows = boards.some((b) => b.rows.length > 0);
                       <th scope="col">Model</th>
                       <th scope="col">{benchmark.data.metric.name}</th>
                       <th scope="col">Setup</th>
-                      <th scope="col">Speed</th>
+                      {benchmark.data.scoring !== 'measured' && <th scope="col">Speed</th>}
                       <th scope="col">Runs</th>
                     </tr>
                   </thead>
@@ -111,8 +111,11 @@ const hasRows = boards.some((b) => b.rows.length > 0);
                         <td>
                           {row.format} · {row.quantization}
                           <small>{row.runtimes.join(', ')} · {row.accelerators.join(', ')}</small>
+                          {row.device !== null && <small>{row.device} · {row.memory_gb} GB</small>}
                         </td>
-                        <td class="num">{row.tokens_per_second === null ? '—' : `${formatNumber(row.tokens_per_second)} tok/s`}</td>
+                        {benchmark.data.scoring !== 'measured' && (
+                          <td class="num">{row.tokens_per_second === null ? '—' : `${formatNumber(row.tokens_per_second)} tok/s`}</td>
+                        )}
                         <td>
                           <span class={`tag${row.submitters.length > 1 ? ' tag-open' : ''}`}>{reproductionLabel(row)}</span>
                           <small>{row.runs} {row.runs === 1 ? 'run' : 'runs'} · latest {row.latest}</small>

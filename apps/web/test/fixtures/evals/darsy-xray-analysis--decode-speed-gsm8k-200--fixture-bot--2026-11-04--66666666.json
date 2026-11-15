@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "model": "darsy-xray-analysis",
+  "benchmark": "decode-speed-gsm8k-200",
+  "benchmark_version": "1",
+  "score": 61.5,
+  "n": 200,
+  "run": {
+    "date": "2026-11-04",
+    "submitter": "fixture-bot",
+    "harness": { "name": "unite4ai-eval", "version": "0.0.0-fixture" },
+    "command": "bun run eval -- --benchmark gsm8k-200 --model darsy-xray-analysis --fixture-laptop"
+  },
+  "setup": {
+    "runtime": "llama.cpp",
+    "runtime_version": "0.0.0",
+    "format": "gguf",
+    "quantization": "Q4_K_M",
+    "hardware": { "device": "Fixture Laptop", "accelerator": "apple-silicon", "memory_gb": 32 }
+  },
+  "perf": { "tokens_per_second": 61.5, "time_to_first_token_ms": 480 },
+  "evidence": { "sha256": "6666666666666666666666666666666666666666666666666666666666666666" }
+}

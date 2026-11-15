@@ -36,6 +36,11 @@ test('production build targets the unite4ai.com custom domain', { timeout: 120_0
   assert.match(security, /<h2 id="category-security"[^>]*>Security<\/h2>/);
   assert.match(security, /<a href="\/evals\/canary-injection-v1"[^>]*>Prompt-injection canary \(v1\)<\/a>/);
   assert.equal(sections.filter((section) => section.includes('Prompt-injection canary')).length, 1);
+  // The speed benchmark has its Efficiency section whether or not anyone has submitted a result.
+  const efficiency = sections.find((section) => section.startsWith('efficiency"'));
+  assert.ok(efficiency, 'the evaluations page must have an efficiency section');
+  assert.match(efficiency, /<h2 id="category-efficiency"[^>]*>Efficiency<\/h2>/);
+  assert.match(efficiency, /<a href="\/evals\/decode-speed-gsm8k-200"[^>]*>Decode speed on GSM8K-200<\/a>/);
   // Its data file is served at the benchmark's source_url, byte for byte what the definition pins.
   const definition = await readFile(new URL('src/content/benchmarks/canary-injection-v1.md', ROOT), 'utf8');
   assert.match(definition, /^source_url: https:\/\/unite4ai\.com\/data\/benchmarks\/canary-injection-v1\.jsonl$/m);
@@ -44,11 +49,11 @@ test('production build targets the unite4ai.com custom domain', { timeout: 120_0
   const feedJson = await readFile(new URL('dist/data/evals.json', ROOT), 'utf8');
   assert.equal(JSON.parse(feedJson).schema_version, 1);
   // The rig fixture's device contains markup, so it appears escaped (or raw, if escaping broke).
-  const fixtureMarkers = /fixture-bot|Fixture Laptop|Fixture (?:&lt;b&gt;|<b>)?Rig|Q4_K_M|ghost-model/;
+  const fixtureMarkers = /fixture-bot|Fixture (?:Laptop|Tower)|Fixture (?:&lt;b&gt;|<b>)?Rig|Q4_K_M|ghost-model/;
   assert.doesNotMatch(evalsHtml, fixtureMarkers);
   assert.doesNotMatch(feedJson, fixtureMarkers);
-  // Submitters and devices are only printed on the benchmark and model pages.
-  const detailPages = ['gsm8k-200', 'canary-injection-v1'].map((id) => `dist/evals/${id}/index.html`);
+  // The benchmark and model pages print more of each run: its submitter, its command, its device.
+  const detailPages = ['gsm8k-200', 'canary-injection-v1', 'decode-speed-gsm8k-200'].map((id) => `dist/evals/${id}/index.html`);
   for (const path of [...detailPages, 'dist/registry/models/darsy-xray-analysis/index.html']) {
     assert.doesNotMatch(await readFile(new URL(path, ROOT), 'utf8'), fixtureMarkers, path);
   }

@@ -37,13 +37,15 @@ export async function loadEvals() {
     throw new Error(`Evaluation results reference content that does not exist:\n${dangling.sort(byCodeUnit).join('\n')}`);
   }
 
+  // A measured quantity such as speed only compares on one machine, so those groups are per device.
+  const byHardware = new Set(benchmarks.filter((b) => b.data.scoring === 'measured').map((b) => b.id));
   return {
     benchmarks: benchmarks.sort((a, b) =>
       CATEGORIES.indexOf(a.data.category) - CATEGORIES.indexOf(b.data.category)
       || byCodeUnit(a.data.name, b.data.name)
       || byCodeUnit(a.id, b.id)),
     runs,
-    groups: groupEvals(runs),
+    groups: groupEvals(runs, { byHardware }),
     modelNames,
   };
 }
