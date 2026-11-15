@@ -54,7 +54,8 @@ switch (command) {
       const options = parseEvalArgs(process.argv.slice(3), { root: ROOT, env: process.env });
       const outcome = await runEval({ ...options, log: (line) => console.error(line) });
       console.log(JSON.stringify({ status: 'complete', ...outcome }));
-      console.error(`\n${outcome.correct}/${outcome.n} correct (${outcome.score}). Result: ${outcome.resultPath}\nRun \`bun run validate\`, then open a pull request with that file.`);
+      const speed = outcome.speedResultPath === undefined ? '' : `\nSpeed result: ${outcome.speedResultPath}`;
+      console.error(`\n${outcome.correct}/${outcome.n} correct (${outcome.score}). Result: ${outcome.resultPath}${speed}\nRun \`bun run validate\`, then open a pull request with ${speed ? 'both files' : 'that file'}.`);
     } catch (error) {
       console.error(`eval failed: ${(error as Error).message}`);
       process.exit(1);

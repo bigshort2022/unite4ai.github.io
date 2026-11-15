@@ -8,7 +8,8 @@ const href = (p: string) => `${base}${p}` || '/';
 const models = await getCollection('models');
 const datasets = await getCollection('datasets');
 const courses = await getCollection('courses');
-const evalRuns = await getCollection('evals');
+// A run is one transcript, however many result files it backs.
+const evalRuns = new Set((await getCollection('evals')).map((entry) => entry.data.evidence.sha256));
 const events = (await getCollection('events')).sort(
   (a, b) => a.data.starts.valueOf() - b.data.starts.valueOf()
 );
@@ -57,7 +58,7 @@ const nextEvents = events.filter((e) => e.data.starts > new Date()).slice(0, 2);
     <div class="stats">
       <div class="stat"><b>{models.length}</b><span>Open models</span></div>
       <div class="stat"><b>{datasets.length}</b><span>Open datasets</span></div>
-      <div class="stat"><b>{evalRuns.length}</b><span>Evaluation runs</span></div>
+      <div class="stat"><b>{evalRuns.size}</b><span>Evaluation runs</span></div>
       <div class="stat"><b>{courses.length}</b><span>Free courses</span></div>
       <div class="stat"><b>{events.length}</b><span>Community events</span></div>
     </div>

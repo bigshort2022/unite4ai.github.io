@@ -18,5 +18,6 @@ export {
   type BenchmarkRef,
   type EvalGroup,
   type EvalRun,
+  type GroupOptions,
   type LocalSetup,
 } from './evals.ts';

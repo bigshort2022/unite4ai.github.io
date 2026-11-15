@@ -41,7 +41,11 @@ after(() => {
   temps.forEach((dir) => rmSync(dir, { recursive: true, force: true }));
 });
 
-function makeWorkspace({ source = SOURCE, sourceSha = sha256(source) } = {}) {
+/**
+ * `speedDefinition` adds the measured benchmark that publishes the suite's decode speed; its
+ * fields replace the valid ones, so `{}` is a definition the schema accepts.
+ */
+function makeWorkspace({ source = SOURCE, sourceSha = sha256(source), speedDefinition } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'u4ai-eval-'));
   temps.push(root);
   const contentRoot = join(root, 'content');
@@ -60,7 +64,24 @@ function makeWorkspace({ source = SOURCE, sourceSha = sha256(source) } = {}) {
     license: 'mit',
     updated: '2026-11-14',
   };
-  writeFileSync(join(contentRoot, 'benchmarks/gsm8k-200.md'), `---\n${JSON.stringify(definition, null, 2)}\n---\n\n## Method\n\nFixture.\n`);
+  const frontmatter = (fields) => `---\n${JSON.stringify(fields, null, 2)}\n---\n\n## Method\n\nFixture.\n`;
+  writeFileSync(join(contentRoot, 'benchmarks/gsm8k-200.md'), frontmatter(definition));
+  if (speedDefinition) {
+    writeFileSync(join(contentRoot, 'benchmarks/decode-speed-gsm8k-200.md'), frontmatter({
+      name: 'Decode speed fixture',
+      summary: 'Tokens per second during the fixture run.',
+      category: 'efficiency',
+      version: '1',
+      metric: { name: 'decode speed', unit: 'tok/s', higher_is_better: true, min: 0 },
+      scoring: 'measured',
+      items: 0,
+      measured_on: 'gsm8k-200',
+      source_url: 'https://example.org/run.ts',
+      license: 'apache-2.0',
+      updated: '2026-11-14',
+      ...speedDefinition,
+    }));
+  }
   const sourceFile = join(root, 'test.jsonl');
   writeFileSync(sourceFile, source);
   return { root, contentRoot, workDir: join(root, 'work'), sourceFile };
@@ -86,9 +107,10 @@ function requestProblem(body, question) {
  * at all). A completion request that departs from the published method gets a 500 that says
  * how. `delayMs` is how long a reply takes after its first chunk. `status` is what
  * /_omp/status answers, as an omp-managed server does (a string is sent as it is); without
- * it the route is a 404, as on plain mlx-lm and Ollama.
+ * it the route is a 404, as on plain mlx-lm and Ollama. With `usage: false` the server never
+ * says how many tokens it generated.
  */
-function stubServer(replies, { models = ['stub-model'], delayMs = 15, status } = {}) {
+function stubServer(replies, { models = ['stub-model'], delayMs = 15, status, usage = true } = {}) {
   const requests = [];
   const bodies = [];
   let active = 0;
@@ -134,7 +156,7 @@ function stubServer(replies, { models = ['stub-model'], delayMs = 15, status } =
         setTimeout(() => {
           res.write(content(reply.slice(half)));
           res.write(event({ choices: [{ delta: {}, finish_reason: 'stop' }] }));
-          res.write(event({ choices: [], usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 } }));
+          if (usage) res.write(event({ choices: [], usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 } }));
           res.write('data: [DONE]\n\n');
           finish();
         }, delayMs);
@@ -441,6 +463,85 @@ test('the run is dated when it completes, and a finished configuration keeps tha
   assert.deepEqual(again, outcome);
   assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), [basename(outcome.resultPath)]);
   assert.deepEqual((await validateContent(workspace.contentRoot)).errors, []);
+});
+
+test('with its speed benchmark defined, a complete run also publishes the decode speed it measured', async () => {
+  const workspace = makeWorkspace({ speedDefinition: {} });
+  const stub = await stubServer({ ...GOOD });
+  const outcome = await runEval(options(workspace, stub, { notes: 'thinking disabled' }));
+
+  // Same run, so the same date and evidence prefix as the main result, under the speed benchmark's id.
+  const evals = join(workspace.contentRoot, 'evals');
+  assert.equal(outcome.speedResultPath, outcome.resultPath.replace('--gsm8k-200--', '--decode-speed-gsm8k-200--'));
+  assert.match(basename(outcome.speedResultPath), /^model-a--decode-speed-gsm8k-200--alice--2026-11-10--[a-f0-9]{8}\.json$/);
+  assert.deepEqual(readdirSync(evals).sort(), [basename(outcome.speedResultPath), basename(outcome.resultPath)]);
+
+  const result = JSON.parse(readFileSync(outcome.resultPath, 'utf8'));
+  const speed = JSON.parse(readFileSync(outcome.speedResultPath, 'utf8'));
+  assert.equal(evalResultSchema.safeParse(speed).success, true);
+  assert.ok(result.perf.tokens_per_second > 0);
+  assert.deepEqual(speed, {
+    ...result,
+    benchmark: 'decode-speed-gsm8k-200',
+    benchmark_version: '1',
+    score: result.perf.tokens_per_second,
+  });
+  assert.equal(speed.evidence.sha256, sha256(readFileSync(outcome.transcriptPath)));
+  assert.equal(speed.setup.notes, 'thinking disabled');
+  assert.equal(stub.posts(), 3, 'the speed comes from the same three requests');
+  assert.deepEqual((await validateContent(workspace.contentRoot)).errors, []);
+
+  // Run again, the finished configuration asks the server nothing and writes both files as they were.
+  const written = [outcome.resultPath, outcome.speedResultPath].map((path) => readFileSync(path, 'utf8'));
+  rmSync(outcome.resultPath);
+  rmSync(outcome.speedResultPath);
+  const requests = stub.requests.length;
+  const again = await runEval(options(workspace, stub, { notes: 'thinking disabled', today: '2026-11-12' }));
+  assert.equal(stub.requests.length, requests);
+  assert.deepEqual(again, outcome);
+  assert.deepEqual([again.resultPath, again.speedResultPath].map((path) => readFileSync(path, 'utf8')), written);
+  assert.equal(readdirSync(evals).length, 2);
+});
+
+test('without a definition of its speed benchmark, a complete run writes only the main result', async () => {
+  const workspace = makeWorkspace();
+  const stub = await stubServer({ ...GOOD });
+  const outcome = await runEval(options(workspace, stub));
+  assert.equal(outcome.speedResultPath, undefined);
+  assert.equal('speedResultPath' in outcome, false);
+  assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), [basename(outcome.resultPath)]);
+});
+
+test('a server that reports no token count gives no speed, so only the main result is written', async () => {
+  const workspace = makeWorkspace({ speedDefinition: {} });
+  const stub = await stubServer({ ...GOOD }, { usage: false });
+  const outcome = await runEval(options(workspace, stub));
+  assert.equal(outcome.n, 3);
+  assert.equal('speedResultPath' in outcome, false);
+  assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), [basename(outcome.resultPath)]);
+  // Nothing is estimated: without a token count there is no speed to publish, anywhere.
+  assert.equal('perf' in JSON.parse(readFileSync(outcome.resultPath, 'utf8')), false);
+  assert.deepEqual(itemLines(workspace).map((line) => line.completion_tokens), [null, null, null]);
+  assert.deepEqual((await validateContent(workspace.contentRoot)).errors, []);
+});
+
+test('a speed benchmark definition that could not publish this run stops it before any request', async () => {
+  const stub = await stubServer({ ...GOOD });
+  const refused = async (speedDefinition, problem) => {
+    const workspace = makeWorkspace({ speedDefinition });
+    await assert.rejects(runEval(options(workspace, stub)), problem);
+    assert.equal(existsSync(workspace.workDir), false, 'no transcript is started');
+    assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), []);
+  };
+  await refused({ items: 200 }, /benchmarks\/decode-speed-gsm8k-200\.md.*must be 0 when scoring is \\?"measured\\?"/s);
+  await refused({ category: 'speed' }, /benchmarks\/decode-speed-gsm8k-200\.md.*category/s);
+  await refused({ measured_on: undefined }, /benchmarks\/decode-speed-gsm8k-200\.md.*measured_on: is required/s);
+  // The gate would look for a result of that other benchmark from the same run, and find none.
+  await refused(
+    { measured_on: 'canary-injection-v1' },
+    /benchmarks\/decode-speed-gsm8k-200\.md is measured on "canary-injection-v1", not on "gsm8k-200"/,
+  );
+  assert.deepEqual(stub.requests, []);
 });
 
 /** A workspace whose run stopped at the third item, and the path of its transcript: a header and two items. */

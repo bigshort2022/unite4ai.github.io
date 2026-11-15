@@ -4,7 +4,7 @@ import OpennessMeter from '../../../components/OpennessMeter.astro';
 import StackVerifyPanel from '../../../components/StackVerifyPanel.astro';
 import { getCollection, render } from 'astro:content';
 import { byCodeUnit, localSetups, opennessScore, reproductionLabel } from '@unite4ai/core';
-import { REPO, formatNumber, loadEvals, scoreRange } from '../../../lib/evals';
+import { REPO, formatNumber, loadEvals, runtimeLabel, scoreRange, withUnit } from '../../../lib/evals';
 
 export async function getStaticPaths() {
   const models = await getCollection('models');
@@ -75,11 +75,15 @@ const setups = localSetups(evalData.runs.filter((run) => run.model === entry.id)
                   <tr>
                     <td><a href={href(`/evals/${group.benchmark}`)}>{benchmark.data.name}</a></td>
                     <td class="num">
-                      <span class="score">{formatNumber(group.score)}</span>{benchmark.data.metric.unit}
+                      <span class="score">{withUnit(formatNumber(group.score), benchmark.data.metric.unit)}</span>
                       {scoreRange(group) && <small>range {scoreRange(group)}</small>}
                     </td>
-                    <td>{group.format} · {group.quantization}<small>{group.runtimes.join(', ')}</small></td>
-                    <td class="num">{group.tokens_per_second === null ? '—' : `${formatNumber(group.tokens_per_second)} tok/s`}</td>
+                    <td>
+                      {group.format} · {group.quantization}
+                      <small>{runtimeLabel(group)}</small>
+                      {group.device !== null && <small>{group.device} · {group.memory_gb} GB</small>}
+                    </td>
+                    <td class="num">{benchmark.data.scoring === 'measured' || group.tokens_per_second === null ? '—' : `${formatNumber(group.tokens_per_second)} tok/s`}</td>
                     <td><span class={`tag${group.submitters.length > 1 ? ' tag-open' : ''}`}>{reproductionLabel(group)}</span></td>
                   </tr>
                 );
@@ -92,12 +96,12 @@ const setups = localSetups(evalData.runs.filter((run) => run.model === entry.id)
       {setups.length > 0 && (
         <>
           <h3 style="margin-top:2rem">Runs locally on</h3>
-          <p style="color:var(--u-text-dim)">Setups contributors have reported results from, with the best measured speed.</p>
+          <p style="color:var(--u-text-dim)">Best measured speed and lowest time to first token per setup; the two can come from different runs.</p>
           <div class="eval-scroll" tabindex="0" role="region" aria-label={`Setups ${d.name} has been run on`}>
             <table class="eval-table">
               <caption class="sr-only">Setups {d.name} has been run on</caption>
               <thead>
-                <tr><th scope="col">Runtime</th><th scope="col">Format</th><th scope="col">Hardware</th><th scope="col">Speed</th></tr>
+                <tr><th scope="col">Runtime</th><th scope="col">Format</th><th scope="col">Hardware</th><th scope="col">Speed</th><th scope="col">First token</th></tr>
               </thead>
               <tbody>
                 {setups.map((s) => (
@@ -106,6 +110,7 @@ const setups = localSetups(evalData.runs.filter((run) => run.model === entry.id)
                     <td>{s.format} · {s.quantization}</td>
                     <td>{s.device}<small>{s.accelerator} · {s.memory_gb} GB</small></td>
                     <td class="num">{s.tokens_per_second === null ? '—' : `${formatNumber(s.tokens_per_second)} tok/s`}</td>
+                    <td class="num">{s.time_to_first_token_ms === null ? '—' : `${formatNumber(s.time_to_first_token_ms)} ms`}</td>
                   </tr>
                 ))}
               </tbody>

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "model": "darsy-xray-analysis",
+  "benchmark": "decode-speed-gsm8k-200",
+  "benchmark_version": "1",
+  "score": 140.25,
+  "n": 200,
+  "run": {
+    "date": "2026-11-05",
+    "submitter": "fixture-bot",
+    "harness": { "name": "unite4ai-eval", "version": "0.0.0-fixture" },
+    "command": "bun run eval -- --benchmark gsm8k-200 --model darsy-xray-analysis --fixture-tower"
+  },
+  "setup": {
+    "runtime": "llama.cpp",
+    "runtime_version": "0.0.0",
+    "format": "gguf",
+    "quantization": "Q4_K_M",
+    "hardware": { "device": "Fixture Tower", "accelerator": "nvidia", "memory_gb": 24 }
+  },
+  "perf": { "tokens_per_second": 140.25, "time_to_first_token_ms": 95 },
+  "evidence": { "sha256": "7777777777777777777777777777777777777777777777777777777777777777" }
+}

@@ -37,13 +37,15 @@ export async function loadEvals() {
     throw new Error(`Evaluation results reference content that does not exist:\n${dangling.sort(byCodeUnit).join('\n')}`);
   }
 
+  // A measured quantity such as speed only compares on one machine, so those groups are per machine and runtime.
+  const byHardware = new Set(benchmarks.filter((b) => b.data.scoring === 'measured').map((b) => b.id));
   return {
     benchmarks: benchmarks.sort((a, b) =>
       CATEGORIES.indexOf(a.data.category) - CATEGORIES.indexOf(b.data.category)
       || byCodeUnit(a.data.name, b.data.name)
       || byCodeUnit(a.id, b.id)),
     runs,
-    groups: groupEvals(runs),
+    groups: groupEvals(runs, { byHardware }),
     modelNames,
   };
 }
@@ -51,6 +53,19 @@ export async function loadEvals() {
 /** Two decimals at most, without trailing zeros (62, 62.5, 62.25); three significant digits below 1 (0.123). */
 export function formatNumber(value: number): string {
   return String(Number(Math.abs(value) < 1 ? value.toPrecision(3) : value.toFixed(2)));
+}
+
+/** A value with its unit: a percent sign attaches ("62%"), any other unit follows a space ("140.25 tok/s"), no unit adds nothing. */
+export function withUnit(text: string, unit: string): string {
+  if (unit === '') return text;
+  return unit === '%' ? `${text}%` : `${text} ${unit}`;
+}
+
+/** The runtimes behind a group: its one runtime with every version run when it is grouped by hardware, otherwise each runtime's name. */
+export function runtimeLabel(group: EvalGroup): string {
+  return group.runtime === null
+    ? group.runtimes.join(', ')
+    : `${group.runtime} ${(group.runtime_versions ?? []).join(', ')}`;
 }
 
 /** "60–64" when the group's runs disagree, null when they all scored the same. */

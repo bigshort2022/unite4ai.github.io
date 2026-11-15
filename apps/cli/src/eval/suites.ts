@@ -16,10 +16,13 @@ export interface Suite {
   items(source: string, count: number): SuiteItem[];
   /** Path, relative to the content root, of a vendored copy of the source. Still hash-checked. */
   localSource?: string;
+  /** Id of the measured benchmark that publishes this suite's decode speed, when one is defined. */
+  speedBenchmark?: string;
 }
 
 const gsm8k: Suite = {
   promptVersion: PROMPT_VERSION,
+  speedBenchmark: 'decode-speed-gsm8k-200',
   items: (source, count) => parseItems(source, count).map((item) => ({
     index: item.index,
     messages: buildMessages(item.question),

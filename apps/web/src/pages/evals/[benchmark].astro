@@ -2,7 +2,7 @@
 import Base from '../../layouts/Base.astro';
 import { getCollection, render } from 'astro:content';
 import { byCodeUnit, leaderboard, reproductionLabel } from '@unite4ai/core';
-import { CATEGORY_LABELS, SUBMIT_GUIDE, formatNumber, loadEvals, scoreRange } from '../../lib/evals';
+import { CATEGORY_LABELS, SUBMIT_GUIDE, formatNumber, loadEvals, runtimeLabel, scoreRange, withUnit } from '../../lib/evals';
 
 export async function getStaticPaths() {
   const benchmarks = await getCollection('benchmarks');
@@ -34,6 +34,8 @@ const runTables = [
   },
 ];
 const modelName = (id: string) => modelNames.get(id) ?? id;
+// A speed on one machine does not outrank a speed on another: a measured board is sorted, not ranked.
+const measured = d.scoring === 'measured';
 ---
 <Base title={d.name} description={d.summary}>
   <article class="wrap section" data-pagefind-body>
@@ -55,29 +57,40 @@ const modelName = (id: string) => modelNames.get(id) ?? id;
         No results for version {d.version} yet. <a href={SUBMIT_GUIDE}>How to submit one.</a>
       </div>
     ) : (
+      <>
+      {measured && (
+        <p style="margin-top:1rem;color:var(--u-text-dim)">Grouped per machine and runtime. Compare rows on the same machine only.</p>
+      )}
       <div class="eval-scroll" tabindex="0" role="region" aria-label={`Leaderboard for ${d.name}`}>
         <table class="eval-table">
           <caption class="sr-only">Leaderboard for {d.name}</caption>
           <thead>
-            <tr><th scope="col"><span class="sr-only">Rank</span><span aria-hidden="true">#</span></th><th scope="col">Model</th><th scope="col">{d.metric.name}</th><th scope="col">Setup</th><th scope="col">Speed</th><th scope="col">Runs</th></tr>
+            <tr>{!measured && <th scope="col"><span class="sr-only">Rank</span><span aria-hidden="true">#</span></th>}<th scope="col">Model</th><th scope="col">{d.metric.name}</th><th scope="col">Setup</th>{!measured && <th scope="col">Speed</th>}<th scope="col">Runs</th></tr>
           </thead>
           <tbody>
             {rows.map((row, index) => (
               <tr>
-                <td class="rank num">{index + 1}</td>
+                {!measured && <td class="rank num">{index + 1}</td>}
                 <td><a href={href(`/registry/models/${row.model}`)}>{modelName(row.model)}</a></td>
                 <td class="num">
-                  <span class="score">{formatNumber(row.score)}</span>{d.metric.unit}
+                  <span class="score">{withUnit(formatNumber(row.score), d.metric.unit)}</span>
                   {scoreRange(row) && <small>range {scoreRange(row)}</small>}
                 </td>
-                <td>{row.format} · {row.quantization}<small>{row.runtimes.join(', ')} · {row.accelerators.join(', ')}</small></td>
-                <td class="num">{row.tokens_per_second === null ? '—' : `${formatNumber(row.tokens_per_second)} tok/s`}</td>
+                <td>
+                  {row.format} · {row.quantization}
+                  <small>{runtimeLabel(row)} · {row.accelerators.join(', ')}</small>
+                  {row.device !== null && <small>{row.device} · {row.memory_gb} GB</small>}
+                </td>
+                {!measured && (
+                  <td class="num">{row.tokens_per_second === null ? '—' : `${formatNumber(row.tokens_per_second)} tok/s`}</td>
+                )}
                 <td><span class={`tag${row.submitters.length > 1 ? ' tag-open' : ''}`}>{reproductionLabel(row)}</span><small>{row.runs} {row.runs === 1 ? 'run' : 'runs'}</small></td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      </>
     )}
 
     <div class="prose" style="margin-top:2.5rem"><Content /></div>
@@ -103,13 +116,13 @@ const modelName = (id: string) => modelNames.get(id) ?? id;
                 <tr>
                   <td class="num">{run.run.date}<small>v{run.benchmark_version}</small></td>
                   <td><a href={href(`/registry/models/${run.model}`)}>{modelName(run.model)}</a></td>
-                  <td class="num"><span class="score">{formatNumber(run.score)}</span>{d.metric.unit}{d.items > 0 && <small>n = {run.n}</small>}</td>
+                  <td class="num"><span class="score">{withUnit(formatNumber(run.score), d.metric.unit)}</span>{d.items > 0 && <small>n = {run.n}</small>}</td>
                   <td>
                     {run.setup.format} · {run.setup.quantization}
                     <small>{run.setup.runtime} {run.setup.runtime_version}</small>
                     <small>{run.setup.hardware.device} · {run.setup.hardware.accelerator} · {run.setup.hardware.memory_gb} GB</small>
                     {run.setup.notes && <small>{run.setup.notes}</small>}
-                    {run.perf?.tokens_per_second && <small>{formatNumber(run.perf.tokens_per_second)} tok/s</small>}
+                    {!measured && run.perf?.tokens_per_second && <small>{formatNumber(run.perf.tokens_per_second)} tok/s</small>}
                   </td>
                   <td><a href={`https://github.com/${run.run.submitter}`} rel="nofollow ugc noopener">{run.run.submitter}</a><small>{run.run.harness.name} {run.run.harness.version}</small></td>
                   <td>

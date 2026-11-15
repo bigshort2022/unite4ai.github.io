@@ -49,7 +49,7 @@ Using a coding agent (hosted or local LLM)? Run `bun run agent:setup` once and p
 
 ## Submitting an evaluation result
 
-Evaluation results are data in this repository. One run is one JSON file directly in
+Evaluation results are data in this repository. One result is one JSON file directly in
 `apps/web/src/content/evals/`, named
 `<model>--<benchmark>--<your-github-handle>--<YYYY-MM-DD>--<first 8 characters of evidence.sha256>.json`
 (handle in lowercase).
@@ -63,6 +63,9 @@ Evaluation results are data in this repository. One run is one JSON file directl
   reproduced is shown as such; a lone result is shown as not yet reproduced.
 - Reproducing someone else's result is as valuable as a new one: submit your own file for the
   same model, benchmark, format and quantization.
+- A speed only compares on the same machine with the same runtime. To reproduce a
+  `decode-speed-gsm8k-200` row, copy its device, accelerator, memory and runtime exactly
+  (`--device`, `--accelerator`, `--memory-gb`, `--runtime`); anything else is a new row.
 
 The runner does the bookkeeping for you. Runnable benchmarks today: `gsm8k-200` (quality) and
 `canary-injection-v1` (security). Point it at any OpenAI-compatible local server (mlx-lm,
@@ -82,17 +85,25 @@ that is a weak guard on mlx-lm and Ollama, because they also list models that ar
 It sends one request at a time at temperature 0 and keeps a transcript in `.agent/evals/` so
 an interrupted run resumes, on the same day or a later one. When every item is answered it
 writes the result file into `apps/web/src/content/evals/` with the transcript's hash, dated
-the day the run completed. Keep the transcript: it is your evidence. Running a finished
-configuration again rewrites the same result; move its transcript away to start a new run. If
-the model can think before it answers, say with `--notes` whether thinking was enabled.
+the day the run completed. A `gsm8k-200` run that measured decode speed also writes a second
+file for `decode-speed-gsm8k-200`, with the same date and transcript hash. Submit the two
+files together: a speed result is rejected without the result of the run it was measured on.
+Keep the transcript: it is your evidence. Running a finished configuration again rewrites the
+same files; move its transcript away to start a new run. If the model can think before it
+answers, say with `--notes` whether thinking was enabled.
 
-`bun run validate` checks the file the same way CI does.
+`bun run validate` checks the files the same way CI does.
 
 Adding a benchmark is a pull request with one markdown file in `apps/web/src/content/benchmarks/`.
 Scoring must be deterministic (exact match, multiple choice, canary detection, or a measured
 quantity), the data must be openly licensed, and the page must state the benchmark's weaknesses.
+A benchmark of a measured quantity names, in `measured_on`, the benchmark whose runs it is
+measured on; its results are accepted only beside the result of that run, with the same
+transcript hash. No other two results may share a hash.
 When the method changes, raise `version` and add the old one to `previous_versions`: results for
 a listed previous version are kept but leave the leaderboard, and any other version is rejected.
+Raising a benchmark's version requires raising the version of every benchmark measured on it:
+a current measured result needs a run of the current version.
 
 ## What gets checked
 
@@ -101,7 +112,7 @@ Every pull request runs the same gate:
 1. **Schemas** — required fields present and well-formed
 2. **License allowlist** — restrictive "open" licenses are rejected with an explanation
 3. **Checksums** — `sha256` values must be valid 64-character hex digests
-4. **Evaluations** — a result file matches the schema with no unknown keys; references a real model and benchmark, and the benchmark's current version or a listed previous one; is a full run (`n` equals the benchmark's item count); has a filename ending in the first 8 hex characters of its evidence hash; shares that hash with no other file; stays under 16 KB; and has a score within the benchmark's range. Model cards must not set `slug`
+4. **Evaluations** — a result file matches the schema with no unknown keys; references a real model and benchmark, and the benchmark's current version or a listed previous one; is a full run (`n` equals the benchmark's item count); has a filename ending in the first 8 hex characters of its evidence hash; shares that hash with no other result, except that a measured result shares it with the run it was measured on; stays under 16 KB; and has a score within the benchmark's range. A result of a measured benchmark must score exactly its `perf.tokens_per_second` and sit beside the result of the run it was measured on: same model, run, setup, `n`, `perf` and evidence, and of the current version when the measured result is. Model cards must not set `slug`
 5. **Build** — the site must build cleanly with your change
 
 A red check is information, not judgment. The message names the file and the field.
