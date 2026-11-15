@@ -73,12 +73,12 @@ const hasRows = boards.some((b) => b.rows.length > 0);
             <h3><a href={href(`/evals/${benchmark.id}`)}>{benchmark.data.name}</a></h3>
             <p style="color:var(--u-text-dim);max-width:70ch">{benchmark.data.summary}</p>
             {rows.length === 0 ? (
-              earlierRuns === 0 ? (
+              earlierRuns.length === 0 ? (
                 <NoResults />
               ) : (
                 <div class="empty" style="margin-top:1rem">
                   No results for version {benchmark.data.version} yet.{' '}
-                  {earlierRuns === 1 ? '1 run of an earlier version is' : `${earlierRuns} runs of earlier versions are`} listed on the{' '}
+                  {earlierRuns.length === 1 ? '1 run of an earlier version is' : `${earlierRuns.length} runs of earlier versions are`} listed on the{' '}
                   <a href={href(`/evals/${benchmark.id}`)} aria-label={`${benchmark.data.name} benchmark page`}>benchmark page</a>.{' '}
                   <a href={SUBMIT_GUIDE}>How to submit one.</a>
                 </div>

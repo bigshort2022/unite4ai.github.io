@@ -7,7 +7,7 @@ import { loadEvals } from '../../lib/evals';
  * produces an identical file.
  */
 export const GET: APIRoute = async () => {
-  const { benchmarks, groups, runs } = await loadEvals();
+  const { benchmarks, groups, runCount } = await loadEvals();
   const body = {
     schema_version: 1,
     notice: 'Results are self-reported by contributors. Each benchmark page lists every run with its reproduce command and evidence hash.',
@@ -25,8 +25,7 @@ export const GET: APIRoute = async () => {
       source_url: b.data.source_url,
     })),
     groups,
-    // A run is one transcript, however many result files it backs.
-    runs: new Set(runs.map((run) => run.evidence.sha256)).size,
+    runs: runCount,
   };
   return new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json; charset=utf-8' } });
 };

@@ -1,4 +1,4 @@
-import { getCollection } from 'astro:content';
+import { getCollection, type CollectionEntry } from 'astro:content';
 import { byCodeUnit, groupEvals, leaderboard, type EvalGroup, type EvalRun } from '@unite4ai/core';
 import { EVAL_CATEGORIES } from '@unite4ai/schema';
 import { REPO } from './site';
@@ -15,6 +15,19 @@ export const CATEGORY_LABELS: Record<(typeof CATEGORIES)[number], string> = {
   security: 'Security',
   efficiency: 'Efficiency',
 };
+
+/** A benchmark with the leaderboard of its current version and its runs, newest first (runs on one date order by id). */
+export interface Board {
+  benchmark: CollectionEntry<'benchmarks'>;
+  /** A speed on one machine does not outrank a speed on another: a measured board is sorted, not ranked. */
+  measured: boolean;
+  /** Empty when the current version has no result. */
+  rows: EvalGroup[];
+  /** Runs of the current version. */
+  runs: EvalRun[];
+  /** Runs of any other version: kept on the benchmark page, off the leaderboard. */
+  earlierRuns: EvalRun[];
+}
 
 /**
  * Everything the evaluation pages need, loaded once per page. Throws, failing the build, when
@@ -51,21 +64,27 @@ export async function loadEvals() {
   return {
     benchmarks: ordered,
     runs,
+    /** Distinct runs: a run is one transcript, however many result files it backs. */
+    runCount: new Set(runs.map((run) => run.evidence.sha256)).size,
     groups,
     modelNames,
-    /** Each benchmark, in the same order, with the leaderboard of its current version (empty when it has no result). */
-    boards: ordered.map((benchmark) => ({
-      benchmark,
-      // A speed on one machine does not outrank a speed on another: measured boards are sorted, not ranked.
-      measured: byHardware.has(benchmark.id),
-      rows: leaderboard(groups, {
-        id: benchmark.id,
-        version: benchmark.data.version,
-        higher_is_better: benchmark.data.metric.higher_is_better,
-      }),
-      /** Runs of versions other than the current one: kept on the benchmark page, off the leaderboard. */
-      earlierRuns: runs.filter((run) => run.benchmark === benchmark.id && run.benchmark_version !== benchmark.data.version).length,
-    })),
+    /** One board per benchmark, in the same order. */
+    boards: ordered.map((benchmark): Board => {
+      const own = runs
+        .filter((run) => run.benchmark === benchmark.id)
+        .sort((a, b) => byCodeUnit(b.run.date, a.run.date) || byCodeUnit(a.id, b.id));
+      return {
+        benchmark,
+        measured: byHardware.has(benchmark.id),
+        rows: leaderboard(groups, {
+          id: benchmark.id,
+          version: benchmark.data.version,
+          higher_is_better: benchmark.data.metric.higher_is_better,
+        }),
+        runs: own.filter((run) => run.benchmark_version === benchmark.data.version),
+        earlierRuns: own.filter((run) => run.benchmark_version !== benchmark.data.version),
+      };
+    }),
   };
 }
 
