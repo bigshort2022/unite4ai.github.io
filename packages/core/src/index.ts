@@ -9,6 +9,7 @@ export {
 } from './stack-layers.ts';
 export { buildRegistryIndex, type RegistryEntry, type RegistryIndexItem } from './registry-index.ts';
 export {
+  byCodeUnit,
   groupEvals,
   leaderboard,
   localSetups,

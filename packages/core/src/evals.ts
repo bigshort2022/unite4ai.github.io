@@ -68,6 +68,11 @@ export interface LocalSetup {
   tokens_per_second: number | null;
 }
 
+/** Orders strings by UTF-16 code units, so every sort gives the same result in every locale. */
+export function byCodeUnit(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 const unique = (values: string[]) => [...new Set(values)].sort();
 
 export function median(values: number[]): number {
@@ -112,7 +117,7 @@ export function groupEvals(runs: EvalRun[]): EvalGroup[] {
         run_ids: members.map((m) => m.id).sort(),
       };
     })
-    .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+    .sort((a, b) => byCodeUnit(a.key, b.key));
 }
 
 /**
@@ -126,8 +131,8 @@ export function leaderboard(groups: EvalGroup[], benchmark: BenchmarkRef): EvalG
     .sort((a, b) =>
       direction * (a.score - b.score)
       || b.submitters.length - a.submitters.length
-      || a.model.localeCompare(b.model)
-      || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+      || byCodeUnit(a.model, b.model)
+      || byCodeUnit(a.key, b.key));
 }
 
 /** Results are self-reported; independent submitters are the trust signal, however many runs one of them made. */
@@ -158,5 +163,5 @@ export function localSetups(runs: EvalRun[]): LocalSetup[] {
       existing.tokens_per_second = speed;
     }
   }
-  return [...setups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, value]) => value);
+  return [...setups.entries()].sort(([a], [b]) => byCodeUnit(a, b)).map(([, value]) => value);
 }
