@@ -26,7 +26,6 @@ export interface EvalOptions {
   command: string;
   maxSeconds?: number;
   requestTimeoutMs?: number;
-  maxTokens?: number;
   sourceFile?: string;
   hardware?: Partial<Hardware>;
   today?: string;
@@ -295,7 +294,6 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
 
   // Preflight: everything that can fail without touching the model server fails here.
   const { definition, suite, speedBenchmark } = loadBenchmark(options.contentRoot, options.benchmark);
-  const maxTokens = options.maxTokens ?? suite.maxTokens;
   if (!['md', 'mdx'].some((ext) => existsSync(join(options.contentRoot, 'models', `${options.model}.${ext}`)))) {
     throw new Error(`model "${options.model}" has no card in models/. Add the model card first.`);
   }
@@ -361,7 +359,7 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
     format: options.format,
     quantization: options.quantization,
     notes: options.notes ?? null,
-    max_tokens: maxTokens,
+    max_tokens: suite.maxTokens,
   });
   const name = `${options.model}--${options.benchmark}--${options.submitter}`;
   const transcriptPath = join(options.workDir, `${name}--${sha256(header).slice(0, 8)}.jsonl`);
@@ -387,14 +385,22 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
           baseUrl: options.baseUrl,
           model: options.servedModel,
           messages: item.messages,
-          maxTokens,
+          maxTokens: suite.maxTokens,
           // Ten minutes: a reply of a few thousand tokens fits even on a slow machine.
           timeoutMs: options.requestTimeoutMs ?? 600_000,
         });
       } catch (error) {
         throw new Error(`item ${item.index + 1} failed: ${(error as Error).message}; rerun to resume`);
       }
-      const verdict = item.judge(completion.text, { finishReason: completion.finishReason });
+      const end = { finishReason: completion.finishReason, completionTokens: completion.completionTokens, maxTokens: suite.maxTokens };
+      if (suite.needsEndSignal && end.finishReason === null && end.completionTokens === null) {
+        // Running it again would get the same answer from the same server, so nothing says to.
+        throw new Error(
+          `item ${item.index + 1} failed: the server reported neither why the reply ended nor its token count; `
+          + `${options.benchmark} version ${definition.version} cannot be scored against it`,
+        );
+      }
+      const verdict = item.judge(completion.text, end);
       const line: TranscriptItem = {
         type: 'item',
         index: item.index,

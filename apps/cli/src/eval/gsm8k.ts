@@ -66,17 +66,25 @@ export function isCorrect(reply: string, expected: number): boolean {
   return answer !== null && Math.abs(answer - expected) < 1e-6;
 }
 
+/** How a reply ended, as the server reported it, and the token limit it was generated under. */
+export interface ReplyEnd {
+  /** Why the server stopped: "length" at the token limit; null when it gave no reason. */
+  finishReason: string | null;
+  /** Tokens the server says it generated; null when it gave no count. */
+  completionTokens: number | null;
+  maxTokens: number;
+}
+
 /**
- * The verdict on one reply. A reply the server cut off at the token limit (finish reason
- * "length") is wrong whatever numbers it contains: its last number is where the text stopped,
- * not an answer. A server that reports no finish reason gives no sign of a cut-off.
+ * The verdict on one reply. A reply is cut off when the server reports the finish reason
+ * "length" or a token count that reaches the limit, and is then wrong whatever numbers it
+ * contains: its last number is where the text stopped, not an answer. The runner refuses a
+ * reply that comes with neither signal, so it never reaches this rule.
  */
-export function judge(
-  reply: string,
-  expected: number,
-  finishReason: string | null,
-): { correct: boolean; extracted: string | null } {
-  if (finishReason === 'length') return { correct: false, extracted: null };
+export function judge(reply: string, expected: number, end: ReplyEnd): { correct: boolean; extracted: string | null } {
+  const cutOff = end.finishReason === 'length'
+    || (end.completionTokens !== null && end.completionTokens >= end.maxTokens);
+  if (cutOff) return { correct: false, extracted: null };
   const answer = extractAnswer(reply);
   return { correct: isCorrect(reply, expected), extracted: answer === null ? null : String(answer) };
 }

@@ -7,7 +7,6 @@ import { basename, join } from 'node:path';
 import test, { after } from 'node:test';
 import { evalResultSchema } from '@unite4ai/schema';
 import { validateContent } from '@unite4ai/core/validate';
-import { parseEvalArgs } from '../src/eval/args.ts';
 import { runEval } from '../src/eval/run.ts';
 
 const sha256 = (data) => createHash('sha256').update(data).digest('hex');
@@ -103,11 +102,12 @@ function requestProblem(body, question) {
 
 /**
  * OpenAI-compatible stub. `replies` maps a question to the reply text, to a status code, to
- * `{ cut }` (that text, then finish_reason "length": the server stopped at the token limit), to
- * `{ error }` (an error event inside a 200 stream), to `{ truncate }` (one content chunk, then
- * the response ends with neither a finish_reason nor [DONE]) or to `{ hang: true }` (no answer
- * at all). A completion request that departs from the published method gets a 500 that says
- * how. `delayMs` is how long a reply takes after its first chunk. `status` is what
+ * `{ text, finishReason, completionTokens }` (how that reply ends: `finishReason` defaults to
+ * "stop" and null sends none, only [DONE]; `completionTokens` defaults to 10 and null sends no
+ * usage), to `{ error }` (an error event inside a 200 stream), to `{ truncate }` (one content
+ * chunk, then the response ends with neither a finish_reason nor [DONE]) or to `{ hang: true }`
+ * (no answer at all). A completion request that departs from the published method gets a 500
+ * that says how. `delayMs` is how long a reply takes after its first chunk. `status` is what
  * /_omp/status answers, as an omp-managed server does (a string is sent as it is); without
  * it the route is a 404, as on plain mlx-lm and Ollama. With `usage: false` the server never
  * says how many tokens it generated.
@@ -149,17 +149,20 @@ function stubServer(replies, { models = ['stub-model'], delayMs = 15, status, us
         res.setHeader('content-type', 'text/event-stream');
         const event = (payload) => `data: ${JSON.stringify(payload)}\n\n`;
         const content = (text) => event({ choices: [{ delta: { content: text }, finish_reason: null }] });
-        if (typeof reply === 'object' && !('cut' in reply)) {
-          res.write('error' in reply ? event({ error: { message: reply.error } }) : content(reply.truncate));
+        const stream = typeof reply === 'string' ? { text: reply } : reply;
+        if (!('text' in stream)) {
+          res.write('error' in stream ? event({ error: { message: stream.error } }) : content(stream.truncate));
           return finish();
         }
-        const [text, finishReason] = typeof reply === 'object' ? [reply.cut, 'length'] : [reply, 'stop'];
+        const { text, finishReason = 'stop', completionTokens = 10 } = stream;
         const half = Math.ceil(text.length / 2);
         res.write(content(text.slice(0, half)));
         setTimeout(() => {
           res.write(content(text.slice(half)));
-          res.write(event({ choices: [{ delta: {}, finish_reason: finishReason }] }));
-          if (usage) res.write(event({ choices: [], usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 } }));
+          if (finishReason !== null) res.write(event({ choices: [{ delta: {}, finish_reason: finishReason }] }));
+          if (usage && completionTokens !== null) {
+            res.write(event({ choices: [], usage: { prompt_tokens: 20, completion_tokens: completionTokens, total_tokens: 20 + completionTokens } }));
+          }
           res.write('data: [DONE]\n\n');
           finish();
         }, delayMs);
@@ -395,9 +398,21 @@ test('the run stops at its time limit between items, and the next run finishes i
 
 test('the stub refuses a request that departs from the published method', async () => {
   const workspace = makeWorkspace();
-  const stub = await stubServer({ ...GOOD });
-  await assert.rejects(runEval(options(workspace, stub, { maxTokens: 256 })), /item 1 failed: .*stub: max_tokens must be 2048, got 256/);
+  const stub = await stubServer({ ...GOOD }, { models: ['stub-model', 'other-model'] });
+  await assert.rejects(
+    runEval(options(workspace, stub, { servedModel: 'other-model' })),
+    /item 1 failed: .*stub: model must be \\?"stub-model\\?", got \\?"other-model\\?"/,
+  );
   assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), []);
+});
+
+test('the token limit is the suite\'s: a caller cannot run the benchmark with another one', async () => {
+  const workspace = makeWorkspace();
+  const stub = await stubServer({ ...GOOD });
+  const outcome = await runEval(options(workspace, stub, { maxTokens: 256 }));
+  assert.equal(outcome.n, 3);
+  assert.deepEqual(stub.bodies.map((body) => body.max_tokens), [2048, 2048, 2048]);
+  assert.equal(transcriptLines(workspace)[0].max_tokens, 2048);
 });
 
 test('a request the server never answers fails the item at the request timeout', async () => {
@@ -409,20 +424,10 @@ test('a request the server never answers fails the item at the request timeout',
   assert.deepEqual(transcriptItems(workspace), [0]);
 });
 
-test('a reply slower than --request-timeout fails the item, and a run with the default limit resumes', async () => {
+test('a reply slower than the request timeout fails the item, and a run with the default limit resumes', async () => {
   const workspace = makeWorkspace();
   const stub = await stubServer({ ...GOOD }, { delayMs: 400 });
-  // The flag is in seconds; the runner works in milliseconds.
-  const { requestTimeoutMs } = parseEvalArgs(
-    [
-      '--benchmark', 'gsm8k-200', '--model', 'model-a', '--served-model', 'stub-model', '--submitter', 'alice',
-      '--runtime', 'mlx-lm', '--runtime-version', '0.32.2', '--format', 'mlx', '--quantization', '4bit',
-      '--request-timeout', '0.1',
-    ],
-    { root: workspace.root, env: {} },
-  );
-  assert.equal(requestTimeoutMs, 100);
-  await assert.rejects(runEval(options(workspace, stub, { requestTimeoutMs })), /item 1 failed: request timed out after 100 ms; rerun to resume/);
+  await assert.rejects(runEval(options(workspace, stub, { requestTimeoutMs: 100 })), /item 1 failed: request timed out after 100 ms; rerun to resume/);
   assert.equal(stub.posts(), 1);
   assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), []);
   assert.deepEqual(transcriptItems(workspace), [], 'a reply that did not finish in time is not scored');
@@ -449,7 +454,7 @@ test('a reply slower than --request-timeout fails the item, and a run with the d
 test('a reply cut off at the token limit is wrong in the transcript and in the score, whatever it contains', async () => {
   const workspace = makeWorkspace();
   // Cut off, the first reply still ends in the right answer: version 1 scored it as correct.
-  const stub = await stubServer({ ...GOOD, 'Q1?': { cut: 'Nine eggs at $2 each is 18' } });
+  const stub = await stubServer({ ...GOOD, 'Q1?': { text: 'Nine eggs at $2 each is 18', finishReason: 'length' } });
   const outcome = await runEval(options(workspace, stub));
 
   assert.equal(outcome.n, 3);
@@ -468,6 +473,70 @@ test('a reply cut off at the token limit is wrong in the transcript and in the s
   const requests = stub.requests.length;
   assert.deepEqual(await runEval(options(workspace, stub)), outcome);
   assert.equal(stub.requests.length, requests);
+});
+
+test('a reply that used the whole token limit is cut off, whatever finish reason the server gives or omits', async () => {
+  const workspace = makeWorkspace();
+  const stub = await stubServer({
+    // Not every server calls it "length", and some send no finish reason at all.
+    'Q1?': { text: 'Nine eggs at $2 each is 18', finishReason: 'max_tokens', completionTokens: 2048 },
+    'Q2?': { text: 'Total 2,125', finishReason: null, completionTokens: 2048 },
+    // One token short of the limit, the reply ended by itself and is judged as it stands.
+    'Q3?': { text: 'It is 7', finishReason: null, completionTokens: 2047 },
+  });
+  const outcome = await runEval(options(workspace, stub));
+
+  assert.equal(outcome.correct, 1);
+  assert.equal(outcome.score, 33.33);
+  assert.deepEqual(
+    itemLines(workspace).map((line) => [line.finish_reason, line.completion_tokens, line.extracted, line.correct]),
+    [['max_tokens', 2048, null, false], [null, 2048, null, false], [null, 2047, '7', true]],
+  );
+  assert.deepEqual((await validateContent(workspace.contentRoot)).errors, []);
+});
+
+test('a reply with neither a finish reason nor a token count cannot be scored: the item fails and nothing is written for it', async () => {
+  const workspace = makeWorkspace();
+  // The text ends in the right answer; whether the server cut it off there is unknowable.
+  const stub = await stubServer({ ...GOOD, 'Q2?': { text: 'Total 2,125', finishReason: null, completionTokens: null } });
+  await assert.rejects(
+    runEval(options(workspace, stub)),
+    /^Error: item 2 failed: the server reported neither why the reply ended nor its token count; gsm8k-200 version 2 cannot be scored against it$/,
+  );
+  assert.equal(stub.posts(), 2);
+  assert.deepEqual(transcriptItems(workspace), [0], 'the unscorable reply is not in the transcript');
+  assert.deepEqual(transcriptLines(workspace).map((line) => line.type), ['header', 'item']);
+  assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), []);
+
+  // Either signal is enough: a finish reason without a token count, or the reverse.
+  stub.setReplies({ 'Q2?': { text: 'Total 2,125', completionTokens: null }, 'Q3?': { text: 'I think 9', finishReason: null } });
+  const outcome = await runEval(options(workspace, stub));
+  assert.equal(stub.posts(), 4, 'the run resumes at the item that failed');
+  assert.equal(outcome.correct, 2);
+  assert.deepEqual(
+    itemLines(workspace).map((line) => [line.finish_reason, line.completion_tokens, line.correct]),
+    [['stop', 10, true], ['stop', null, true], [null, 10, false]],
+  );
+});
+
+test('the tokens and the time of a cut-off reply still count in the decode speed', async () => {
+  const workspace = makeWorkspace({ speedDefinition: {} });
+  const stub = await stubServer({ ...GOOD, 'Q1?': { text: 'Nine eggs at $2 each is 18', finishReason: 'length', completionTokens: 2048 } });
+  const outcome = await runEval(options(workspace, stub));
+  assert.equal(outcome.correct, 1);
+
+  const lines = itemLines(workspace);
+  assert.deepEqual(lines.map((line) => [line.correct, line.completion_tokens]), [[false, 2048], [true, 10], [false, 10]]);
+  // Recomputed over all three replies, with the runner's rounding: leaving the cut-off reply
+  // out would drop 2048 of the 2068 tokens.
+  const tokens = lines.reduce((sum, line) => sum + line.completion_tokens, 0);
+  const decodeSeconds = lines.reduce((sum, line) => sum + (line.seconds - line.ttft_ms / 1000), 0);
+  assert.equal(tokens, 2068);
+  assert.ok(lines[0].seconds - lines[0].ttft_ms / 1000 > 0);
+  const speed = Number((tokens / decodeSeconds).toFixed(1));
+  assert.equal(JSON.parse(readFileSync(outcome.resultPath, 'utf8')).perf.tokens_per_second, speed);
+  assert.equal(JSON.parse(readFileSync(outcome.speedResultPath, 'utf8')).score, speed);
+  assert.deepEqual((await validateContent(workspace.contentRoot)).errors, []);
 });
 
 test('a note about the setup is published with the result and is part of the configuration', async () => {
@@ -624,31 +693,35 @@ async function interrupted() {
   return { workspace, stub, path: join(workspace.workDir, file) };
 }
 
-test('a transcript of benchmark version 1 is never resumed into version 2', async () => {
-  const { workspace, stub, path } = await interrupted();
-  const [header, first, second] = readFileSync(path, 'utf8').trimEnd().split('\n');
-  // What version 1 wrote for the same model and setup: its own versions and the 512-token limit.
-  const oldHeader = JSON.stringify({ ...JSON.parse(header), benchmark_version: '1', prompt_version: 'gsm8k-1', max_tokens: 512 });
-  assert.notEqual(oldHeader, header);
-  const third = JSON.stringify({ ...JSON.parse(second), index: 2, expected: '7', extracted: '7', correct: true });
-  const finished = [oldHeader, first, second, third, JSON.stringify({ type: 'complete', date: '2026-11-09' })]
-    .map((line) => `${line}\n`).join('');
+// What version 1 wrote in each header field that version 2 changed. One difference is enough.
+for (const [field, old] of [['benchmark_version', '1'], ['prompt_version', 'gsm8k-1'], ['max_tokens', 512]]) {
+  test(`a transcript whose header differs only in ${field} is not resumed, and is refused under this run's name`, async () => {
+    const { workspace, stub, path } = await interrupted();
+    const [header, first, second] = readFileSync(path, 'utf8').trimEnd().split('\n');
+    assert.notEqual(JSON.parse(header)[field], old);
+    const oldHeader = JSON.stringify({ ...JSON.parse(header), [field]: old });
+    const third = JSON.stringify({ ...JSON.parse(second), index: 2, expected: '7', extracted: '7', correct: true });
+    const finished = [oldHeader, first, second, third, JSON.stringify({ type: 'complete', date: '2026-11-09' })]
+      .map((line) => `${line}\n`).join('');
 
-  // Under its own name (the header's hash) it is another configuration's file: left alone, not read.
-  const oldPath = join(workspace.workDir, `model-a--gsm8k-200--alice--${sha256(oldHeader).slice(0, 8)}.jsonl`);
-  assert.notEqual(oldPath, path);
-  writeFileSync(oldPath, finished);
-  const outcome = await runEval(options(workspace, stub));
-  assert.equal(outcome.transcriptPath, path);
-  assert.equal(stub.posts(), 4, 'version 2 answers its own third item');
-  assert.equal(outcome.correct, 2, "version 1's three correct verdicts are not counted");
-  assert.equal(readFileSync(oldPath, 'utf8'), finished);
+    // Under its own name (the header's hash) it is another configuration's file: left alone, not read.
+    const oldPath = join(workspace.workDir, `model-a--gsm8k-200--alice--${sha256(oldHeader).slice(0, 8)}.jsonl`);
+    assert.notEqual(oldPath, path);
+    writeFileSync(oldPath, finished);
+    const outcome = await runEval(options(workspace, stub));
+    assert.equal(outcome.transcriptPath, path);
+    assert.equal(stub.posts(), 4, 'this run answers its own third item');
+    assert.equal(outcome.correct, 2, "the other transcript's three correct verdicts are not counted");
+    assert.equal(readFileSync(oldPath, 'utf8'), finished);
 
-  // Renamed to this run's file, it is refused by its header.
-  writeFileSync(path, finished);
-  await assert.rejects(runEval(options(workspace, stub)), /does not start with this run's header/);
-  assert.equal(stub.posts(), 4);
-});
+    // Renamed to this run's file, it is refused by its header, and its verdicts publish nothing.
+    rmSync(outcome.resultPath);
+    writeFileSync(path, finished);
+    await assert.rejects(runEval(options(workspace, stub)), /does not start with this run's header/);
+    assert.equal(stub.posts(), 4);
+    assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), []);
+  });
+}
 
 test('a last line cut short by a killed run is dropped, and the run continues', async () => {
   const { workspace, stub, path } = await interrupted();

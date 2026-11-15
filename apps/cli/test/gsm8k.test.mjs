@@ -71,9 +71,11 @@ test('the prompt is the question, a blank line and the published instruction; th
   assert.deepEqual(item.messages, buildMessages('How many?'));
 });
 
-test('each suite sets its own token limit: 2048 for GSM8K, 512 for the canary suite', () => {
+test('each suite sets its own token limit, and GSM8K needs to know how each reply ended', () => {
   assert.equal(SUITES['gsm8k-200'].maxTokens, 2048);
   assert.equal(SUITES['canary-injection-v1'].maxTokens, 512);
+  assert.equal(SUITES['gsm8k-200'].needsEndSignal, true);
+  assert.equal(SUITES['canary-injection-v1'].needsEndSignal, undefined);
 });
 
 test('the benchmark pages publish version 2 of the method: the prompt, the token limit and the cut-off rule', () => {
@@ -82,7 +84,13 @@ test('the benchmark pages publish version 2 of the method: the prompt, the token
   assert.match(gsm8k, /^previous_versions: \["1"\]$/m);
   const { maxTokens } = SUITES['gsm8k-200'];
   assert.ok(gsm8k.includes(`\`${buildMessages('').at(0).content.trim()}\` Temperature 0, at most ${maxTokens} new tokens.`));
-  assert.ok(gsm8k.includes('A reply that the server cut off at the token limit (finish reason "length") is wrong, whatever numbers it contains.'));
+  assert.ok(gsm8k.includes(
+    `A reply is cut off when the server reports the finish reason "length" for it, or reports that it generated at least ${maxTokens} tokens. `
+    + 'A cut-off reply is wrong, whatever numbers it contains.',
+  ));
+  assert.ok(gsm8k.includes(
+    'A reply for which the server reports neither a finish reason nor a token count cannot be scored: the run stops at that item and publishes nothing.',
+  ));
   assert.match(gsm8k, /^- \*\*Token limit\.\*\* The 2048-token limit/m);
   assert.match(gsm8k, /^## Changes from version 1$/m);
   assert.doesNotMatch(gsm8k.split('## Changes from version 1')[0], /\b512\b/);
@@ -99,13 +107,30 @@ test('the benchmark pages publish version 2 of the method: the prompt, the token
 test('a reply the server cut off at the token limit is wrong, whatever numbers it contains', () => {
   const [item] = SUITES['gsm8k-200'].items(`${JSON.stringify({ question: 'How many?', answer: 'w\n#### 18' })}\n`, 1);
   const reply = 'Nine eggs at $2 each is 18';
-  assert.deepEqual(item.judge(reply, { finishReason: 'length' }), { correct: false, extracted: null });
-  assert.deepEqual(item.judge(reply, { finishReason: 'stop' }), { correct: true, extracted: '18' });
-  // A server that reports no finish reason gives no sign of a cut-off, so the reply is judged as it stands.
-  assert.deepEqual(item.judge(reply, { finishReason: null }), { correct: true, extracted: '18' });
-  assert.deepEqual(item.judge('It is 19', { finishReason: null }), { correct: false, extracted: '19' });
-  assert.deepEqual(item.judge('No idea', { finishReason: 'stop' }), { correct: false, extracted: null });
+  const end = (finishReason, completionTokens) => ({ finishReason, completionTokens, maxTokens: 2048 });
+  const cutOff = { correct: false, extracted: null };
+  const right = { correct: true, extracted: '18' };
+
+  // The server says so.
+  assert.deepEqual(item.judge(reply, end('length', 300)), cutOff);
+  assert.deepEqual(item.judge(reply, end('length', null)), cutOff);
+  // Or the reply used the whole limit, whatever reason the server gives or omits.
+  assert.deepEqual(item.judge(reply, end('max_tokens', 2048)), cutOff);
+  assert.deepEqual(item.judge(reply, end('stop', 2048)), cutOff);
+  assert.deepEqual(item.judge(reply, end(null, 2048)), cutOff);
+  assert.deepEqual(item.judge(reply, end(null, 2049)), cutOff);
+
+  // Anything else is judged as it stands: one signal is enough to know it was not cut off.
+  assert.deepEqual(item.judge(reply, end('stop', 300)), right);
+  assert.deepEqual(item.judge(reply, end('stop', null)), right);
+  assert.deepEqual(item.judge(reply, end('max_tokens', 300)), right);
+  assert.deepEqual(item.judge(reply, end(null, 2047)), right);
+  assert.deepEqual(item.judge('It is 19', end(null, 300)), { correct: false, extracted: '19' });
+  assert.deepEqual(item.judge('No idea', end('stop', 300)), { correct: false, extracted: null });
+
+  // The limit is the one the reply was generated under, not a fixed number.
+  assert.deepEqual(item.judge(reply, { finishReason: 'stop', completionTokens: 512, maxTokens: 512 }), cutOff);
   // Direct calls agree with the suite.
-  assert.deepEqual(judge(reply, 18, 'length'), { correct: false, extracted: null });
-  assert.deepEqual(judge(reply, 18, 'stop'), { correct: true, extracted: '18' });
+  assert.deepEqual(judge(reply, 18, end('length', 300)), cutOff);
+  assert.deepEqual(judge(reply, 18, end('stop', 300)), right);
 });
