@@ -1,6 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { OPEN_LICENSE_SET, OPEN_WASHED } from '@unite4ai/schema';
+import { validateEvals } from './validate-evals.ts';
 
 export interface ValidateResult {
   errors: string[];
@@ -127,6 +128,8 @@ export async function validateContent(contentRoot: string): Promise<ValidateResu
       errors.push(`${rel}: "recommends" must be a number`);
     }
   });
+
+  await validateEvals(contentRoot, errors);
 
   return { errors, warnings };
 }
