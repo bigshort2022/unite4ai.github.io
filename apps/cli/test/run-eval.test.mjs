@@ -66,13 +66,29 @@ function makeWorkspace({ source = SOURCE, sourceSha = sha256(source) } = {}) {
   return { root, contentRoot, workDir: join(root, 'work'), sourceFile };
 }
 
+const INSTRUCTION = 'Solve this step by step. Finish with the final answer as a number on its own line.';
+
+/** What a completion request gets wrong against the benchmark page's method; null when nothing. */
+function requestProblem(body, question) {
+  const fixed = { model: 'stub-model', temperature: 0, max_tokens: 512, stream: true };
+  for (const [key, value] of Object.entries(fixed)) {
+    if (body[key] !== value) return `${key} must be ${JSON.stringify(value)}, got ${JSON.stringify(body[key])}`;
+  }
+  const wanted = JSON.stringify([{ role: 'user', content: `${question}\n\n${INSTRUCTION}` }]);
+  if (JSON.stringify(body.messages) !== wanted) return `messages must be ${wanted}, got ${JSON.stringify(body.messages)}`;
+  return null;
+}
+
 /**
- * OpenAI-compatible stub. `replies` maps a question's first line to the reply text, to a status
- * code, to `{ error }` (an error event inside a 200 stream) or to `{ truncate }` (one content
- * chunk, then the response ends with neither a finish_reason nor [DONE]).
+ * OpenAI-compatible stub. `replies` maps a question to the reply text, to a status code, to
+ * `{ error }` (an error event inside a 200 stream) or to `{ truncate }` (one content chunk,
+ * then the response ends with neither a finish_reason nor [DONE]). A completion request that
+ * departs from the published method gets a 500 that says how. `delayMs` is how long a reply
+ * takes after its first chunk.
  */
-function stubServer(replies, models = ['stub-model']) {
+function stubServer(replies, { models = ['stub-model'], delayMs = 15 } = {}) {
   const requests = [];
+  const bodies = [];
   let active = 0;
   let maxActive = 0;
   return new Promise((done) => {
@@ -81,28 +97,33 @@ function stubServer(replies, models = ['stub-model']) {
       req.on('data', (chunk) => { body += chunk; });
       req.on('end', () => {
         requests.push(`${req.method} ${req.url}`);
-        if (req.url === '/v1/models') {
+        const json = (status, payload) => {
+          res.statusCode = status;
           res.setHeader('content-type', 'application/json');
-          return res.end(JSON.stringify({ data: models.map((id) => ({ id })) }));
-        }
+          res.end(JSON.stringify(payload));
+        };
+        if (req.url === '/v1/models') return json(200, { data: models.map((id) => ({ id })) });
+        if (req.method !== 'POST' || req.url !== '/v1/chat/completions') return json(404, { error: 'not found' });
+        const parsed = JSON.parse(body);
+        bodies.push(parsed);
+        const question = String(parsed.messages?.[0]?.content).split('\n')[0];
+        const reply = replies[question];
+        const problem = reply === undefined ? `no reply for ${JSON.stringify(question)}` : requestProblem(parsed, question);
+        if (problem) return json(500, { error: { message: `stub: ${problem}` } });
+        if (typeof reply === 'number') return json(reply, { error: { message: 'stub failure' } });
+
         active += 1;
         maxActive = Math.max(maxActive, active);
-        const parsed = JSON.parse(body);
-        const question = parsed.messages.at(-1).content.split('\n')[0];
-        const reply = replies[question];
-        const finish = () => { active -= 1; };
-        if (typeof reply === 'number') {
-          res.statusCode = reply;
-          finish();
-          return res.end('stub failure');
-        }
+        const finish = () => {
+          active -= 1;
+          res.end();
+        };
         res.setHeader('content-type', 'text/event-stream');
         const event = (payload) => `data: ${JSON.stringify(payload)}\n\n`;
         const content = (text) => event({ choices: [{ delta: { content: text }, finish_reason: null }] });
         if (typeof reply === 'object') {
           res.write('error' in reply ? event({ error: { message: reply.error } }) : content(reply.truncate));
-          finish();
-          return res.end();
+          return finish();
         }
         const half = Math.ceil(reply.length / 2);
         res.write(content(reply.slice(0, half)));
@@ -112,14 +133,14 @@ function stubServer(replies, models = ['stub-model']) {
           res.write(event({ choices: [], usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 } }));
           res.write('data: [DONE]\n\n');
           finish();
-          res.end();
-        }, 15);
+        }, delayMs);
       });
     });
     servers.push(server);
     server.listen(0, '127.0.0.1', () => done({
       baseUrl: `http://127.0.0.1:${server.address().port}/v1`,
       requests,
+      bodies,
       posts: () => requests.filter((r) => r.startsWith('POST')).length,
       maxActive: () => maxActive,
       setReplies: (next) => { Object.assign(replies, next); },
@@ -148,12 +169,14 @@ const options = (workspace, stub, overrides = {}) => ({
 
 const GOOD = { 'Q1?': 'It is 18', 'Q2?': 'Total 2,125', 'Q3?': 'I think 9' };
 
-/** The item indexes recorded in the workspace's only transcript. */
-function transcriptItems(workspace) {
+/** The parsed lines of the workspace's only transcript. */
+function transcriptLines(workspace) {
   const [file] = readdirSync(workspace.workDir).filter((name) => name.endsWith('.jsonl'));
-  const [, ...items] = readFileSync(join(workspace.workDir, file), 'utf8').trim().split('\n');
-  return items.map((line) => JSON.parse(line).index);
+  return readFileSync(join(workspace.workDir, file), 'utf8').trim().split('\n').map((line) => JSON.parse(line));
 }
+const itemLines = (workspace) => transcriptLines(workspace).filter((line) => line.type === 'item');
+/** The item indexes recorded in the workspace's only transcript. */
+const transcriptItems = (workspace) => itemLines(workspace).map((line) => line.index);
 
 test('a complete run writes a result the content gate accepts, with evidence for its transcript', async () => {
   const workspace = makeWorkspace();
@@ -174,8 +197,28 @@ test('a complete run writes a result the content gate accepts, with evidence for
   const transcript = readFileSync(outcome.transcriptPath);
   assert.equal(result.evidence.sha256, sha256(transcript));
   assert.equal(result.evidence.bytes, transcript.length);
-  assert.ok(result.perf.tokens_per_second > 0);
-  assert.ok(result.perf.time_to_first_token_ms > 0);
+
+  // The published speed, recomputed from the transcript with the runner's rounding: tokens
+  // per second after the first token, and the median time to the first token.
+  const lines = itemLines(workspace);
+  const tokens = lines.reduce((sum, line) => sum + line.completion_tokens, 0);
+  const decodeSeconds = lines.reduce((sum, line) => sum + (line.seconds - line.ttft_ms / 1000), 0);
+  assert.equal(tokens, 30);
+  assert.ok(decodeSeconds > 0);
+  assert.equal(result.perf.tokens_per_second, Number((tokens / decodeSeconds).toFixed(1)));
+  const [, medianTtft] = lines.map((line) => line.ttft_ms).sort((a, b) => a - b);
+  assert.ok(medianTtft > 0);
+  assert.equal(result.perf.time_to_first_token_ms, Number(medianTtft.toFixed(1)));
+
+  // Every request is exactly what the benchmark page promises, sent one at a time.
+  assert.deepEqual(stub.bodies, ['Q1?', 'Q2?', 'Q3?'].map((question) => ({
+    model: 'stub-model',
+    messages: [{ role: 'user', content: `${question}\n\n${INSTRUCTION}` }],
+    max_tokens: 512,
+    temperature: 0,
+    stream: true,
+    stream_options: { include_usage: true },
+  })));
 
   assert.equal(stub.posts(), 3);
   assert.equal(stub.maxActive(), 1, 'requests must be sequential');
@@ -184,7 +227,7 @@ test('a complete run writes a result the content gate accepts, with evidence for
 
 test('a served model the server does not list is refused before any completion', async () => {
   const workspace = makeWorkspace();
-  const stub = await stubServer({ ...GOOD }, ['loaded-model', 'other-model']);
+  const stub = await stubServer({ ...GOOD }, { models: ['loaded-model', 'other-model'] });
   await assert.rejects(runEval(options(workspace, stub)), /"stub-model" is not listed by the server \(loaded-model, other-model\)/);
   assert.equal(stub.posts(), 0);
   assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), []);
@@ -296,9 +339,21 @@ test('a different configuration gets its own transcript instead of reusing anoth
   assert.deepEqual((await validateContent(workspace.contentRoot)).errors, []);
 });
 
-test('the run stops at its time limit without writing a result', async () => {
+test('the run stops at its time limit between items, and the next run finishes it', async () => {
+  const workspace = makeWorkspace();
+  const stub = await stubServer({ ...GOOD }, { delayMs: 80 });
+  await assert.rejects(runEval(options(workspace, stub, { maxSeconds: 0.05 })), /time limit of 0\.05s reached after 1 of 3 items/);
+  assert.equal(stub.posts(), 1, 'the first item is answered; the limit stops the second');
+  assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), []);
+
+  const outcome = await runEval(options(workspace, stub));
+  assert.equal(stub.posts(), 3);
+  assert.ok(existsSync(outcome.resultPath));
+});
+
+test('the stub refuses a request that departs from the published method', async () => {
   const workspace = makeWorkspace();
   const stub = await stubServer({ ...GOOD });
-  await assert.rejects(runEval(options(workspace, stub, { maxSeconds: 0 })), /time limit/);
+  await assert.rejects(runEval(options(workspace, stub, { maxTokens: 256 })), /item 1 failed: .*stub: max_tokens must be 512, got 256/);
   assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), []);
 });

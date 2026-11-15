@@ -47,10 +47,12 @@ test('isCorrect compares numerically, so 18 and 18.0 match and a missing answer 
   assert.equal(isCorrect('no idea', 18), false);
 });
 
-test('the prompt contains the question and the registry knows gsm8k-200', () => {
-  const messages = buildMessages('How many?');
-  assert.equal(messages.length, 1);
-  assert.equal(messages[0].role, 'user');
-  assert.match(messages[0].content, /^How many\?/);
+test('the prompt is the question, a blank line and the published instruction; the registry knows gsm8k-200', () => {
+  assert.deepEqual(buildMessages('How many?'), [{
+    role: 'user',
+    content: 'How many?\n\nSolve this step by step. Finish with the final answer as a number on its own line.',
+  }]);
   assert.equal(SUITES['gsm8k-200'].promptVersion, 'gsm8k-1');
+  const [item] = SUITES['gsm8k-200'].items(`${JSON.stringify({ question: 'How many?', answer: 'w\n#### 4' })}\n`, 1);
+  assert.deepEqual(item.messages, buildMessages('How many?'));
 });
