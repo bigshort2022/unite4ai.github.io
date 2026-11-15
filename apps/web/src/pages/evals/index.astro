@@ -29,6 +29,10 @@ const hasRows = boards.some((b) => b.rows.length > 0);
       exact command, the setup, and a hash of the raw output. Results are self-reported: give
       the most weight to the ones other people have reproduced.
     </p>
+    <p style="margin-top:.8rem;color:var(--u-text-dim)">
+      Speed is tokens generated per second after the first token, from the server's own token
+      count; it depends on the hardware and on what else the machine was doing.
+    </p>
     <p style="margin-top:1rem">
       <a class="btn btn-primary" href={SUBMIT_GUIDE}>Submit a result</a>
       <a class="btn btn-ghost" href={href('/data/evals.json')}>Data feed (JSON)</a>

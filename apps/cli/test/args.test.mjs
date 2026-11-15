@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseEvalArgs } from '../src/eval/args.ts';
+import { EVAL_USAGE, parseEvalArgs } from '../src/eval/args.ts';
 
 const REQUIRED = [
   '--benchmark', 'gsm8k-200', '--model', 'model-a', '--served-model', 'org/model-a-4bit',
@@ -18,8 +18,9 @@ test('required flags map onto options, with defaults for the rest', () => {
   assert.equal(options.contentRoot, '/repo/apps/web/src/content');
   assert.equal(options.workDir, '/repo/.agent/evals');
   assert.equal(options.maxSeconds, 3600);
-  assert.equal(options.command, `bun run eval -- ${REQUIRED.join(' ')}`);
+  assert.equal(options.command, `bun run eval -- ${REQUIRED.join(' ')} --base-url http://127.0.0.1:18082/v1`);
   assert.deepEqual(options.hardware, {});
+  assert.equal('notes' in options, false);
 });
 
 test('optional flags and the environment override defaults', () => {
@@ -32,6 +33,38 @@ test('optional flags and the environment override defaults', () => {
   assert.deepEqual(options.hardware, { device: 'My Box', accelerator: 'nvidia', memory_gb: 24 });
   assert.equal(options.sourceFile, '/tmp/x.jsonl');
   assert.match(options.command, /--device 'My Box'/);
+});
+
+test('--notes carries one line about the setup into the options and the recorded command', () => {
+  const options = parseEvalArgs([...REQUIRED, '--notes', 'thinking disabled'], { root: '/repo', env });
+  assert.equal(options.notes, 'thinking disabled');
+  assert.match(options.command, /--notes 'thinking disabled'/);
+});
+
+test('the recorded command carries no local path and no credentials, and always names the server', () => {
+  const fromEnv = parseEvalArgs(
+    [...REQUIRED, '--source-file', '/Users/carol/private dir/test.jsonl'],
+    { root: '/repo', env: { AGENT_MODEL_BASE_URL: 'http://carol:hunter2@10.0.0.5:11434/v1/' } },
+  );
+  assert.equal(fromEnv.command, `bun run eval -- ${REQUIRED.join(' ')} --source-file test.jsonl --base-url http://10.0.0.5:11434/v1`);
+  // What the run itself uses is untouched.
+  assert.equal(fromEnv.sourceFile, '/Users/carol/private dir/test.jsonl');
+  assert.equal(fromEnv.baseUrl, 'http://carol:hunter2@10.0.0.5:11434/v1');
+
+  const fromFlag = parseEvalArgs(
+    [...REQUIRED, '--base-url', 'https://carol:hunter2@models.example.org/v1/', '--notes', 'thinking disabled'],
+    { root: '/repo', env: { AGENT_MODEL_BASE_URL: 'http://127.0.0.1:11434/v1' } },
+  );
+  assert.equal(fromFlag.command, `bun run eval -- ${REQUIRED.join(' ')} --base-url https://models.example.org/v1 --notes 'thinking disabled'`);
+  assert.equal(fromFlag.baseUrl, 'https://carol:hunter2@models.example.org/v1');
+
+  assert.throws(() => parseEvalArgs([...REQUIRED, '--base-url', 'not a url'], { root: '/repo', env }), /--base-url must be a URL/);
+  assert.throws(() => parseEvalArgs(REQUIRED, { root: '/repo', env: { AGENT_MODEL_BASE_URL: 'localhost' } }), /--base-url must be a URL/);
+});
+
+test('the usage text names --notes and says the time limit is per invocation', () => {
+  assert.match(EVAL_USAGE, /\[--notes <[^>]+>\]/);
+  assert.match(EVAL_USAGE, /--max-seconds 3600[^\n]*per invocation[^\n]*resumed run gets a fresh limit/);
 });
 
 test('missing flags are all named at once', () => {

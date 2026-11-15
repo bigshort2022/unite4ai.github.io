@@ -1,12 +1,23 @@
 import type { ChatMessage } from './gsm8k.ts';
 
 export interface Completion {
+  /** The visible reply: content only, without any reasoning the server streams separately. */
   text: string;
-  /** Milliseconds until the first content token; null when the reply was empty. */
+  /** Milliseconds until the first generated token, reasoning included; null when nothing was generated. */
   ttftMs: number | null;
   seconds: number;
   /** From the stream's usage chunk; null when the server does not send one. */
   completionTokens: number | null;
+  /** Why the server stopped, e.g. "stop" or "length"; null when it sent only `[DONE]`. */
+  finishReason: string | null;
+}
+
+/** The URL without a user name or password, for text that is published. */
+export function withoutCredentials(url: string): string {
+  const parsed = new URL(url);
+  parsed.username = '';
+  parsed.password = '';
+  return parsed.href.replace(/\/$/, '');
 }
 
 export async function listModels(baseUrl: string): Promise<string[]> {
@@ -14,6 +25,26 @@ export async function listModels(baseUrl: string): Promise<string[]> {
   if (!response.ok) throw new Error(`GET /models → ${response.status}`);
   const body = (await response.json()) as { data?: { id?: unknown }[] };
   return (body.data ?? []).map((model) => model?.id).filter((id): id is string => typeof id === 'string' && id !== '');
+}
+
+/**
+ * What an omp-managed server reports at `/_omp/status`: the one model it has loaded and how
+ * many requests it is serving. Null from every other server (plain mlx-lm and Ollama have no
+ * such route) and whenever the answer is not that shape.
+ */
+export async function serverStatus(baseUrl: string): Promise<{ model: string; activeRequests: number } | null> {
+  try {
+    const response = await fetch(new URL('/_omp/status', baseUrl), { signal: AbortSignal.timeout(2_000) });
+    if (response.status !== 200) return null;
+    const body: unknown = await response.json();
+    if (typeof body !== 'object' || body === null) return null;
+    if (!('version' in body) || body.version !== 1) return null;
+    if (!('model' in body) || typeof body.model !== 'string') return null;
+    if (!('active_requests' in body) || typeof body.active_requests !== 'number') return null;
+    return { model: body.model, activeRequests: body.active_requests };
+  } catch {
+    return null;
+  }
 }
 
 /** Yields the payload of every `data:` line in a server-sent event stream. */
@@ -33,18 +64,32 @@ async function* dataPayloads(body: ReadableStream<Uint8Array>): AsyncGenerator<s
   if (last.startsWith('data:')) yield last.slice(5).trim();
 }
 
-/**
- * One streamed chat completion at temperature 0. Throws when the server reports an error inside
- * the stream or the stream ends without a finish_reason or `[DONE]`, so a failed or partial
- * reply is never scored.
- */
-export async function streamChat(request: {
+export interface ChatRequest {
   baseUrl: string;
   model: string;
   messages: ChatMessage[];
   maxTokens: number;
+  /** Limit for the whole request, from sending it to the end of the reply. */
   timeoutMs: number;
-}): Promise<Completion> {
+}
+
+/**
+ * One streamed chat completion at temperature 0. Throws when the server reports an error inside
+ * the stream, the stream ends without a finish_reason or `[DONE]`, or the reply is not complete
+ * within the timeout, so a failed or partial reply is never scored.
+ */
+export async function streamChat(request: ChatRequest): Promise<Completion> {
+  const signal = AbortSignal.timeout(request.timeoutMs);
+  try {
+    return await readCompletion(request, signal);
+  } catch (error) {
+    // The abort surfaces as a bare "The operation timed out."; say which limit was hit.
+    if (signal.aborted) throw new Error(`request timed out after ${request.timeoutMs} ms`);
+    throw error;
+  }
+}
+
+async function readCompletion(request: ChatRequest, signal: AbortSignal): Promise<Completion> {
   const started = performance.now();
   const response = await fetch(`${request.baseUrl}/chat/completions`, {
     method: 'POST',
@@ -57,7 +102,7 @@ export async function streamChat(request: {
       stream: true,
       stream_options: { include_usage: true },
     }),
-    signal: AbortSignal.timeout(request.timeoutMs),
+    signal,
   });
   if (!response.ok || !response.body) {
     throw new Error(`POST /chat/completions → ${response.status} ${(await response.text()).slice(0, 200)}`);
@@ -66,6 +111,7 @@ export async function streamChat(request: {
   let text = '';
   let ttftMs: number | null = null;
   let completionTokens: number | null = null;
+  let finishReason: string | null = null;
   let finished = false;
   for await (const payload of dataPayloads(response.body)) {
     if (payload === '') continue;
@@ -74,7 +120,7 @@ export async function streamChat(request: {
       continue;
     }
     const event = JSON.parse(payload) as {
-      choices?: { delta?: { content?: unknown }; finish_reason?: unknown }[];
+      choices?: { delta?: { content?: unknown; reasoning?: unknown; reasoning_content?: unknown }; finish_reason?: unknown }[];
       usage?: { completion_tokens?: unknown };
       error?: unknown;
     };
@@ -84,13 +130,17 @@ export async function streamChat(request: {
     }
     const choice = event.choices?.[0];
     if (choice?.finish_reason != null) finished = true;
-    const delta = choice?.delta?.content;
-    if (typeof delta === 'string' && delta !== '') {
-      if (ttftMs === null) ttftMs = performance.now() - started;
-      text += delta;
+    if (typeof choice?.finish_reason === 'string') finishReason = choice.finish_reason;
+    // Servers stream a model's reasoning under either name; it is generated output, so it
+    // starts the clock, but only content is the reply.
+    const delta = choice?.delta;
+    const generated = [delta?.content, delta?.reasoning, delta?.reasoning_content];
+    if (ttftMs === null && generated.some((part) => typeof part === 'string' && part !== '')) {
+      ttftMs = performance.now() - started;
     }
+    if (typeof delta?.content === 'string') text += delta.content;
     if (typeof event.usage?.completion_tokens === 'number') completionTokens = event.usage.completion_tokens;
   }
   if (!finished) throw new Error('stream ended before the reply was complete');
-  return { text, ttftMs, seconds: (performance.now() - started) / 1000, completionTokens };
+  return { text, ttftMs, seconds: (performance.now() - started) / 1000, completionTokens, finishReason };
 }

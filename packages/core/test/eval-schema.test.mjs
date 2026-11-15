@@ -129,6 +129,15 @@ test('free-text fields are a single bounded line, so a result cannot smuggle lay
   bad.forEach((value, index) => assert.equal(ok(evalResultSchema, value), false, `case ${index}`));
 });
 
+test('setup.notes is an optional single bounded line, for what the other fields cannot say (thinking on or off)', () => {
+  const noted = (notes) => result({ setup: { ...result().setup, notes } });
+  assert.equal(ok(evalResultSchema, noted('thinking disabled')), true);
+  assert.equal(ok(evalResultSchema, noted('n'.repeat(200))), true);
+  assert.match(messages(evalResultSchema, noted('thinking\ndisabled')), /^setup\.notes: must be a single line without control or invisible formatting characters$/m);
+  assert.equal(ok(evalResultSchema, noted('n'.repeat(201))), false);
+  assert.equal(ok(evalResultSchema, noted('')), false);
+});
+
 test('evidence.url is a bounded single-line https URL, because it is printed as a link', () => {
   const linked = (url) => result({ evidence: { ...result().evidence, url } });
   const base = 'https://example.org/';

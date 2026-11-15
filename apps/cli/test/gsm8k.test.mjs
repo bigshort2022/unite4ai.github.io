@@ -41,16 +41,28 @@ test('extractAnswer treats a think block that is never closed as running to the 
   assert.equal(extractAnswer('<think>first 3</think>The answer is 7 <think>or maybe 9'), 7);
 });
 
+test('LaTeX thousands separators are read between digits, in the reply and in the reference', () => {
+  assert.equal(extractAnswer('The total is $1{,}234$.'), 1234);
+  assert.equal(extractAnswer('The total is $1\\,234$.'), 1234);
+  assert.equal(extractAnswer('So $12{,}345\\,678.5$'), 12345678.5);
+  assert.equal(extractAnswer('The pair is (3, 4)'), 4);
+  assert.equal(extractAnswer('Either 3 \\, 4'), 4);
+  assert.equal(isCorrect('It costs $2{,}125$ dollars', 2125), true);
+  assert.equal(parseItems(`${line('Q?', 'w\n#### 1{,}234')}\n`, 1)[0].expected, 1234);
+});
+
 test('isCorrect compares numerically, so 18 and 18.0 match and a missing answer is wrong', () => {
   assert.equal(isCorrect('#### 18.0', 18), true);
   assert.equal(isCorrect('#### 19', 18), false);
   assert.equal(isCorrect('no idea', 18), false);
 });
 
-test('the prompt contains the question and the registry knows gsm8k-200', () => {
-  const messages = buildMessages('How many?');
-  assert.equal(messages.length, 1);
-  assert.equal(messages[0].role, 'user');
-  assert.match(messages[0].content, /^How many\?/);
+test('the prompt is the question, a blank line and the published instruction; the registry knows gsm8k-200', () => {
+  assert.deepEqual(buildMessages('How many?'), [{
+    role: 'user',
+    content: 'How many?\n\nSolve this step by step. Finish with the final answer as a number on its own line.',
+  }]);
   assert.equal(SUITES['gsm8k-200'].promptVersion, 'gsm8k-1');
+  const [item] = SUITES['gsm8k-200'].items(`${JSON.stringify({ question: 'How many?', answer: 'w\n#### 4' })}\n`, 1);
+  assert.deepEqual(item.messages, buildMessages('How many?'));
 });

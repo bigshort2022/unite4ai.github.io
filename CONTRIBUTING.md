@@ -75,11 +75,15 @@ bun run eval -- --benchmark gsm8k-200 --model <model-card-id> \
   --base-url http://127.0.0.1:18082/v1
 ```
 
-It refuses a `--served-model` the server does not list (posting one makes mlx-lm and Ollama
-swap models), sends one request at a time at temperature 0, and keeps a transcript in
-`.agent/evals/` so an interrupted run resumes. When every item is answered it writes the
-result file into `apps/web/src/content/evals/` with the transcript's hash. Keep the transcript:
-it is your evidence.
+Always pass `--served-model` the id of the model the server has loaded: posting any other id
+makes mlx-lm and Ollama swap models. The runner refuses an id the server does not list, but
+that is a weak guard on mlx-lm and Ollama, because they also list models that are not loaded.
+It sends one request at a time at temperature 0 and keeps a transcript in `.agent/evals/` so
+an interrupted run resumes, on the same day or a later one. When every item is answered it
+writes the result file into `apps/web/src/content/evals/` with the transcript's hash, dated
+the day the run completed. Keep the transcript: it is your evidence. Running a finished
+configuration again rewrites the same result; move its transcript away to start a new run. If
+the model can think before it answers, say with `--notes` whether thinking was enabled.
 
 `bun run validate` checks the file the same way CI does.
 
