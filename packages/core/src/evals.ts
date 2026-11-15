@@ -29,6 +29,7 @@ export interface EvalRun {
 
 /** Runs of one model on one benchmark version in one format and quantization. */
 export interface EvalGroup {
+  /** Opaque identity of the group: JSON of its five grouping fields, so no field value can collide with another's. */
   key: string;
   model: string;
   benchmark: string;
@@ -40,7 +41,7 @@ export interface EvalGroup {
   score_min: number;
   score_max: number;
   runs: number;
-  /** Largest item count among the runs. */
+  /** Smallest item count among the runs. */
   n: number;
   submitters: string[];
   runtimes: string[];
@@ -78,7 +79,7 @@ export function median(values: number[]): number {
 export function groupEvals(runs: EvalRun[]): EvalGroup[] {
   const buckets = new Map<string, EvalRun[]>();
   for (const run of runs) {
-    const key = [run.model, run.benchmark, run.benchmark_version, run.setup.format, run.setup.quantization].join('|');
+    const key = JSON.stringify([run.model, run.benchmark, run.benchmark_version, run.setup.format, run.setup.quantization]);
     const bucket = buckets.get(key);
     if (bucket) bucket.push(run);
     else buckets.set(key, [run]);
@@ -102,7 +103,7 @@ export function groupEvals(runs: EvalRun[]): EvalGroup[] {
         score_min: Math.min(...scores),
         score_max: Math.max(...scores),
         runs: members.length,
-        n: Math.max(...members.map((m) => m.n)),
+        n: Math.min(...members.map((m) => m.n)),
         submitters: unique(members.map((m) => m.run.submitter)),
         runtimes: unique(members.map((m) => m.setup.runtime)),
         accelerators: unique(members.map((m) => m.setup.hardware.accelerator)),
@@ -114,7 +115,10 @@ export function groupEvals(runs: EvalRun[]): EvalGroup[] {
     .sort((a, b) => a.key.localeCompare(b.key));
 }
 
-/** Groups for the benchmark's current version, best first; ties go to the more reproduced group. */
+/**
+ * Groups for the benchmark's current version, best first; ties go to the more reproduced group,
+ * then to model id, then to group key, so the order never depends on the input order.
+ */
 export function leaderboard(groups: EvalGroup[], benchmark: BenchmarkRef): EvalGroup[] {
   const direction = benchmark.higher_is_better ? -1 : 1;
   return groups
@@ -122,13 +126,14 @@ export function leaderboard(groups: EvalGroup[], benchmark: BenchmarkRef): EvalG
     .sort((a, b) =>
       direction * (a.score - b.score)
       || b.submitters.length - a.submitters.length
-      || a.model.localeCompare(b.model));
+      || a.model.localeCompare(b.model)
+      || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
 }
 
-/** Results are self-reported; independent submitters are the trust signal. */
+/** Results are self-reported; independent submitters are the trust signal, however many runs one of them made. */
 export function reproductionLabel(group: EvalGroup): string {
   const others = group.submitters.length - 1;
-  return others > 0 ? `reproduced by ${others}` : 'single run';
+  return others > 0 ? `reproduced by ${others}` : 'not yet reproduced';
 }
 
 /** Distinct setups a model has been run on, each with its best measured speed. */
@@ -136,7 +141,7 @@ export function localSetups(runs: EvalRun[]): LocalSetup[] {
   const setups = new Map<string, LocalSetup>();
   for (const run of runs) {
     const { runtime, format, quantization, hardware } = run.setup;
-    const key = [runtime, format, quantization, hardware.accelerator, hardware.device, hardware.memory_gb].join('|');
+    const key = JSON.stringify([runtime, format, quantization, hardware.accelerator, hardware.device, hardware.memory_gb]);
     const speed = run.perf?.tokens_per_second ?? null;
     const existing = setups.get(key);
     if (!existing) {
