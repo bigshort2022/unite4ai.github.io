@@ -396,6 +396,32 @@ test('the run stops at its time limit between items, and the next run finishes i
   assert.ok(existsSync(outcome.resultPath));
 });
 
+test('without a limit of its own a run stops four hours after it started, at the next gap between replies', async () => {
+  const workspace = makeWorkspace();
+  const stub = await stubServer({ ...GOOD });
+  // The clock jumps ahead after each reply: to a minute short of four hours, then past them.
+  const hours = 4 * 3600 * 1000;
+  const realNow = Date.now;
+  let ahead = 0;
+  Date.now = () => realNow() + ahead;
+  const log = (line) => {
+    if (line.startsWith('1/3')) ahead = hours - 60_000;
+    if (line.startsWith('2/3')) ahead = hours;
+  };
+  try {
+    await assert.rejects(runEval(options(workspace, stub, { log })), /time limit of 14400s reached after 2 of 3 items; rerun to resume/);
+  } finally {
+    Date.now = realNow;
+  }
+  assert.equal(stub.posts(), 2, 'the limit is checked between replies, never during one');
+  assert.deepEqual(transcriptItems(workspace), [0, 1]);
+
+  // The same command again resumes, with a fresh limit.
+  const outcome = await runEval(options(workspace, stub));
+  assert.equal(stub.posts(), 3);
+  assert.equal(outcome.n, 3);
+});
+
 test('the stub refuses a request that departs from the published method', async () => {
   const workspace = makeWorkspace();
   const stub = await stubServer({ ...GOOD }, { models: ['stub-model', 'other-model'] });

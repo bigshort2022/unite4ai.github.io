@@ -9,6 +9,14 @@ import { SUITES } from './suites.ts';
 
 export const HARNESS = { name: 'unite4ai-eval', version: '0.1.0' };
 
+/**
+ * Seconds one invocation may run: four hours, because a 2048-token benchmark can take hours on
+ * a slow machine. Checked between replies, so a run can overrun it by one reply timeout.
+ */
+export const DEFAULT_MAX_SECONDS = 14_400;
+/** Seconds one reply may take: a reply of a few thousand tokens fits even on a slow machine. */
+export const DEFAULT_REQUEST_TIMEOUT_SECONDS = 600;
+
 export interface EvalOptions {
   benchmark: string;
   model: string;
@@ -290,7 +298,7 @@ const FLAG_OF: Record<string, string> = {
  */
 export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
   const log = options.log ?? (() => {});
-  const maxSeconds = options.maxSeconds ?? 3600;
+  const maxSeconds = options.maxSeconds ?? DEFAULT_MAX_SECONDS;
 
   // Preflight: everything that can fail without touching the model server fails here.
   const { definition, suite, speedBenchmark } = loadBenchmark(options.contentRoot, options.benchmark);
@@ -386,8 +394,7 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
           model: options.servedModel,
           messages: item.messages,
           maxTokens: suite.maxTokens,
-          // Ten minutes: a reply of a few thousand tokens fits even on a slow machine.
-          timeoutMs: options.requestTimeoutMs ?? 600_000,
+          timeoutMs: options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_SECONDS * 1000,
         });
       } catch (error) {
         throw new Error(`item ${item.index + 1} failed: ${(error as Error).message}; rerun to resume`);
