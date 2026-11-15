@@ -192,19 +192,26 @@ test('a speed result is accepted beside the result of the run it was measured on
   const main = measuredRun();
   assert.deepEqual(await errorsFor({ benchmarks: WITH_SPEED, evals: { [FILE]: main, [SPEED_FILE]: speedOf(main) } }), []);
   // A note about the setup is part of the setup, on both files.
-  const noted = measuredRun({ setup: { ...result().setup, notes: 'thinking disabled' } });
+  const noted = measuredRun({
+    setup: { ...result().setup, notes: 'thinking disabled' },
+    evidence: { ...result().evidence, bytes: 1234, url: 'https://example.org/transcript.jsonl' },
+  });
   assert.deepEqual(await errorsFor({ benchmarks: WITH_SPEED, evals: { [FILE]: noted, [SPEED_FILE]: speedOf(noted) } }), []);
 });
 
 test('the score of a measured result is the speed that result carries', async () => {
-  const main = measuredRun();
-  const errorsWith = (perf) => errorsFor({ benchmarks: WITH_SPEED, evals: { [FILE]: main, [SPEED_FILE]: speedOf(main, { perf }) } });
+  // Both files carry the same perf, as files of one run do, so only the score is at fault.
+  const errorsWith = (perf) => {
+    const main = measuredRun({ perf });
+    return errorsFor({ benchmarks: WITH_SPEED, evals: { [FILE]: main, [SPEED_FILE]: { ...main, benchmark: 'speed-a', score: 88.5 } } });
+  };
   const refused = (speed) => [
     `evals/${SPEED_FILE}: score 88.5 must equal perf.tokens_per_second (${speed}); the score of a measured benchmark is the measured speed`,
   ];
   assert.deepEqual(await errorsWith(undefined), refused('not set'));
   assert.deepEqual(await errorsWith({ time_to_first_token_ms: 410 }), refused('not set'));
   assert.deepEqual(await errorsWith({ tokens_per_second: 80 }), refused('80'));
+  assert.deepEqual(await errorsWith({ tokens_per_second: 88.5 }), []);
 });
 
 test('a measured result needs the result of the same run on the benchmark it was measured on', async () => {
@@ -217,7 +224,7 @@ test('a measured result needs the result of the same run on the benchmark it was
   const otherRun = measuredRun({ evidence: { sha256: 'b'.repeat(64) } });
   assert.deepEqual(await errorsWith({ 'model-a--bench-a--alice--2026-11-10--bbbbbbbb.json': otherRun }), [NO_SIBLING], 'another transcript');
 
-  // The same transcript hash, but one field of the run differs.
+  // The same transcript hash, but one field of the run, or of what it measured, differs.
   const setup = (overrides) => ({ ...main.setup, ...overrides });
   const differing = {
     model: ['model-b--bench-a--alice--2026-11-10--aaaaaaaa.json', { model: 'model-b' }],
@@ -232,6 +239,10 @@ test('a measured result needs the result of the same run on the benchmark it was
     notes: [FILE, { setup: setup({ notes: 'thinking disabled' }) }],
     speed: [FILE, { perf: { tokens_per_second: 80 } }],
     'no speed': [FILE, { perf: undefined }],
+    'time to first token': [FILE, { perf: { ...main.perf, time_to_first_token_ms: 500 } }],
+    'peak memory': [FILE, { perf: { ...main.perf, peak_memory_gb: 12 } }],
+    'evidence size': [FILE, { evidence: { ...main.evidence, bytes: 1234 } }],
+    'evidence link': [FILE, { evidence: { ...main.evidence, url: 'https://example.org/transcript.jsonl' } }],
   };
   for (const [field, [file, overrides]] of Object.entries(differing)) {
     assert.deepEqual(await errorsWith({ [file]: measuredRun(overrides) }), [NO_SIBLING], field);
@@ -241,6 +252,29 @@ test('a measured result needs the result of the same run on the benchmark it was
     await errorsFor({ benchmarks: WITH_SPEED, evals: { [FILE]: main, [SPEED_FILE]: speedOf(main, { n: 150 }) } }),
     [NO_SIBLING],
   );
+});
+
+test('a current speed result needs a run of the current version of the benchmark it was measured on', async () => {
+  // bench-a moved on to version 2; the run and its speed are from version 1.
+  const moved = benchmark({ version: '2', previous_versions: ['1'] });
+  const main = measuredRun();
+  const evals = { [FILE]: main, [SPEED_FILE]: speedOf(main) };
+
+  const stale = await validateContent(makeRoot({ benchmarks: { 'bench-a': moved, 'speed-a': measuredBenchmark() }, evals }));
+  assert.deepEqual(stale.errors, [
+    `evals/${SPEED_FILE}: the bench-a result of this run is for version 1; a current speed result needs a current run`,
+  ]);
+
+  // Raising the measured benchmark's version too retires the speed result with its run.
+  const raised = measuredBenchmark({ version: '2', previous_versions: ['1'] });
+  const retired = await validateContent(makeRoot({ benchmarks: { 'bench-a': moved, 'speed-a': raised }, evals }));
+  assert.deepEqual(retired.errors, []);
+  assert.equal(retired.warnings.length, 2);
+
+  // The two versions are counted separately: a current run backs a current speed result.
+  const current = measuredRun({ benchmark_version: '2' });
+  const currentEvals = { [FILE]: current, [SPEED_FILE]: speedOf(current, { benchmark_version: '1' }) };
+  assert.deepEqual(await errorsFor({ benchmarks: { 'bench-a': moved, 'speed-a': measuredBenchmark() }, evals: currentEvals }), []);
 });
 
 test('a measured benchmark must be measured on a benchmark that exists and has items of its own', async () => {

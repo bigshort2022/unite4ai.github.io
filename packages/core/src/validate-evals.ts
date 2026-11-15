@@ -266,18 +266,27 @@ export async function validateEvals(
           + 'the score of a measured benchmark is the measured speed',
         );
       }
-      const fromSameRun = results.some(({ result: other }) =>
+      // Two files of one run differ only in the benchmark they are for, its version and the score.
+      const run = results.find(({ result: other }) =>
         other.benchmark === benchmark.measured_on
-        && other.evidence.sha256 === result.evidence.sha256
         && other.model === result.model
         && other.n === result.n
-        && other.perf?.tokens_per_second === result.score
         && isDeepStrictEqual(other.run, result.run)
-        && isDeepStrictEqual(other.setup, result.setup));
-      if (!fromSameRun) {
+        && isDeepStrictEqual(other.setup, result.setup)
+        && isDeepStrictEqual(other.perf, result.perf)
+        && isDeepStrictEqual(other.evidence, result.evidence))?.result;
+      if (!run) {
         errors.push(
           `${rel}: no ${benchmark.measured_on} result from the same run; `
           + 'a speed result is published together with the run it was measured on',
+        );
+      } else if (
+        result.benchmark_version === benchmark.version
+        && run.benchmark_version !== benchmarks.get(benchmark.measured_on)?.version
+      ) {
+        errors.push(
+          `${rel}: the ${benchmark.measured_on} result of this run is for version ${run.benchmark_version}; `
+          + 'a current speed result needs a current run',
         );
       }
     }
