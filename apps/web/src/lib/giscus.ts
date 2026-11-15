@@ -11,6 +11,7 @@ import { REPO_SLUG } from './site';
  */
 export const giscusConfig = {
   repo: REPO_SLUG,
+  /** GitHub's id of the REPO_SLUG repository (shown by giscus.app): change the two together. */
   repoId: 'R_kgDOT4AJMQ',
   category: 'Blog Comments',
   /** Empty until Discussions + giscus are configured; Comments.astro hides the embed. */
