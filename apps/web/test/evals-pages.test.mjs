@@ -85,6 +85,9 @@ test('leaderboard and benchmark page render fixture results', { timeout: 120_000
   assert.match(previousRuns, /--fixture-zero/);
   assert.match(previousRuns, /0\.123 tok\/s/);
 
+  // A run's setup note is printed with its setup, on that run only.
+  assert.equal(detail.split('<small>thinking disabled</small>').length - 1, 1);
+
   // Contributor text is escaped, and links built from it are marked as user content.
   assert.match(detail, ESCAPED_DEVICE);
   assert.doesNotMatch(detail, RAW_DEVICE);

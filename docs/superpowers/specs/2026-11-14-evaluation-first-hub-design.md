@@ -106,6 +106,7 @@ Two new collections in `apps/web/src/content/`, with schemas in `@unite4ai/schem
     format: 'mlx' | 'gguf' | 'safetensors' | 'other';
     quantization: string;                // "4bit-DWQ", "Q4_K_M", "none"
     hardware: { device: string; accelerator: 'apple-silicon' | 'nvidia' | 'amd' | 'cpu' | 'other'; memory_gb: number };
+    notes?: string;                      // one line, e.g. "thinking disabled"
   };
   perf?: { tokens_per_second?: number; time_to_first_token_ms?: number; peak_memory_gb?: number; energy_wh_per_1k_tokens?: number };
   evidence: { sha256: string; url?: string; bytes?: number };   // rule 3
