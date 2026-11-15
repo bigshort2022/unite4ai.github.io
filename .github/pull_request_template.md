@@ -16,6 +16,6 @@
 - [ ] I ran `bun run build` locally and it passed
 - [ ] License is on the allowlist and I read the actual LICENSE file
 - [ ] Limitations / bias sections are honest, including the unflattering parts
-- [ ] I agree to license this contribution under CC BY 4.0 (content) or Apache-2.0 (code)
+- [ ] I agree to license this contribution under CC BY 4.0 (content) or MIT (code)
 
 <!-- First contribution? Welcome. Say so here and a maintainer will walk you through review. -->
