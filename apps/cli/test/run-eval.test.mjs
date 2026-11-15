@@ -66,7 +66,11 @@ function makeWorkspace({ sourceSha = sha256(SOURCE) } = {}) {
   return { root, contentRoot, workDir: join(root, 'work'), sourceFile };
 }
 
-/** OpenAI-compatible stub. `replies` maps a question's first line to the reply, or to a status code. */
+/**
+ * OpenAI-compatible stub. `replies` maps a question's first line to the reply text, to a status
+ * code, to `{ error }` (an error event inside a 200 stream) or to `{ truncate }` (one content
+ * chunk, then the response ends with neither a finish_reason nor [DONE]).
+ */
 function stubServer(replies, models = ['stub-model']) {
   const requests = [];
   let active = 0;
@@ -93,11 +97,19 @@ function stubServer(replies, models = ['stub-model']) {
           return res.end('stub failure');
         }
         res.setHeader('content-type', 'text/event-stream');
+        const event = (payload) => `data: ${JSON.stringify(payload)}\n\n`;
+        const content = (text) => event({ choices: [{ delta: { content: text }, finish_reason: null }] });
+        if (typeof reply === 'object') {
+          res.write('error' in reply ? event({ error: { message: reply.error } }) : content(reply.truncate));
+          finish();
+          return res.end();
+        }
         const half = Math.ceil(reply.length / 2);
-        res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: reply.slice(0, half) } }] })}\n\n`);
+        res.write(content(reply.slice(0, half)));
         setTimeout(() => {
-          res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: reply.slice(half) } }] })}\n\n`);
-          res.write(`data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 } })}\n\n`);
+          res.write(content(reply.slice(half)));
+          res.write(event({ choices: [{ delta: {}, finish_reason: 'stop' }] }));
+          res.write(event({ choices: [], usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 } }));
           res.write('data: [DONE]\n\n');
           finish();
           res.end();
@@ -135,6 +147,13 @@ const options = (workspace, stub, overrides = {}) => ({
 });
 
 const GOOD = { 'Q1?': 'It is 18', 'Q2?': 'Total 2,125', 'Q3?': 'I think 9' };
+
+/** The item indexes recorded in the workspace's only transcript. */
+function transcriptItems(workspace) {
+  const [file] = readdirSync(workspace.workDir).filter((name) => name.endsWith('.jsonl'));
+  const [, ...items] = readFileSync(join(workspace.workDir, file), 'utf8').trim().split('\n');
+  return items.map((line) => JSON.parse(line).index);
+}
 
 test('a complete run writes a result the content gate accepts, with evidence for its transcript', async () => {
   const workspace = makeWorkspace();
@@ -198,6 +217,37 @@ test('a failed request writes no result, and the next run resumes after the comp
   assert.equal(stub.posts(), 4, 'only items 2 and 3 are requested again');
   assert.equal(outcome.correct, 2);
   assert.ok(existsSync(outcome.resultPath));
+});
+
+test('an error event inside the stream fails the item, which the next run requests again', async () => {
+  const workspace = makeWorkspace();
+  const stub = await stubServer({ ...GOOD, 'Q2?': { error: 'boom' } });
+  await assert.rejects(runEval(options(workspace, stub)), /item 2 failed: server error in stream: boom/);
+  assert.equal(stub.posts(), 2);
+  assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), []);
+  assert.deepEqual(transcriptItems(workspace), [0]);
+
+  stub.setReplies({ 'Q2?': 'Total 2,125' });
+  const outcome = await runEval(options(workspace, stub));
+  assert.equal(stub.posts(), 4, 'only items 2 and 3 are requested again');
+  assert.equal(outcome.correct, 2);
+  assert.deepEqual(transcriptItems(workspace), [0, 1, 2]);
+});
+
+test('a stream that ends before the reply is complete fails the item instead of scoring partial text', async () => {
+  const workspace = makeWorkspace();
+  // The partial text ends in the right answer, so scoring it would count the item as correct.
+  const stub = await stubServer({ ...GOOD, 'Q3?': { truncate: 'So far 7' } });
+  await assert.rejects(runEval(options(workspace, stub)), /item 3 failed: stream ended before the reply was complete/);
+  assert.equal(stub.posts(), 3);
+  assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), []);
+  assert.deepEqual(transcriptItems(workspace), [0, 1]);
+
+  stub.setReplies({ 'Q3?': 'I think 9' });
+  const outcome = await runEval(options(workspace, stub));
+  assert.equal(stub.posts(), 4, 'only item 3 is requested again');
+  assert.equal(outcome.correct, 2);
+  assert.deepEqual(transcriptItems(workspace), [0, 1, 2]);
 });
 
 test('a different configuration gets its own transcript instead of reusing another one', async () => {

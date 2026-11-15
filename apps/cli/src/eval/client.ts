@@ -16,7 +16,28 @@ export async function listModels(baseUrl: string): Promise<string[]> {
   return (body.data ?? []).map((model) => model?.id).filter((id): id is string => typeof id === 'string' && id !== '');
 }
 
-/** One streamed chat completion at temperature 0. */
+/** Yields the payload of every `data:` line in a server-sent event stream. */
+async function* dataPayloads(body: ReadableStream<Uint8Array>): AsyncGenerator<string> {
+  const decoder = new TextDecoder();
+  let buffer = '';
+  for await (const chunk of body) {
+    buffer += decoder.decode(chunk, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() as string;
+    for (const line of lines) {
+      if (line.trim().startsWith('data:')) yield line.trim().slice(5).trim();
+    }
+  }
+  // A server may close the stream without a newline after its last line.
+  const last = (buffer + decoder.decode()).trim();
+  if (last.startsWith('data:')) yield last.slice(5).trim();
+}
+
+/**
+ * One streamed chat completion at temperature 0. Throws when the server reports an error inside
+ * the stream or the stream ends without a finish_reason or `[DONE]`, so a failed or partial
+ * reply is never scored.
+ */
 export async function streamChat(request: {
   baseUrl: string;
   model: string;
@@ -45,29 +66,31 @@ export async function streamChat(request: {
   let text = '';
   let ttftMs: number | null = null;
   let completionTokens: number | null = null;
-  let buffer = '';
-  const decoder = new TextDecoder();
-  for await (const chunk of response.body) {
-    buffer += decoder.decode(chunk, { stream: true });
-    let newline = buffer.indexOf('\n');
-    while (newline !== -1) {
-      const line = buffer.slice(0, newline).trim();
-      buffer = buffer.slice(newline + 1);
-      newline = buffer.indexOf('\n');
-      if (!line.startsWith('data:')) continue;
-      const payload = line.slice(5).trim();
-      if (payload === '' || payload === '[DONE]') continue;
-      const event = JSON.parse(payload) as {
-        choices?: { delta?: { content?: unknown } }[];
-        usage?: { completion_tokens?: unknown };
-      };
-      const delta = event.choices?.[0]?.delta?.content;
-      if (typeof delta === 'string' && delta !== '') {
-        if (ttftMs === null) ttftMs = performance.now() - started;
-        text += delta;
-      }
-      if (typeof event.usage?.completion_tokens === 'number') completionTokens = event.usage.completion_tokens;
+  let finished = false;
+  for await (const payload of dataPayloads(response.body)) {
+    if (payload === '') continue;
+    if (payload === '[DONE]') {
+      finished = true;
+      continue;
     }
+    const event = JSON.parse(payload) as {
+      choices?: { delta?: { content?: unknown }; finish_reason?: unknown }[];
+      usage?: { completion_tokens?: unknown };
+      error?: unknown;
+    };
+    if (event.error != null) {
+      const detail = typeof event.error === 'object' && 'message' in event.error ? event.error.message : event.error;
+      throw new Error(`server error in stream: ${typeof detail === 'string' ? detail : JSON.stringify(event.error)}`);
+    }
+    const choice = event.choices?.[0];
+    if (choice?.finish_reason != null) finished = true;
+    const delta = choice?.delta?.content;
+    if (typeof delta === 'string' && delta !== '') {
+      if (ttftMs === null) ttftMs = performance.now() - started;
+      text += delta;
+    }
+    if (typeof event.usage?.completion_tokens === 'number') completionTokens = event.usage.completion_tokens;
   }
+  if (!finished) throw new Error('stream ended before the reply was complete');
   return { text, ttftMs, seconds: (performance.now() - started) / 1000, completionTokens };
 }
