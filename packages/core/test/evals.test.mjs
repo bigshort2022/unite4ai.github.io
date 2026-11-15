@@ -164,9 +164,9 @@ test('a full tie on score and reproduction ranks models by code units, not by lo
 });
 
 test('localSetups orders setups by code units, not by locale', () => {
-  const on = (device) => setup({ hardware: { ...result().setup.hardware, device } });
-  const setups = localSetups([run('a', { setup: on('apple box') }), run('z', { setup: on('Zen box') })]);
-  assert.deepEqual(setups.map((s) => s.device), ['Zen box', 'apple box']);
+  // localeCompare would put "a-quant" before "B-quant"; code units put the capital first.
+  const setups = localSetups([run('a', { setup: setup({ quantization: 'a-quant' }) }), run('b', { setup: setup({ quantization: 'B-quant' }) })]);
+  assert.deepEqual(setups.map((s) => s.quantization), ['B-quant', 'a-quant']);
 });
 
 const hardware = (overrides = {}) => ({ ...result().setup.hardware, ...overrides });
@@ -225,4 +225,74 @@ test('localSetups reports the lowest measured time to first token per setup', ()
   assert.equal(mlx.time_to_first_token_ms, 650.5);
   assert.equal(mlx.tokens_per_second, 55);
   assert.equal(setups.find((s) => s.format === 'gguf').time_to_first_token_ms, null);
+});
+
+test('localSetups keeps the lowest time to first token when a later run is slower or did not measure it', () => {
+  const [only, ...others] = localSetups([
+    run('a', { perf: { tokens_per_second: 55, time_to_first_token_ms: 650.5 } }),
+    run('b', { perf: { tokens_per_second: 40, time_to_first_token_ms: 900 } }),
+    run('c'),
+    run('d', { perf: { tokens_per_second: 60 } }),
+  ]);
+  assert.deepEqual(others, []);
+  assert.equal(only.time_to_first_token_ms, 650.5);
+  assert.equal(only.tokens_per_second, 60);
+});
+
+const measured = (runs) => groupEvals(runs, { byHardware: new Set(['speed-a']) });
+const speedRun = (id, overrides = {}) => run(id, { benchmark: 'speed-a', ...overrides });
+
+test('a measured group is one runtime on one machine: a difference in exactly one of them separates two runs', () => {
+  const separate = (other) => measured([speedRun('base'), speedRun('other', { setup: other })]).length;
+  assert.equal(separate(setup({ runtime: 'transformers' })), 2, 'runtime');
+  assert.equal(separate(setup({ hardware: hardware({ device: 'Mac Studio (M2 Ultra)' }) })), 2, 'device');
+  assert.equal(separate(setup({ hardware: hardware({ accelerator: 'cpu' }) })), 2, 'accelerator');
+  assert.equal(separate(setup({ hardware: hardware({ memory_gb: 64 }) })), 2, 'memory');
+  assert.equal(separate(setup()), 1);
+
+  const byRuntime = measured([speedRun('a', { score: 40 }), speedRun('b', { score: 90, setup: setup({ runtime: 'transformers' }) })]);
+  assert.deepEqual(byRuntime.map((g) => [g.runtime, g.score]), [['mlx-lm', 40], ['transformers', 90]]);
+});
+
+test('a measured group pools the runs of one runtime on one machine: median score, every runtime version', () => {
+  const [group, ...others] = measured([
+    speedRun('a', { score: 40 }),
+    speedRun('b', { score: 50, setup: setup({ runtime_version: '0.31.0' }), run: by('bob', '2026-11-12') }),
+    speedRun('c', { score: 50 }),
+  ]);
+  assert.deepEqual(others, []);
+  assert.equal(group.score, 50);
+  assert.equal(group.score_min, 40);
+  assert.equal(group.runs, 3);
+  assert.deepEqual(group.submitters, ['alice', 'bob']);
+  assert.equal(group.runtime, 'mlx-lm');
+  assert.deepEqual(group.runtime_versions, ['0.31.0', '0.32.4']);
+
+  // A score does not depend on the runtime, so other groups name neither it nor its versions.
+  const [quality] = groupEvals([run('q')], { byHardware: new Set(['speed-a']) });
+  assert.equal(quality.runtime, null);
+  assert.equal(quality.runtime_versions, null);
+});
+
+test('spellings of one device that differ in case, spacing or character width are one machine', () => {
+  const on = (device) => setup({ hardware: hardware({ device }) });
+  const runs = [
+    speedRun('b', { score: 50, setup: on('apple  m5 (mac17,2)') }),
+    speedRun('a', { score: 40, setup: on('Apple M5 (Mac17,2)') }),
+    speedRun('c', { score: 60, setup: on(' APPLE\u00a0M5 （Mac17,2） ') }),
+  ];
+  const [group, ...others] = measured(runs);
+  assert.deepEqual(others, []);
+  assert.deepEqual(group.run_ids, ['a', 'b', 'c']);
+  assert.equal(group.score, 50);
+  // The spelling shown is the one on the first run by id, whatever order the runs arrive in.
+  assert.equal(group.device, 'Apple M5 (Mac17,2)');
+  assert.deepEqual(measured([...runs].reverse()), measured(runs));
+
+  const setups = localSetups(runs);
+  assert.deepEqual(setups.map((s) => s.device), ['Apple M5 (Mac17,2)']);
+  assert.deepEqual(localSetups([...runs].reverse()), setups);
+
+  // A different machine is still a different machine.
+  assert.equal(measured([...runs, speedRun('d', { setup: on('Apple M5 (Mac17,3)') })]).length, 2);
 });

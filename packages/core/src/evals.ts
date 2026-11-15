@@ -30,7 +30,7 @@ export interface EvalRun {
 
 /**
  * Runs of one model on one benchmark version in one format and quantization; for a benchmark
- * grouped by hardware, also on one device, accelerator and memory size.
+ * grouped by hardware, also with one runtime on one device, accelerator and memory size.
  */
 export interface EvalGroup {
   /** Opaque identity of the group: JSON of its grouping fields, so no field value can collide with another's. */
@@ -41,6 +41,10 @@ export interface EvalGroup {
   format: string;
   quantization: string;
   /** Set only for benchmarks grouped by hardware (measured quantities); null otherwise. */
+  runtime: string | null;
+  /** Every version of that runtime among the group's runs. */
+  runtime_versions: string[] | null;
+  /** As spelt on the group's first run by id. */
   device: string | null;
   memory_gb: number | null;
   /** Median score of the group's runs. */
@@ -84,6 +88,14 @@ export function byCodeUnit(a: string, b: string): number {
 
 const unique = (values: string[]) => [...new Set(values)].sort();
 
+/** Runs in id order, so "the first run" is the same whatever order they arrive in. */
+const byId = (runs: EvalRun[]) => [...runs].sort((a, b) => byCodeUnit(a.id, b.id));
+
+/** One machine however its name was typed: compatibility forms, case and spacing do not tell devices apart. */
+function deviceKey(device: string): string {
+  return device.normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
 export function median(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
   const middle = Math.floor(sorted.length / 2);
@@ -97,11 +109,11 @@ export interface GroupOptions {
 
 export function groupEvals(runs: EvalRun[], options: GroupOptions = {}): EvalGroup[] {
   const buckets = new Map<string, EvalRun[]>();
-  for (const run of runs) {
+  for (const run of byId(runs)) {
     const fields: (string | number)[] = [run.model, run.benchmark, run.benchmark_version, run.setup.format, run.setup.quantization];
     if (options.byHardware?.has(run.benchmark)) {
       const { device, accelerator, memory_gb } = run.setup.hardware;
-      fields.push(device, accelerator, memory_gb);
+      fields.push(run.setup.runtime, deviceKey(device), accelerator, memory_gb);
     }
     const key = JSON.stringify(fields);
     const bucket = buckets.get(key);
@@ -124,6 +136,8 @@ export function groupEvals(runs: EvalRun[], options: GroupOptions = {}): EvalGro
         benchmark_version: first.benchmark_version,
         format: first.setup.format,
         quantization: first.setup.quantization,
+        runtime: byHardware ? first.setup.runtime : null,
+        runtime_versions: byHardware ? unique(members.map((m) => m.setup.runtime_version)) : null,
         device: byHardware ? first.setup.hardware.device : null,
         memory_gb: byHardware ? first.setup.hardware.memory_gb : null,
         score: median(scores),
@@ -136,7 +150,7 @@ export function groupEvals(runs: EvalRun[], options: GroupOptions = {}): EvalGro
         accelerators: unique(members.map((m) => m.setup.hardware.accelerator)),
         tokens_per_second: speeds.length ? median(speeds) : null,
         latest: members.map((m) => m.run.date).sort().at(-1) as string,
-        run_ids: members.map((m) => m.id).sort(),
+        run_ids: members.map((m) => m.id),
       };
     })
     .sort((a, b) => byCodeUnit(a.key, b.key));
@@ -163,12 +177,15 @@ export function reproductionLabel(group: EvalGroup): string {
   return others > 0 ? `reproduced by ${others}` : 'not yet reproduced';
 }
 
-/** Distinct setups a model has been run on, each with its best measured speed and time to first token. */
+/**
+ * Distinct setups a model has been run on, each with its best measured speed and time to first
+ * token. The device is spelt as on the setup's first run by id.
+ */
 export function localSetups(runs: EvalRun[]): LocalSetup[] {
   const setups = new Map<string, LocalSetup>();
-  for (const run of runs) {
+  for (const run of byId(runs)) {
     const { runtime, format, quantization, hardware } = run.setup;
-    const key = JSON.stringify([runtime, format, quantization, hardware.accelerator, hardware.device, hardware.memory_gb]);
+    const key = JSON.stringify([runtime, format, quantization, hardware.accelerator, deviceKey(hardware.device), hardware.memory_gb]);
     const speed = run.perf?.tokens_per_second ?? null;
     const firstToken = run.perf?.time_to_first_token_ms ?? null;
     const existing = setups.get(key);
