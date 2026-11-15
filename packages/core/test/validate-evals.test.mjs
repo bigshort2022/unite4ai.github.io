@@ -207,6 +207,18 @@ test('two result files cannot carry the same evidence', async () => {
   ]);
 });
 
+test('one transcript may back results for two different benchmarks, but not two for the same one', async () => {
+  const speed = benchmark({ category: 'efficiency', scoring: 'measured', items: 0, metric: { name: 'decode speed', unit: ' tok/s', higher_is_better: true, min: 0 } });
+  const errors = await errorsFor({
+    benchmarks: { 'bench-a': benchmark(), 'speed-a': speed },
+    evals: {
+      'model-a--bench-a--alice--2026-11-10--aaaaaaaa.json': result(),
+      'model-a--speed-a--alice--2026-11-10--aaaaaaaa.json': result({ benchmark: 'speed-a', score: 88.5, n: 200 }),
+    },
+  });
+  assert.deepEqual(errors, []);
+});
+
 test('a run cannot be dated on a date that does not exist or far in the future', async () => {
   const future = await errorsFor({ evals: { [fileOn('2999-01-01')]: result({ run: on('2999-01-01') }) } });
   assert.match(future.join('\n'), /run\.date 2999-01-01 is in the future/);

@@ -142,7 +142,7 @@ export async function validateEvals(
 
   // A contributor ahead of UTC may submit a run dated "tomorrow" by the UTC calendar.
   const latestDate = new Date(Date.parse(`${today}T00:00:00Z`) + DAY_MS).toISOString().slice(0, 10);
-  /** Evidence hash to the first result file that carried it. */
+  /** Benchmark and evidence hash to the first result file that carried them: one transcript may back one result per benchmark. */
   const evidenceOwners = new Map<string, string>();
 
   for (const file of await listFlat(contentRoot, 'evals', '.json', 'result', errors)) {
@@ -182,11 +182,12 @@ export async function validateEvals(
         `${rel}: filename must be "${expected}.json" (model--benchmark--submitter--date--first 8 characters of evidence.sha256)`,
       );
     }
-    const evidenceOwner = evidenceOwners.get(result.evidence.sha256);
+    const evidenceKey = `${result.benchmark}:${result.evidence.sha256}`;
+    const evidenceOwner = evidenceOwners.get(evidenceKey);
     if (evidenceOwner) {
       errors.push(`${rel}: same evidence.sha256 as evals/${evidenceOwner}; one run is one file`);
     } else {
-      evidenceOwners.set(result.evidence.sha256, file);
+      evidenceOwners.set(evidenceKey, file);
     }
     if (!isRealDate(result.run.date)) {
       errors.push(`${rel}: run.date ${result.run.date} is not a real date`);

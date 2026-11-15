@@ -27,15 +27,21 @@ export interface EvalRun {
   evidence: { sha256: string; url?: string; bytes?: number };
 }
 
-/** Runs of one model on one benchmark version in one format and quantization. */
+/**
+ * Runs of one model on one benchmark version in one format and quantization; for a benchmark
+ * grouped by hardware, also on one device, accelerator and memory size.
+ */
 export interface EvalGroup {
-  /** Opaque identity of the group: JSON of its five grouping fields, so no field value can collide with another's. */
+  /** Opaque identity of the group: JSON of its grouping fields, so no field value can collide with another's. */
   key: string;
   model: string;
   benchmark: string;
   benchmark_version: string;
   format: string;
   quantization: string;
+  /** Set only for benchmarks grouped by hardware (measured quantities); null otherwise. */
+  device: string | null;
+  memory_gb: number | null;
   /** Median score of the group's runs. */
   score: number;
   score_min: number;
@@ -66,6 +72,8 @@ export interface LocalSetup {
   device: string;
   memory_gb: number;
   tokens_per_second: number | null;
+  /** Lowest measured; null when no run measured it. */
+  time_to_first_token_ms: number | null;
 }
 
 /** Orders strings by UTF-16 code units, so every sort gives the same result in every locale. */
@@ -81,10 +89,20 @@ export function median(values: number[]): number {
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
-export function groupEvals(runs: EvalRun[]): EvalGroup[] {
+export interface GroupOptions {
+  /** Benchmark ids whose results only compare on the same machine (measured quantities such as speed). */
+  byHardware?: ReadonlySet<string>;
+}
+
+export function groupEvals(runs: EvalRun[], options: GroupOptions = {}): EvalGroup[] {
   const buckets = new Map<string, EvalRun[]>();
   for (const run of runs) {
-    const key = JSON.stringify([run.model, run.benchmark, run.benchmark_version, run.setup.format, run.setup.quantization]);
+    const fields: (string | number)[] = [run.model, run.benchmark, run.benchmark_version, run.setup.format, run.setup.quantization];
+    if (options.byHardware?.has(run.benchmark)) {
+      const { device, accelerator, memory_gb } = run.setup.hardware;
+      fields.push(device, accelerator, memory_gb);
+    }
+    const key = JSON.stringify(fields);
     const bucket = buckets.get(key);
     if (bucket) bucket.push(run);
     else buckets.set(key, [run]);
@@ -93,6 +111,7 @@ export function groupEvals(runs: EvalRun[]): EvalGroup[] {
   return [...buckets.entries()]
     .map(([key, members]) => {
       const [first] = members;
+      const byHardware = options.byHardware?.has(first.benchmark) ?? false;
       const scores = members.map((m) => m.score);
       const speeds = members
         .map((m) => m.perf?.tokens_per_second)
@@ -104,6 +123,8 @@ export function groupEvals(runs: EvalRun[]): EvalGroup[] {
         benchmark_version: first.benchmark_version,
         format: first.setup.format,
         quantization: first.setup.quantization,
+        device: byHardware ? first.setup.hardware.device : null,
+        memory_gb: byHardware ? first.setup.hardware.memory_gb : null,
         score: median(scores),
         score_min: Math.min(...scores),
         score_max: Math.max(...scores),
@@ -141,13 +162,14 @@ export function reproductionLabel(group: EvalGroup): string {
   return others > 0 ? `reproduced by ${others}` : 'not yet reproduced';
 }
 
-/** Distinct setups a model has been run on, each with its best measured speed. */
+/** Distinct setups a model has been run on, each with its best measured speed and time to first token. */
 export function localSetups(runs: EvalRun[]): LocalSetup[] {
   const setups = new Map<string, LocalSetup>();
   for (const run of runs) {
     const { runtime, format, quantization, hardware } = run.setup;
     const key = JSON.stringify([runtime, format, quantization, hardware.accelerator, hardware.device, hardware.memory_gb]);
     const speed = run.perf?.tokens_per_second ?? null;
+    const firstToken = run.perf?.time_to_first_token_ms ?? null;
     const existing = setups.get(key);
     if (!existing) {
       setups.set(key, {
@@ -158,9 +180,15 @@ export function localSetups(runs: EvalRun[]): LocalSetup[] {
         device: hardware.device,
         memory_gb: hardware.memory_gb,
         tokens_per_second: speed,
+        time_to_first_token_ms: firstToken,
       });
-    } else if (speed !== null && (existing.tokens_per_second === null || speed > existing.tokens_per_second)) {
+      continue;
+    }
+    if (speed !== null && (existing.tokens_per_second === null || speed > existing.tokens_per_second)) {
       existing.tokens_per_second = speed;
+    }
+    if (firstToken !== null && (existing.time_to_first_token_ms === null || firstToken < existing.time_to_first_token_ms)) {
+      existing.time_to_first_token_ms = firstToken;
     }
   }
   return [...setups.entries()].sort(([a], [b]) => byCodeUnit(a, b)).map(([, value]) => value);

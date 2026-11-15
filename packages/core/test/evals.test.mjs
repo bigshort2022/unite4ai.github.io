@@ -168,3 +168,61 @@ test('localSetups orders setups by code units, not by locale', () => {
   const setups = localSetups([run('a', { setup: on('apple box') }), run('z', { setup: on('Zen box') })]);
   assert.deepEqual(setups.map((s) => s.device), ['Zen box', 'apple box']);
 });
+
+const hardware = (overrides = {}) => ({ ...result().setup.hardware, ...overrides });
+
+test('measured benchmarks are grouped per device; other benchmarks are not', () => {
+  const runs = [
+    run('q1', { benchmark: 'bench-a', score: 60 }),
+    run('q2', { benchmark: 'bench-a', score: 70, setup: setup({ hardware: hardware({ device: 'Other Box', accelerator: 'nvidia', memory_gb: 24 }) }) }),
+    run('s1', { benchmark: 'speed-a', score: 40 }),
+    run('s2', { benchmark: 'speed-a', score: 90, setup: setup({ hardware: hardware({ device: 'Other Box', accelerator: 'nvidia', memory_gb: 24 }) }) }),
+    run('s3', { benchmark: 'speed-a', score: 44, run: by('bob', '2026-11-12') }),
+  ];
+  const groups = groupEvals(runs, { byHardware: new Set(['speed-a']) });
+
+  const quality = groups.filter((g) => g.benchmark === 'bench-a');
+  assert.equal(quality.length, 1, 'a score does not depend on the machine');
+  assert.equal(quality[0].device, null);
+  assert.equal(quality[0].memory_gb, null);
+
+  const speed = groups.filter((g) => g.benchmark === 'speed-a');
+  assert.equal(speed.length, 2);
+  const laptop = speed.find((g) => g.device === 'MacBook Pro (M2 Max)');
+  assert.deepEqual(laptop.run_ids, ['s1', 's3']);
+  assert.equal(laptop.score, 42);
+  assert.equal(laptop.memory_gb, 32);
+  assert.deepEqual(laptop.submitters, ['alice', 'bob']);
+  const box = speed.find((g) => g.device === 'Other Box');
+  assert.equal(box.score, 90);
+  assert.equal(box.memory_gb, 24);
+});
+
+test('devices that differ only in memory are separate measured groups', () => {
+  const groups = groupEvals([
+    run('a', { benchmark: 'speed-a', score: 40 }),
+    run('b', { benchmark: 'speed-a', score: 50, setup: setup({ hardware: hardware({ memory_gb: 64 }) }) }),
+  ], { byHardware: new Set(['speed-a']) });
+  assert.deepEqual(groups.map((g) => g.memory_gb).sort((x, y) => x - y), [32, 64]);
+});
+
+test('without the option every benchmark groups as before', () => {
+  const groups = groupEvals([
+    run('a', { benchmark: 'speed-a', score: 40 }),
+    run('b', { benchmark: 'speed-a', score: 50, setup: setup({ hardware: hardware({ device: 'Other Box' }) }) }),
+  ]);
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].device, null);
+});
+
+test('localSetups reports the lowest measured time to first token per setup', () => {
+  const setups = localSetups([
+    run('a', { perf: { tokens_per_second: 40, time_to_first_token_ms: 900 } }),
+    run('b', { perf: { tokens_per_second: 55, time_to_first_token_ms: 650.5 } }),
+    run('c', { setup: setup({ format: 'gguf', quantization: 'Q4_K_M', runtime: 'llama.cpp' }) }),
+  ]);
+  const mlx = setups.find((s) => s.format === 'mlx');
+  assert.equal(mlx.time_to_first_token_ms, 650.5);
+  assert.equal(mlx.tokens_per_second, 55);
+  assert.equal(setups.find((s) => s.format === 'gguf').time_to_first_token_ms, null);
+});
