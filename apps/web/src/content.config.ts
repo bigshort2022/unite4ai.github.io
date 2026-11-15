@@ -258,6 +258,8 @@ const evals = defineCollection({
         accelerator: z.enum(EVAL_ACCELERATORS),
         memory_gb: z.number().positive(),
       }),
+      /** What the other fields cannot say about the run, e.g. whether thinking was enabled. */
+      notes: line(200).optional(),
     }),
     perf: z.strictObject({
       tokens_per_second: z.number().positive().optional(),

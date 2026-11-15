@@ -54,6 +54,10 @@ test('leaderboard and benchmark page render fixture results', { timeout: 120_000
   assert.match(board, /reproduced by 1/);
   assert.match(board, /not yet reproduced/);
   assert.match(board, /self-reported/i);
+  assert.match(
+    board.replace(/\s+/g, ' '),
+    /Speed is tokens generated per second after the first token, from the server's own token count; it depends on the hardware and on what else the machine was doing\./,
+  );
   // GSM8K has a fixed item count, so each row states how many items the run answered.
   assert.match(board, /<small>n = 200<\/small>/);
   // The version "0" run (score 99) belongs to a previous version and stays off the leaderboard.
@@ -85,6 +89,9 @@ test('leaderboard and benchmark page render fixture results', { timeout: 120_000
   assert.match(previousRuns, /--fixture-zero/);
   assert.match(previousRuns, /0\.123 tok\/s/);
 
+  // A run's setup note is printed with its setup, on that run only.
+  assert.equal(detail.split('<small>thinking disabled</small>').length - 1, 1);
+
   // Contributor text is escaped, and links built from it are marked as user content.
   assert.match(detail, ESCAPED_DEVICE);
   assert.doesNotMatch(detail, RAW_DEVICE);
@@ -109,7 +116,7 @@ test('model page lists its evaluations and local setups; the feed publishes the 
     feed.notice,
     'Results are self-reported by contributors. Each benchmark page lists every run with its reproduce command and evidence hash.',
   );
-  assert.deepEqual(feed.benchmarks.map((b) => b.id), ['gsm8k-200']);
+  assert.deepEqual(feed.benchmarks.map((b) => b.id), ['gsm8k-200', 'canary-injection-v1']);
   assert.equal(feed.benchmarks[0].higher_is_better, true);
   assert.equal(feed.groups.length, 3);
   const current = feed.groups.filter((g) => g.benchmark_version === feed.benchmarks[0].version);

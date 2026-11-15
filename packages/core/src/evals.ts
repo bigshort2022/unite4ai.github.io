@@ -17,6 +17,7 @@ export interface EvalRun {
     format: string;
     quantization: string;
     hardware: { device: string; accelerator: string; memory_gb: number };
+    notes?: string;
   };
   perf?: {
     tokens_per_second?: number;

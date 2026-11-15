@@ -18,6 +18,7 @@ Bun 1.4 workspace + Node 24. `bun install --frozen-lockfile`. Never edit `bun.lo
 - `bun test` all tests (`*.test.mjs` use `node:test`; `apps/api/test/*.test.ts` use `bun:test`)
 - `bun run check` `astro check`
 - `node scripts/agent/verify.mjs [--only hub|sustain]` the acceptance gate (hub: same validate/build/test as CI); last line is JSON
+- `bun run eval -- --help` evaluation runner; **never run it against a live model server unless asked**
 
 ## Rules
 - Pages use `const base = import.meta.env.BASE_URL.replace(/\/$/, '');` and `` const href = (p: string) => `${base}${p}` || '/'; `` for internal links.

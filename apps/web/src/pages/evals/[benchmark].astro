@@ -108,6 +108,7 @@ const modelName = (id: string) => modelNames.get(id) ?? id;
                     {run.setup.format} · {run.setup.quantization}
                     <small>{run.setup.runtime} {run.setup.runtime_version}</small>
                     <small>{run.setup.hardware.device} · {run.setup.hardware.accelerator} · {run.setup.hardware.memory_gb} GB</small>
+                    {run.setup.notes && <small>{run.setup.notes}</small>}
                     {run.perf?.tokens_per_second && <small>{formatNumber(run.perf.tokens_per_second)} tok/s</small>}
                   </td>
                   <td><a href={`https://github.com/${run.run.submitter}`} rel="nofollow ugc noopener">{run.run.submitter}</a><small>{run.run.harness.name} {run.run.harness.version}</small></td>
