@@ -49,8 +49,10 @@ Using a coding agent (hosted or local LLM)? Run `bun run agent:setup` once and p
 
 ## Submitting an evaluation result
 
-Evaluation results are data in this repository. One run is one JSON file in
-`apps/web/src/content/evals/`, named `<model>--<benchmark>--<your-github-handle>--<YYYY-MM-DD>.json`.
+Evaluation results are data in this repository. One run is one JSON file directly in
+`apps/web/src/content/evals/`, named
+`<model>--<benchmark>--<your-github-handle>--<YYYY-MM-DD>--<first 8 characters of evidence.sha256>.json`
+(handle in lowercase).
 
 - The model must already have a card in `apps/web/src/content/models/`, and the benchmark a
   definition in `apps/web/src/content/benchmarks/`.
@@ -58,7 +60,7 @@ Evaluation results are data in this repository. One run is one JSON file in
 - Keep the raw output yourself. The result file carries only its `sha256` (and, if you host
   it, an HTTPS link). Files over 16 KB are rejected.
 - Include the exact command, so someone else can reproduce the run. A result that others have
-  reproduced is shown as such; a lone result is shown as a single run.
+  reproduced is shown as such; a lone result is shown as not yet reproduced.
 - Reproducing someone else's result is as valuable as a new one: submit your own file for the
   same model, benchmark, format and quantization.
 
