@@ -8,6 +8,7 @@
     "build": "bun run --filter @unite4ai/web build",
     "preview": "bun run --filter @unite4ai/web preview",
     "check": "bun run --filter @unite4ai/web check",
+    "typecheck": "tsc -p packages/schema && tsc -p packages/core && tsc -p apps/cli",
     "validate": "bun run --filter @unite4ai/web validate",
     "verify-artifacts": "bun run --filter @unite4ai/web verify-artifacts",
     "new:model": "bun run --filter @unite4ai/web new:model",
@@ -19,5 +20,9 @@
     "agent:verify": "node scripts/agent/verify.mjs",
     "agent:model": "node scripts/agent/model-check.mjs",
     "agent:request": "node scripts/agent/request.mjs"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.0",
+    "typescript": "^6.0.3"
   }
 }

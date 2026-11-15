@@ -98,12 +98,12 @@ bun run agent:verify -- --only hub     # or --only sustain; --list prints the st
 
 | Set | Steps |
 |---|---|
-| `hub` | `bun run validate`, `bun run build`, `bun test` (repo root) |
+| `hub` | `bun run validate`, `bun run typecheck`, `bun run build`, `bun test` (repo root) |
 | `sustain` | `npm test`, `npx astro check`, `npm run build` (in `sites/sustainability`) |
 
 It stops at the first failing step. Pass: `{"status":"pass","steps":[…],"log":"…","seconds":…}`. Fail: `{"status":"fail","failed_step":"…","exit_code":…,"timed_out":…,"error":…,"log":"…","tail":"…","seconds":…}`, exit 1, where `tail` is the last 20 lines of the step's output, capped at 4 KiB. Exit 2 is a usage error. The full output of every step is in `.agent/logs/verify-<timestamp>.log`.
 
-CI (`.github/workflows/validate.yml`) runs `sync:d1`, `validate`, `build`, `verify-artifacts` (allowed to fail) and a bare `bun test`. The hub set runs the same validate/build/test commands. A bare `bun test` also picks up the sustainability site's unit tests under Bun, but CI never runs that site's `npm test` under Node, `astro check`, or build; the `sustain` set does.
+CI (`.github/workflows/validate.yml`) runs `sync:d1`, `validate`, `typecheck`, `build`, `verify-artifacts` (allowed to fail) and a bare `bun test`. The hub set runs the same validate/typecheck/build/test commands. `typecheck` runs `tsc` over `packages/schema`, `packages/core` and `apps/cli`, which `astro check` does not cover; `apps/api` and the `.mjs` tests are not type-checked. A bare `bun test` also picks up the sustainability site's unit tests under Bun, but CI never runs that site's `npm test` under Node, `astro check`, or build; the `sustain` set does.
 
 ### Timeouts
 

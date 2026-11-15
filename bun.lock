@@ -4,6 +4,10 @@
   "workspaces": {
     "": {
       "name": "unite4ai",
+      "devDependencies": {
+        "@types/bun": "^1.4.0",
+        "typescript": "^6.0.3",
+      },
     },
     "apps/api": {
       "name": "@unite4ai/api",
