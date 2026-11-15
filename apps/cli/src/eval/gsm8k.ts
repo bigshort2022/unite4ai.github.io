@@ -20,13 +20,17 @@ export interface ChatMessage {
 // A minus sign counts only when it does not follow a digit, so "2-5" reads as 2 and 5.
 const NUMBER = /(?<!\d)-?\d[\d,]*(?:\.\d+)?/g;
 const toNumber = (text: string) => Number(text.replace(/,/g, ''));
+/** `1{,}234` and `1\,234`: LaTeX thousands separators, removed where they sit between digits. */
+const withoutLatexSeparators = (text: string) => text.replace(/(?<=\d)(?:\{,\}|\\,)(?=\d)/g, '');
 
 export function parseItems(source: string, limit: number): Gsm8kItem[] {
   const lines = source.split('\n').filter((line) => line.trim() !== '');
   if (lines.length < limit) throw new Error(`source has ${lines.length} items; the benchmark needs ${limit}`);
   return lines.slice(0, limit).map((line, index) => {
     const row = JSON.parse(line) as { question?: unknown; answer?: unknown };
-    const marker = typeof row.answer === 'string' ? row.answer.match(/####\s*(-?[\d,]*\.?\d+)\s*$/) : null;
+    const marker = typeof row.answer === 'string'
+      ? withoutLatexSeparators(row.answer).match(/####\s*(-?[\d,]*\.?\d+)\s*$/)
+      : null;
     if (typeof row.question !== 'string' || !marker) {
       throw new Error(`item ${index + 1}: expected {question, answer ending in "#### <number>"}`);
     }
@@ -47,7 +51,7 @@ export function buildMessages(question: string): ChatMessage[] {
  */
 export function extractAnswer(reply: string): number | null {
   const visible = reply.replace(/<think>[\s\S]*?<\/think>/g, ' ').replace(/<think>[\s\S]*$/, '');
-  const numbers = visible.match(NUMBER);
+  const numbers = withoutLatexSeparators(visible).match(NUMBER);
   if (!numbers) return null;
   const value = toNumber(numbers[numbers.length - 1]);
   return Number.isFinite(value) ? value : null;
