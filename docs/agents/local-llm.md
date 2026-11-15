@@ -1,6 +1,6 @@
 # Running a local-LLM coding agent against this repo
 
-Host-only setup (no containers). Covers the hub monorepo and `sites/ai-sustainability`; not the Cloudflare Workers.
+Host-only setup (no containers). Covers the hub monorepo and `sites/sustainability`; not the Cloudflare Workers.
 
 ## 1. One-time setup
 
@@ -8,7 +8,7 @@ Host-only setup (no containers). Covers the hub monorepo and `sites/ai-sustainab
 bash scripts/agent/setup.sh   # same as `bun run agent:setup`, but works before Bun is installed
 ```
 
-It installs Node 24 through nvm only if missing (it never changes your nvm default), installs Bun if missing, runs `bun install --frozen-lockfile` and `npm ci` in `sites/ai-sustainability`, creates `.agent/logs` and `.agent/requests`, and copies `.env.agent.example` to `.env.agent` (gitignored) if absent.
+It installs Node 24 through nvm only if missing (it never changes your nvm default), installs Bun if missing, runs `bun install --frozen-lockfile` and `npm ci` in `sites/sustainability`, creates `.agent/logs` and `.agent/requests`, and copies `.env.agent.example` to `.env.agent` (gitignored) if absent.
 
 Node 24 is put first on `PATH` only inside the script. In the shell you run `omp local` or the gate from, do it yourself:
 
@@ -49,7 +49,7 @@ The last line is JSON; anything but `ready` exits 1 and carries a `detail`:
 ```bash
 bun run agent:request inspect "Read apps/web/src/pages/contribute.astro and apps/web/src/pages/blog/[...id].astro; list every link, whether it is internal, and whether it goes through href(). Do not modify files."
 bun run agent:request hub-loop "In apps/web/src/pages/blog/[...id].astro, add an 'All posts' link next to 'Jump to comments' that points at href('/community'). Edit no other file."
-bun run agent:request sustain-loop "Add sites/ai-sustainability/test/sustainable-places-evidence-service.test.mjs (node:test + node:assert/strict) for mergeEvidenceResults in sites/ai-sustainability/src/lib/sustainable-places/evidence-service.mjs: when all three feeds reject, every health value is 'unavailable' and evidence deep-equals fallbackEvidence(observedAt). Do not change src/."
+bun run agent:request sustain-loop "Add sites/sustainability/test/sustainable-places-evidence-service.test.mjs (node:test + node:assert/strict) for mergeEvidenceResults in sites/sustainability/src/lib/sustainable-places/evidence-service.mjs: when all three feeds reject, every health value is 'unavailable' and evidence deep-equals fallbackEvidence(observedAt). Do not change src/."
 # stdout: /abs/path/.agent/requests/<name>-<ms>.json   stderr: omp local --run /abs/path/.agent/requests/<name>-<ms>.json
 ```
 
@@ -59,7 +59,7 @@ bun run agent:request sustain-loop "Add sites/ai-sustainability/test/sustainable
 | `hub-loop` | loop | + write, edit | 3 iterations, 1,800 s | `node scripts/agent/verify.mjs --only hub` |
 | `sustain-loop` | loop | + write, edit | 3 iterations, 1,800 s | `node scripts/agent/verify.mjs --only sustain` |
 
-Context files are explicit (the runner's context discovery is off): `AGENTS.md`, plus `sites/ai-sustainability/AGENTS.md` for `sustain-loop`. `agent:request` exits 2 on a bad template name or empty goal and 3 when the prompt would not fit; for loops it also reserves room for the failed-check feedback that iteration 2 appends.
+Context files are explicit (the runner's context discovery is off): `AGENTS.md`, plus `sites/sustainability/AGENTS.md` for `sustain-loop`. `agent:request` exits 2 on a bad template name or empty goal and 3 when the prompt would not fit; for loops it also reserves room for the failed-check feedback that iteration 2 appends.
 
 Then run the printed command from a shell with Node 24 first on `PATH`. `omp local` is a zsh function from `~/.zshrc`; in bash call its entry point directly:
 
@@ -99,7 +99,7 @@ bun run agent:verify -- --only hub     # or --only sustain; --list prints the st
 | Set | Steps |
 |---|---|
 | `hub` | `bun run validate`, `bun run build`, `bun test` (repo root) |
-| `sustain` | `npm test`, `npx astro check`, `npm run build` (in `sites/ai-sustainability`) |
+| `sustain` | `npm test`, `npx astro check`, `npm run build` (in `sites/sustainability`) |
 
 It stops at the first failing step. Pass: `{"status":"pass","steps":[…],"log":"…","seconds":…}`. Fail: `{"status":"fail","failed_step":"…","exit_code":…,"timed_out":…,"error":…,"log":"…","tail":"…","seconds":…}`, exit 1, where `tail` is the last 20 lines of the step's output, capped at 4 KiB. Exit 2 is a usage error. The full output of every step is in `.agent/logs/verify-<timestamp>.log`.
 

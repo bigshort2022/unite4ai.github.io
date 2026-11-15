@@ -43,4 +43,4 @@ See [apps/api/README.md](apps/api/README.md). Deploy to Cloudflare Workers (free
 
 Static site on GitHub Pages: **$0**. Cloudflare Worker + D1 free tiers cover registry API until ~100k requests/day.
 
-The Sustainable Places app lives in [`sites/ai-sustainability/`](sites/ai-sustainability/README.md), a standalone npm/Astro project staged for its own repo and `sustainability.unite4ai.com`; it is not part of the Bun workspace.
+The Sustainable Places app lives in [`sites/sustainability/`](sites/sustainability/README.md), a standalone npm/Astro project staged for its own repo and `sustainability.unite4ai.com`; it is not part of the Bun workspace.
