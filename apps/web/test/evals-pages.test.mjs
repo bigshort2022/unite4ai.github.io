@@ -277,3 +277,84 @@ test('the content collection rejects a result with an unknown key, like the vali
   assert.notEqual(build.status, 0, output);
   assert.match(output, /Unrecognized key: "notes"/);
 });
+
+/** The home page's Latest results section, from its heading to the end of the section. */
+const latestResultsOf = (home) => {
+  const start = home.indexOf('<h2 id="latest-results-title"');
+  return start === -1 ? '' : home.slice(start, home.indexOf('</section>', start));
+};
+const SUBMIT_GUIDE_LINK = /<a href="https:\/\/github\.com\/[^"]+\/CONTRIBUTING\.md#submitting-an-evaluation-result"[^>]*>How to submit one\.<\/a>/;
+
+test('the home page lists, under the hero, the leading result of each benchmark that has current results', () => {
+  const home = page('index.html');
+  const latest = latestResultsOf(home);
+  assert.match(latest, /^<h2 id="latest-results-title"[^>]*>Latest results<\/h2>/);
+  // Nothing sits between the hero and the results.
+  const lead = home.slice(home.indexOf('<section class="hero'), home.indexOf('<h2 id="latest-results-title"'));
+  assert.equal(lead.split('<section').length - 1, 2, 'Latest results must be the section right after the hero');
+
+  // One row per benchmark with a current result, by category then name. The canary benchmark
+  // has no result, so it has no row.
+  const rows = (latest.split('<tbody>')[1] ?? '').split('<tr').slice(1);
+  assert.deepEqual(
+    rows.map((row) => row.match(/href="\/evals\/([^"]+)"/)?.[1]),
+    ['gsm8k-200', 'decode-speed-gsm8k-200'],
+  );
+  assert.doesNotMatch(latest, /canary-injection-v1|Prompt-injection canary/);
+  assert.match(latest, /<caption class="sr-only">[^<]+<\/caption>/);
+  assert.equal(latest.split('<th scope="col">').length - 1, 6);
+  assert.equal(latest.split('<th scope="row">').length - 1, rows.length);
+
+  // A quality benchmark shows the model of its best group: gguf at 70 leads mlx at 62. Hardware
+  // does not change a score, so the row names no runtime and no machine.
+  const [quality, speed] = rows;
+  assert.match(quality, /<td>Quality<\/td>/);
+  assert.match(quality, /<a href="\/evals\/gsm8k-200">GSM8K \(first 200\)<\/a>/);
+  assert.match(quality, /<a href="\/registry\/models\/darsy-xray-analysis">Darsy X-Ray Analysis<\/a>/);
+  assert.match(quality, /<span class="score">70%<\/span>\s*<small>Best score<\/small>/);
+  assert.match(quality, /gguf · Q4_K_M/);
+  assert.match(quality, /<span class="tag">not yet reproduced<\/span>/);
+  assert.doesNotMatch(quality, /Fastest reported|Fixture|llama\.cpp|4bit/);
+  // The version "0" run (score 99) is not a current result.
+  assert.doesNotMatch(latest, />99%</);
+
+  // A speed only compares on one machine: the row says which one, and claims no rank.
+  assert.match(speed, /<td>Efficiency<\/td>/);
+  assert.match(speed, /<a href="\/evals\/decode-speed-gsm8k-200">Decode speed on GSM8K-200<\/a>/);
+  assert.match(speed, /<span class="score">140\.25 tok\/s<\/span>\s*<small>Fastest reported<\/small>/);
+  assert.match(speed, /gguf · Q4_K_M\s*<small>llama\.cpp 0\.0\.0<\/small>\s*<small>Fixture Tower · 24 GB<\/small>/);
+  assert.doesNotMatch(speed, /Fixture Laptop|Best score/);
+  assert.doesNotMatch(latest, /class="rank|>Rank</);
+
+  assert.match(latest, /<a href="\/evals">All leaderboards<\/a>/);
+  assert.doesNotMatch(latest, /No results yet/);
+});
+
+const previousOnlyEvals = mkdtempSync(join(tmpdir(), 'u4ai-evals-previous-only-'));
+const previousOnlyOut = mkdtempSync(join(tmpdir(), 'u4ai-evals-previous-only-site-'));
+after(() => {
+  rmSync(previousOnlyEvals, { recursive: true, force: true });
+  rmSync(previousOnlyOut, { recursive: true, force: true });
+});
+
+test('when no benchmark has a result for its current version, the home page lists none and says how results arrive', { timeout: 120_000 }, () => {
+  // The only result is the run of a version "0" that GSM8K-200 never had.
+  const previous = 'darsy-xray-analysis--gsm8k-200--fixture-bot--2026-10-01--44444444.json';
+  cpSync(join(ROOT, 'test/fixtures/evals', previous), join(previousOnlyEvals, previous));
+  const build = buildWith(previousOnlyEvals, previousOnlyOut);
+  assert.equal(build.status, 0, `${build.stdout}${build.stderr}`);
+
+  const home = readFileSync(join(previousOnlyOut, 'index.html'), 'utf8');
+  assert.match(home, /<b>1<\/b>\s*<span>Evaluation runs<\/span>/);
+  const latest = latestResultsOf(home).replace(/\s+/g, ' ');
+  assert.match(latest, /^<h2 id="latest-results-title"[^>]*>Latest results<\/h2>/);
+  assert.doesNotMatch(latest, /<table|\/evals\/gsm8k-200|>99%<|Darsy/);
+  // The wording of the evaluations page's empty state, with its link.
+  const wording = /No results yet\. Results arrive by pull request from people who ran this benchmark on their own hardware\. /;
+  assert.match(latest, new RegExp(wording.source + SUBMIT_GUIDE_LINK.source));
+  assert.match(
+    categorySection(readFileSync(join(previousOnlyOut, 'evals/index.html'), 'utf8'), 'quality').replace(/\s+/g, ' '),
+    new RegExp(wording.source + SUBMIT_GUIDE_LINK.source),
+  );
+  assert.match(latest, /<a href="\/evals">All leaderboards<\/a>/);
+});

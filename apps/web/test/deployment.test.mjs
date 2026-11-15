@@ -71,3 +71,59 @@ async function directorySize(dir) {
   }
   return total;
 }
+
+// Reads the build of the first test. Real scores and model names change, so none is asserted.
+test('the home page leads with evaluations and carries no fixture text', async () => {
+  const home = await readFile(new URL('dist/index.html', ROOT), 'utf8');
+  const text = home.replace(/\s+/g, ' ');
+  assert.equal(home.split('<h1').length - 1, 1);
+  assert.match(home, /<title>Equitable AI, actually open · Unite4AI<\/title>/);
+
+  const description = home.match(/<meta name="description" content="([^"]+)"/)?.[1] ?? '';
+  assert.match(description, /^[^.]*evaluations/i);
+  assert.ok(description.length <= 160, `the description is ${description.length} characters`);
+
+  const heroStart = text.indexOf('<section class="hero');
+  const hero = text.slice(heroStart, text.indexOf('</section>', heroStart));
+  assert.ok(hero.includes(
+    'Independent evaluations of open models, run on hardware people actually own. Every score comes with the '
+    + 'command that produced it and a hash of its transcript, so anyone can reproduce it. Around them: an open '
+    + 'model and dataset registry that grades real openness, and a free technology school.',
+  ));
+  assert.deepEqual(
+    [...hero.matchAll(/<a class="btn (btn-\w+)" href="([^"]+)">([^<]+)<\/a>/g)].map(([, kind, target, label]) => [
+      kind,
+      target.replace(/^https:\/\/github\.com\/[^/]+\/[^/]+/, '<repo>'),
+      label,
+    ]),
+    [
+      ['btn-primary', '/evals', 'See the leaderboards'],
+      ['btn-ghost', '<repo>/blob/main/CONTRIBUTING.md#submitting-an-evaluation-result', 'Run a benchmark yourself'],
+      ['btn-ghost', '/registry', 'Browse the registry'],
+    ],
+  );
+
+  // The results follow the hero whether or not anyone has submitted one.
+  const latest = text.indexOf('<h2 id="latest-results-title">Latest results</h2>');
+  assert.notEqual(latest, -1, 'the home page must have a Latest results heading');
+  assert.equal(text.slice(heroStart, latest).split('<section').length - 1, 2);
+  assert.ok(text.slice(latest).includes('<a href="/evals">All leaderboards</a>'));
+
+  const definitions = (await readdir(new URL('src/content/benchmarks/', ROOT))).filter((name) => name.endsWith('.md'));
+  const stats = [...text.matchAll(/<div class="stat"><b>(\d+)<\/b>\s*<span>([^<]+)<\/span>/g)];
+  assert.deepEqual(
+    stats.map(([, , label]) => label),
+    ['Evaluation runs', 'Benchmarks', 'Open models', 'Open datasets', 'Free courses', 'Community events'],
+  );
+  assert.equal(Number(stats[1][1]), definitions.length);
+
+  // Four commitments, the first of them about results.
+  const different = text.slice(text.indexOf('What makes us different'));
+  assert.doesNotMatch(different, /Three commitments/);
+  assert.deepEqual(
+    [...different.slice(0, different.indexOf('</section>')).matchAll(/<h3>([^<]+)<\/h3>/g)].map(([, title]) => title),
+    ['Scores you can replay', 'Openness is graded, not claimed', 'The school is the product', 'Privacy-first by architecture'],
+  );
+
+  assert.doesNotMatch(home, /fixture-bot|Fixture (?:Laptop|Tower)|Fixture (?:&lt;b&gt;|<b>)?Rig|Q4_K_M|ghost-model/);
+});

@@ -1,15 +1,21 @@
 ---
 import Base from '../layouts/Base.astro';
+import NoResults from '../components/NoResults.astro';
 import { getCollection } from 'astro:content';
+import { reproductionLabel } from '@unite4ai/core';
+import { CATEGORY_LABELS, SUBMIT_GUIDE, deviceLine, formatNumber, loadEvals, runtimeLabel, withUnit } from '../lib/evals';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const href = (p: string) => `${base}${p}` || '/';
 
+const { benchmarks, boards, runs, modelNames } = await loadEvals();
+// The leading group of each benchmark that has a result for its current version.
+const latest = boards.filter((board) => board.rows.length > 0).map(({ benchmark, measured, rows }) => ({ benchmark, measured, lead: rows[0] }));
 const models = await getCollection('models');
 const datasets = await getCollection('datasets');
 const courses = await getCollection('courses');
 // A run is one transcript, however many result files it backs.
-const evalRuns = new Set((await getCollection('evals')).map((entry) => entry.data.evidence.sha256));
+const evalRuns = new Set(runs.map((run) => run.evidence.sha256));
 const events = (await getCollection('events')).sort(
   (a, b) => a.data.starts.valueOf() - b.data.starts.valueOf()
 );
@@ -18,20 +24,66 @@ const featured = models.filter((m) => m.data.featured).slice(0, 3);
 const featuredFallback = featured.length > 0 ? featured : models.slice(0, 3);
 const nextEvents = events.filter((e) => e.data.starts > new Date()).slice(0, 2);
 ---
-<Base title="Equitable AI, actually open">
+<Base title="Equitable AI, actually open" description="Independent, reproducible evaluations of open models on hardware people own, plus an open model and dataset registry and a free technology school.">
   <section class="hero wrap">
     <p class="eyebrow">Systems change through AI democratization</p>
     <h1>AI is a <span class="grad-text">global public resource.</span><br />We build it like one.</h1>
     <p class="lede">
-      An open model &amp; dataset registry that grades real openness, a free technology school,
-      and a community where contributing is how you belong. No open-washing — every card, course,
-      and governance rule in this platform lives in a public repo you can fork today.
+      Independent evaluations of open models, run on hardware people actually own. Every score
+      comes with the command that produced it and a hash of its transcript, so anyone can
+      reproduce it. Around them: an open model and dataset registry that grades real openness,
+      and a free technology school.
     </p>
     <div class="hero-actions">
-      <a class="btn btn-primary" href={href('/stack')}>Explore the open stack</a>
-      <a class="btn btn-ghost" href={href('/school')}>Start learning — free</a>
+      <a class="btn btn-primary" href={href('/evals')}>See the leaderboards</a>
+      <a class="btn btn-ghost" href={SUBMIT_GUIDE}>Run a benchmark yourself</a>
       <a class="btn btn-ghost" href={href('/registry')}>Browse the registry</a>
     </div>
+  </section>
+
+  <section class="wrap section" style="padding-top:0" aria-labelledby="latest-results-title">
+    <h2 id="latest-results-title">Latest results</h2>
+    <p class="lede">One row per benchmark: the current best result, who else reproduced it, and where it ran.</p>
+    {latest.length === 0 ? (
+      <NoResults />
+    ) : (
+      <div class="eval-scroll" tabindex="0" role="region" aria-label="Latest results">
+        <table class="eval-table">
+          <caption class="sr-only">The leading result of each benchmark</caption>
+          <thead>
+            <tr>
+              <th scope="col">Category</th>
+              <th scope="col">Benchmark</th>
+              <th scope="col">Model</th>
+              <th scope="col">Result</th>
+              <th scope="col">Setup</th>
+              <th scope="col">Reproduction</th>
+            </tr>
+          </thead>
+          <tbody>
+            {latest.map(({ benchmark, measured, lead }) => (
+              <tr>
+                <td>{CATEGORY_LABELS[benchmark.data.category]}</td>
+                <th scope="row"><a href={href(`/evals/${benchmark.id}`)}>{benchmark.data.name}</a></th>
+                <td><a href={href(`/registry/models/${lead.model}`)}>{modelNames.get(lead.model) ?? lead.model}</a></td>
+                <td class="num">
+                  <span class="score">{withUnit(formatNumber(lead.score), benchmark.data.metric.unit)}</span>
+                  {/* A speed on one machine does not outrank a speed on another, so a measured row claims no rank. */}
+                  <small>{measured ? 'Fastest reported' : 'Best score'}</small>
+                </td>
+                <td>
+                  {lead.format} · {lead.quantization}
+                  {measured && <small>{runtimeLabel(lead)}</small>}
+                  {measured && deviceLine(lead) && <small>{deviceLine(lead)}</small>}
+                </td>
+                <td><span class={`tag${lead.submitters.length > 1 ? ' tag-open' : ''}`}>{reproductionLabel(lead)}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+    <p style="margin-top:1.2rem"><a href={href('/evals')}>All leaderboards</a></p>
   </section>
 
   <section class="wrap section" style="padding-top:0" aria-labelledby="stack-preview-title">
@@ -56,9 +108,10 @@ const nextEvents = events.filter((e) => e.data.starts > new Date()).slice(0, 2);
 
   <section class="wrap section" style="padding-top:0" aria-label="Platform at a glance">
     <div class="stats">
+      <div class="stat"><b>{evalRuns.size}</b><span>Evaluation runs</span></div>
+      <div class="stat"><b>{benchmarks.length}</b><span>Benchmarks</span></div>
       <div class="stat"><b>{models.length}</b><span>Open models</span></div>
       <div class="stat"><b>{datasets.length}</b><span>Open datasets</span></div>
-      <div class="stat"><b>{evalRuns.size}</b><span>Evaluation runs</span></div>
       <div class="stat"><b>{courses.length}</b><span>Free courses</span></div>
       <div class="stat"><b>{events.length}</b><span>Community events</span></div>
     </div>
@@ -66,8 +119,13 @@ const nextEvents = events.filter((e) => e.data.starts > new Date()).slice(0, 2);
 
   <section class="wrap section" style="padding-top:0">
     <h2>What makes us different</h2>
-    <p class="lede">Three commitments, enforced by the build system — not by a marketing page.</p>
-    <div class="grid grid-3" style="margin-top:1.8rem">
+    <p class="lede">Four commitments, enforced by the build system — not by a marketing page.</p>
+    {/* grid-2 fits a third column on the widest screens; four cards read as two rows of two, so cap it at two. */}
+    <div class="grid grid-2" style="margin-top:1.8rem;grid-template-columns:repeat(auto-fill,minmax(max(340px,34%),1fr))">
+      <article class="card">
+        <h3>Scores you can replay</h3>
+        <p>Every result names its model, runtime, quantization and machine, the exact command, and the hash of its transcript. A second person running the same setup turns "not yet reproduced" into "reproduced by 1".</p>
+      </article>
       <article class="card">
         <h3>Openness is graded, not claimed</h3>
         <p>Every model card scores four Model Openness Framework axes — weights, training data, training code, evaluation. Restrictive licenses are rejected in CI automatically.</p>
