@@ -16,6 +16,18 @@ export function benchmark(overrides = {}) {
   };
 }
 
+/** A benchmark that publishes the decode speed measured during runs of `bench-a`. */
+export function measuredBenchmark(overrides = {}) {
+  return benchmark({
+    category: 'efficiency',
+    metric: { name: 'decode speed', unit: 'tok/s', higher_is_better: true, min: 0 },
+    scoring: 'measured',
+    items: 0,
+    measured_on: 'bench-a',
+    ...overrides,
+  });
+}
+
 export function result(overrides = {}) {
   return {
     schema_version: 1,

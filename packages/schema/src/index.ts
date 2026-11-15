@@ -209,6 +209,8 @@ export const benchmarkSchema = z.strictObject({
   scoring: z.enum(EVAL_SCORING),
   /** The fixed number of items every run answers; 0 only for "measured" benchmarks, which have none. */
   items: z.number().int().nonnegative(),
+  /** For a "measured" benchmark: the benchmark whose runs it is measured on. Each of its results sits beside that run's result. */
+  measured_on: contentId.optional(),
   source_url: httpsUrl,
   source_sha256: sha256Hex.optional(),
   license: openLicenseEnum,
@@ -219,6 +221,12 @@ export const benchmarkSchema = z.strictObject({
 }).refine((benchmark) => benchmark.scoring !== 'measured' || benchmark.items === 0, {
   path: ['items'],
   message: 'must be 0 when scoring is "measured"',
+}).refine((benchmark) => benchmark.scoring !== 'measured' || benchmark.measured_on !== undefined, {
+  path: ['measured_on'],
+  message: 'is required when scoring is "measured"',
+}).refine((benchmark) => benchmark.scoring === 'measured' || benchmark.measured_on === undefined, {
+  path: ['measured_on'],
+  message: 'is only for benchmarks whose scoring is "measured"',
 });
 export type BenchmarkData = z.infer<typeof benchmarkSchema>;
 

@@ -72,9 +72,10 @@ function makeWorkspace({ source = SOURCE, sourceSha = sha256(source), speedDefin
       summary: 'Tokens per second during the fixture run.',
       category: 'efficiency',
       version: '1',
-      metric: { name: 'decode speed', unit: ' tok/s', higher_is_better: true, min: 0 },
+      metric: { name: 'decode speed', unit: 'tok/s', higher_is_better: true, min: 0 },
       scoring: 'measured',
       items: 0,
+      measured_on: 'gsm8k-200',
       source_url: 'https://example.org/run.ts',
       license: 'apache-2.0',
       updated: '2026-11-14',
@@ -106,9 +107,10 @@ function requestProblem(body, question) {
  * at all). A completion request that departs from the published method gets a 500 that says
  * how. `delayMs` is how long a reply takes after its first chunk. `status` is what
  * /_omp/status answers, as an omp-managed server does (a string is sent as it is); without
- * it the route is a 404, as on plain mlx-lm and Ollama.
+ * it the route is a 404, as on plain mlx-lm and Ollama. With `usage: false` the server never
+ * says how many tokens it generated.
  */
-function stubServer(replies, { models = ['stub-model'], delayMs = 15, status } = {}) {
+function stubServer(replies, { models = ['stub-model'], delayMs = 15, status, usage = true } = {}) {
   const requests = [];
   const bodies = [];
   let active = 0;
@@ -154,7 +156,7 @@ function stubServer(replies, { models = ['stub-model'], delayMs = 15, status } =
         setTimeout(() => {
           res.write(content(reply.slice(half)));
           res.write(event({ choices: [{ delta: {}, finish_reason: 'stop' }] }));
-          res.write(event({ choices: [], usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 } }));
+          if (usage) res.write(event({ choices: [], usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 } }));
           res.write('data: [DONE]\n\n');
           finish();
         }, delayMs);
@@ -510,7 +512,20 @@ test('without a definition of its speed benchmark, a complete run writes only th
   assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), [basename(outcome.resultPath)]);
 });
 
-test('a speed benchmark definition its schema rejects stops the run before any request', async () => {
+test('a server that reports no token count gives no speed, so only the main result is written', async () => {
+  const workspace = makeWorkspace({ speedDefinition: {} });
+  const stub = await stubServer({ ...GOOD }, { usage: false });
+  const outcome = await runEval(options(workspace, stub));
+  assert.equal(outcome.n, 3);
+  assert.equal('speedResultPath' in outcome, false);
+  assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), [basename(outcome.resultPath)]);
+  // Nothing is estimated: without a token count there is no speed to publish, anywhere.
+  assert.equal('perf' in JSON.parse(readFileSync(outcome.resultPath, 'utf8')), false);
+  assert.deepEqual(itemLines(workspace).map((line) => line.completion_tokens), [null, null, null]);
+  assert.deepEqual((await validateContent(workspace.contentRoot)).errors, []);
+});
+
+test('a speed benchmark definition that could not publish this run stops it before any request', async () => {
   const stub = await stubServer({ ...GOOD });
   const refused = async (speedDefinition, problem) => {
     const workspace = makeWorkspace({ speedDefinition });
@@ -520,6 +535,12 @@ test('a speed benchmark definition its schema rejects stops the run before any r
   };
   await refused({ items: 200 }, /benchmarks\/decode-speed-gsm8k-200\.md.*must be 0 when scoring is \\?"measured\\?"/s);
   await refused({ category: 'speed' }, /benchmarks\/decode-speed-gsm8k-200\.md.*category/s);
+  await refused({ measured_on: undefined }, /benchmarks\/decode-speed-gsm8k-200\.md.*measured_on: is required/s);
+  // The gate would look for a result of that other benchmark from the same run, and find none.
+  await refused(
+    { measured_on: 'canary-injection-v1' },
+    /benchmarks\/decode-speed-gsm8k-200\.md is measured on "canary-injection-v1", not on "gsm8k-200"/,
+  );
   assert.deepEqual(stub.requests, []);
 });
 

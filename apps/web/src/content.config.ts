@@ -215,6 +215,7 @@ const benchmarks = defineCollection({
     }),
     scoring: z.enum(EVAL_SCORING),
     items: z.number().int().nonnegative(),
+    measured_on: contentId.optional(),
     source_url: httpsUrl,
     source_sha256: sha256Hex.optional(),
     license: openLicenseEnum,
@@ -225,6 +226,12 @@ const benchmarks = defineCollection({
   }).refine((benchmark) => benchmark.scoring !== 'measured' || benchmark.items === 0, {
     path: ['items'],
     message: 'must be 0 when scoring is "measured"',
+  }).refine((benchmark) => benchmark.scoring !== 'measured' || benchmark.measured_on !== undefined, {
+    path: ['measured_on'],
+    message: 'is required when scoring is "measured"',
+  }).refine((benchmark) => benchmark.scoring === 'measured' || benchmark.measured_on === undefined, {
+    path: ['measured_on'],
+    message: 'is only for benchmarks whose scoring is "measured"',
   }),
 });
 

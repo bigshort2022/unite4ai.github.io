@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { CONTENT_ID, benchmarkSchema, evalResultSchema } from '@unite4ai/schema';
-import { benchmark, result } from './fixtures/evals.mjs';
+import { benchmark, measuredBenchmark, result } from './fixtures/evals.mjs';
 
 const ok = (schema, value) => schema.safeParse(value).success;
 const messages = (schema, value) => {
@@ -20,7 +20,7 @@ test('only deterministic scoring kinds are allowed, so a hosted judge cannot bec
   for (const scoring of ['exact-match', 'multiple-choice', 'canary']) {
     assert.equal(ok(benchmarkSchema, benchmark({ scoring })), true, scoring);
   }
-  assert.equal(ok(benchmarkSchema, benchmark({ scoring: 'measured', items: 0 })), true);
+  assert.equal(ok(benchmarkSchema, measuredBenchmark()), true);
   assert.equal(ok(benchmarkSchema, benchmark({ scoring: 'llm-judge' })), false);
 });
 
@@ -32,7 +32,20 @@ test('benchmarks need an https source and an open licence', () => {
 
 test('a benchmark has an item count exactly when its scoring counts items', () => {
   assert.match(messages(benchmarkSchema, benchmark({ scoring: 'exact-match', items: 0 })), /^items: /m);
-  assert.match(messages(benchmarkSchema, benchmark({ scoring: 'measured', items: 5 })), /^items: /m);
+  assert.match(messages(benchmarkSchema, measuredBenchmark({ items: 5 })), /^items: /m);
+});
+
+test('a measured benchmark names the benchmark whose runs it is measured on, and no other benchmark may', () => {
+  assert.equal(benchmarkSchema.parse(measuredBenchmark()).measured_on, 'bench-a');
+  assert.match(
+    messages(benchmarkSchema, measuredBenchmark({ measured_on: undefined })),
+    /^measured_on: is required when scoring is "measured"$/m,
+  );
+  assert.match(
+    messages(benchmarkSchema, benchmark({ measured_on: 'bench-b' })),
+    /^measured_on: is only for benchmarks whose scoring is "measured"$/m,
+  );
+  assert.match(messages(benchmarkSchema, measuredBenchmark({ measured_on: 'Bench_A' })), /^measured_on: must be a lowercase id/m);
 });
 
 test('a benchmark metric range cannot be inverted', () => {

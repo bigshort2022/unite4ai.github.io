@@ -99,10 +99,16 @@ function loadBenchmark(contentRoot: string, id: string) {
   }
   const definition = loadDefinition(contentRoot, id);
   const speedId = suite.speedBenchmark;
-  const speedBenchmark = speedId !== undefined && existsSync(definitionPath(contentRoot, speedId))
-    ? { id: speedId, version: loadDefinition(contentRoot, speedId).version }
-    : null;
-  return { definition, suite, speedBenchmark };
+  if (speedId === undefined || !existsSync(definitionPath(contentRoot, speedId))) {
+    return { definition, suite, speedBenchmark: null };
+  }
+  const speed = loadDefinition(contentRoot, speedId);
+  // The content gate accepts a speed result only beside the result of the run it was measured on.
+  if (speed.measured_on !== id) {
+    const measuredOn = speed.measured_on === undefined ? 'no benchmark' : `"${speed.measured_on}"`;
+    throw new Error(`benchmarks/${speedId}.md is measured on ${measuredOn}, not on "${id}"`);
+  }
+  return { definition, suite, speedBenchmark: { id: speedId, version: speed.version } };
 }
 
 /**

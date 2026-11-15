@@ -2,12 +2,14 @@
 import type { Dirent } from 'node:fs';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import {
   CONTENT_ID,
   EVAL_RESULT_MAX_BYTES,
   benchmarkSchema,
   evalResultSchema,
   type BenchmarkData,
+  type EvalResult,
 } from '@unite4ai/schema';
 
 interface SchemaIssue {
@@ -77,8 +79,8 @@ function isRealDate(date: string): boolean {
 /**
  * Validates benchmark definitions and evaluation result files, including the rules a schema
  * cannot express: one id per model card, flat directories, size, cross-references, score
- * bounds, full runs, duplicate evidence and filename/content agreement. `today` is a UTC date,
- * `YYYY-MM-DD`.
+ * bounds, full runs, one result per transcript and benchmark, measured results that belong to
+ * a published run, and filename/content agreement. `today` is a UTC date, `YYYY-MM-DD`.
  */
 export async function validateEvals(
   contentRoot: string,
@@ -139,12 +141,20 @@ export async function validateEvals(
     }
     benchmarks.set(id, parsed.data);
   }
+  for (const [id, { measured_on: measuredOn }] of benchmarks) {
+    if (measuredOn === undefined) continue;
+    const ran = benchmarks.get(measuredOn);
+    if (!ran) {
+      errors.push(`benchmarks/${id}.md: measured_on "${measuredOn}" is not defined (or failed validation) in benchmarks/`);
+    } else if (ran.scoring === 'measured') {
+      errors.push(
+        `benchmarks/${id}.md: measured_on "${measuredOn}" is itself a measured benchmark; name the benchmark whose runs are measured`,
+      );
+    }
+  }
 
-  // A contributor ahead of UTC may submit a run dated "tomorrow" by the UTC calendar.
-  const latestDate = new Date(Date.parse(`${today}T00:00:00Z`) + DAY_MS).toISOString().slice(0, 10);
-  /** Benchmark and evidence hash to the first result file that carried them: one transcript may back one result per benchmark. */
-  const evidenceOwners = new Map<string, string>();
-
+  // Read every result before checking any: a measured result is checked against another file.
+  const results: { file: string; result: EvalResult }[] = [];
   for (const file of await listFlat(contentRoot, 'evals', '.json', 'result', errors)) {
     const rel = `evals/${file}`;
     const path = join(contentRoot, 'evals', file);
@@ -168,8 +178,21 @@ export async function validateEvals(
       errors.push(`${rel}: ${describe(parsed.error.issues)}`);
       continue;
     }
-    const result = parsed.data;
+    results.push({ file, result: parsed.data });
+  }
 
+  // A contributor ahead of UTC may submit a run dated "tomorrow" by the UTC calendar.
+  const latestDate = new Date(Date.parse(`${today}T00:00:00Z`) + DAY_MS).toISOString().slice(0, 10);
+  /**
+   * Evidence hash to the benchmark whose run produced that transcript, the first file that
+   * carried the hash, and the file of each benchmark's result. A transcript backs one result
+   * of the benchmark that was run, and one of each benchmark measured on it.
+   */
+  const evidenceOwners = new Map<string, { ran: string; first: string; files: Map<string, string> }>();
+
+  for (const { file, result } of results) {
+    const rel = `evals/${file}`;
+    const benchmark = benchmarks.get(result.benchmark);
     const expected = [
       result.model,
       result.benchmark,
@@ -182,12 +205,17 @@ export async function validateEvals(
         `${rel}: filename must be "${expected}.json" (model--benchmark--submitter--date--first 8 characters of evidence.sha256)`,
       );
     }
-    const evidenceKey = `${result.benchmark}:${result.evidence.sha256}`;
-    const evidenceOwner = evidenceOwners.get(evidenceKey);
-    if (evidenceOwner) {
-      errors.push(`${rel}: same evidence.sha256 as evals/${evidenceOwner}; one run is one file`);
+    const ran = benchmark?.measured_on ?? result.benchmark;
+    const owners = evidenceOwners.get(result.evidence.sha256);
+    if (!owners) {
+      evidenceOwners.set(result.evidence.sha256, { ran, first: file, files: new Map([[result.benchmark, file]]) });
     } else {
-      evidenceOwners.set(evidenceKey, file);
+      const owner = owners.files.get(result.benchmark) ?? (owners.ran === ran ? undefined : owners.first);
+      if (owner === undefined) {
+        owners.files.set(result.benchmark, file);
+      } else {
+        errors.push(`${rel}: same evidence.sha256 as evals/${owner}; one run's transcript backs one result per benchmark`);
+      }
     }
     if (!isRealDate(result.run.date)) {
       errors.push(`${rel}: run.date ${result.run.date} is not a real date`);
@@ -199,7 +227,6 @@ export async function validateEvals(
       errors.push(`${rel}: model "${result.model}" has no card in models/. Add the model card first.`);
     }
 
-    const benchmark = benchmarks.get(result.benchmark);
     if (!benchmark) {
       errors.push(`${rel}: benchmark "${result.benchmark}" is not defined (or failed validation) in benchmarks/`);
       continue;
@@ -228,6 +255,31 @@ export async function validateEvals(
         `${rel}: benchmark_version "${result.benchmark_version}" is not the current version "${benchmark.version}" `
         + 'nor one of its previous versions',
       );
+    }
+
+    // The schema requires measured_on exactly when scoring is "measured".
+    if (benchmark.measured_on !== undefined) {
+      const speed = result.perf?.tokens_per_second;
+      if (speed !== result.score) {
+        errors.push(
+          `${rel}: score ${result.score} must equal perf.tokens_per_second (${speed ?? 'not set'}); `
+          + 'the score of a measured benchmark is the measured speed',
+        );
+      }
+      const fromSameRun = results.some(({ result: other }) =>
+        other.benchmark === benchmark.measured_on
+        && other.evidence.sha256 === result.evidence.sha256
+        && other.model === result.model
+        && other.n === result.n
+        && other.perf?.tokens_per_second === result.score
+        && isDeepStrictEqual(other.run, result.run)
+        && isDeepStrictEqual(other.setup, result.setup));
+      if (!fromSameRun) {
+        errors.push(
+          `${rel}: no ${benchmark.measured_on} result from the same run; `
+          + 'a speed result is published together with the run it was measured on',
+        );
+      }
     }
   }
 }

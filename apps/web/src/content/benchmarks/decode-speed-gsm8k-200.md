@@ -10,6 +10,7 @@ metric:
   min: 0
 scoring: measured
 items: 0
+measured_on: gsm8k-200
 source_url: https://github.com/bigshort2022/unite4ai.github.io/blob/main/apps/cli/src/eval/run.ts
 license: apache-2.0
 updated: 2026-11-14
