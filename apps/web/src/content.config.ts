@@ -167,4 +167,75 @@ const comments = defineCollection({
   }),
 });
 
-export const collections = { models, datasets, compute, courses, events, posts, comments };
+const httpsUrl = z.string().url().refine((value) => value.startsWith('https://'), { message: 'must be an https URL' });
+const sha256Hex = z.string().regex(/^[a-f0-9]{64}$/);
+
+/** A benchmark definition. Mirrors benchmarkSchema in @unite4ai/schema. */
+const benchmarks = defineCollection({
+  loader: glob({ pattern: '**/*.md', base: './src/content/benchmarks' }),
+  schema: z.object({
+    name: z.string().min(1),
+    summary: z.string().max(300),
+    category: z.enum(['quality', 'security', 'efficiency']),
+    version: z.string().min(1),
+    metric: z.object({
+      name: z.string().min(1),
+      unit: z.string(),
+      higher_is_better: z.boolean(),
+      min: z.number().optional(),
+      max: z.number().optional(),
+    }),
+    scoring: z.enum(['exact-match', 'multiple-choice', 'canary', 'measured']),
+    items: z.number().int().nonnegative(),
+    source_url: httpsUrl,
+    source_sha256: sha256Hex.optional(),
+    license: openLicenseEnum,
+    updated: z.coerce.date(),
+  }),
+});
+
+/**
+ * One evaluation run per JSON file. Mirrors evalResultSchema in @unite4ai/schema.
+ * U4AI_EVALS_DIR lets the page tests build against fixtures; production never sets it.
+ */
+const evals = defineCollection({
+  loader: glob({ pattern: '**/*.json', base: process.env.U4AI_EVALS_DIR ?? './src/content/evals' }),
+  schema: z.object({
+    schema_version: z.literal(1),
+    model: z.string().min(1),
+    benchmark: z.string().min(1),
+    benchmark_version: z.string().min(1),
+    score: z.number(),
+    n: z.number().int().positive(),
+    run: z.object({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      submitter: z.string().regex(/^[A-Za-z0-9-]+$/),
+      harness: z.object({ name: z.string().min(1), version: z.string().min(1) }),
+      command: z.string().min(1),
+    }),
+    setup: z.object({
+      runtime: z.enum(['mlx-lm', 'ollama', 'llama.cpp', 'vllm', 'transformers', 'other']),
+      runtime_version: z.string().min(1),
+      format: z.enum(['mlx', 'gguf', 'safetensors', 'other']),
+      quantization: z.string().min(1),
+      hardware: z.object({
+        device: z.string().min(1),
+        accelerator: z.enum(['apple-silicon', 'nvidia', 'amd', 'cpu', 'other']),
+        memory_gb: z.number().positive(),
+      }),
+    }),
+    perf: z.object({
+      tokens_per_second: z.number().positive().optional(),
+      time_to_first_token_ms: z.number().positive().optional(),
+      peak_memory_gb: z.number().positive().optional(),
+      energy_wh_per_1k_tokens: z.number().positive().optional(),
+    }).optional(),
+    evidence: z.object({
+      sha256: sha256Hex,
+      url: httpsUrl.optional(),
+      bytes: z.number().int().positive().optional(),
+    }),
+  }),
+});
+
+export const collections = { models, datasets, compute, courses, events, posts, comments, benchmarks, evals };
