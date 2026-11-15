@@ -116,7 +116,7 @@ test('model page lists its evaluations and local setups; the feed publishes the 
     feed.notice,
     'Results are self-reported by contributors. Each benchmark page lists every run with its reproduce command and evidence hash.',
   );
-  assert.deepEqual(feed.benchmarks.map((b) => b.id), ['gsm8k-200', 'canary-injection-v1']);
+  assert.deepEqual(feed.benchmarks.map((b) => b.id), ['gsm8k-200', 'canary-injection-v1', 'decode-speed-gsm8k-200']);
   assert.equal(feed.benchmarks[0].higher_is_better, true);
   assert.equal(feed.groups.length, 3);
   const current = feed.groups.filter((g) => g.benchmark_version === feed.benchmarks[0].version);

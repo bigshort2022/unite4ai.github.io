@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { benchmarkSchema, evalResultSchema, type EvalResult } from '@unite4ai/schema';
 import { listModels, serverStatus, streamChat, withoutCredentials } from './client.ts';
 import { detectHardware, type Hardware } from './hardware.ts';
+import { speedResultFrom } from './speed.ts';
 import { SUITES } from './suites.ts';
 
 export const HARNESS = { name: 'unite4ai-eval', version: '0.1.0' };
@@ -34,6 +35,8 @@ export interface EvalOptions {
 
 export interface EvalOutcome {
   resultPath: string;
+  /** The decode-speed result of the same run; absent when no speed benchmark is defined or no speed was measured. */
+  speedResultPath?: string;
   transcriptPath: string;
   score: number;
   correct: number;
@@ -71,15 +74,35 @@ function median(values: number[]): number {
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
+const definitionPath = (contentRoot: string, id: string) => join(contentRoot, 'benchmarks', `${id}.md`);
+
+/** A benchmark definition's frontmatter, checked against the schema. */
+function loadDefinition(contentRoot: string, id: string) {
+  const frontmatter = readFileSync(definitionPath(contentRoot, id), 'utf8').match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!frontmatter) throw new Error(`benchmarks/${id}.md has no frontmatter`);
+  const parsed = benchmarkSchema.safeParse(Bun.YAML.parse(frontmatter[1]));
+  if (!parsed.success) {
+    const problems = parsed.error.issues.map((issue) => `${issue.path.map(String).join('.')}: ${issue.message}`);
+    throw new Error(`benchmarks/${id}.md is not a valid benchmark definition: ${problems.join('; ')}`);
+  }
+  return parsed.data;
+}
+
+/**
+ * The definition and suite of the benchmark to run, and the measured benchmark that publishes
+ * the run's decode speed: null when the suite names none or this content root does not define it.
+ */
 function loadBenchmark(contentRoot: string, id: string) {
-  const path = join(contentRoot, 'benchmarks', `${id}.md`);
   const suite = SUITES[id];
-  if (!existsSync(path) || !suite) {
+  if (!existsSync(definitionPath(contentRoot, id)) || !suite) {
     throw new Error(`benchmark "${id}" cannot be run: it needs a definition in benchmarks/ and a suite (supported: ${Object.keys(SUITES).join(', ')})`);
   }
-  const frontmatter = readFileSync(path, 'utf8').match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  if (!frontmatter) throw new Error(`benchmarks/${id}.md has no frontmatter`);
-  return { definition: benchmarkSchema.parse(Bun.YAML.parse(frontmatter[1])), suite };
+  const definition = loadDefinition(contentRoot, id);
+  const speedId = suite.speedBenchmark;
+  const speedBenchmark = speedId !== undefined && existsSync(definitionPath(contentRoot, speedId))
+    ? { id: speedId, version: loadDefinition(contentRoot, speedId).version }
+    : null;
+  return { definition, suite, speedBenchmark };
 }
 
 /**
@@ -266,7 +289,7 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
   const maxTokens = options.maxTokens ?? 512;
 
   // Preflight: everything that can fail without touching the model server fails here.
-  const { definition, suite } = loadBenchmark(options.contentRoot, options.benchmark);
+  const { definition, suite, speedBenchmark } = loadBenchmark(options.contentRoot, options.benchmark);
   if (!['md', 'mdx'].some((ext) => existsSync(join(options.contentRoot, 'models', `${options.model}.${ext}`)))) {
     throw new Error(`model "${options.model}" has no card in models/. Add the model card first.`);
   }
@@ -401,12 +424,30 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
       perf: measure(done),
       evidence: { sha256: sha256(transcript), bytes: transcript.length },
     }));
+    const speed = speedBenchmark === null ? null : speedResultFrom(result, speedBenchmark);
 
-    // The filename carries the evidence prefix, as the content gate requires.
-    const resultPath = join(options.contentRoot, 'evals', `${name}--${date}--${result.evidence.sha256.slice(0, 8)}.json`);
-    mkdirSync(join(options.contentRoot, 'evals'), { recursive: true });
-    writeFileSync(resultPath, `${JSON.stringify(result, null, 2)}\n`);
-    return { resultPath, transcriptPath, score, correct, n: done.length };
+    // One file per benchmark, written together from the one transcript. Each filename carries
+    // the evidence prefix, as the content gate requires.
+    const evalsDir = join(options.contentRoot, 'evals');
+    const pathOf = (published: EvalResult) => join(evalsDir, [
+      published.model,
+      published.benchmark,
+      published.run.submitter,
+      published.run.date,
+      `${published.evidence.sha256.slice(0, 8)}.json`,
+    ].join('--'));
+    mkdirSync(evalsDir, { recursive: true });
+    for (const published of speed === null ? [result] : [result, speed]) {
+      writeFileSync(pathOf(published), `${JSON.stringify(published, null, 2)}\n`);
+    }
+    return {
+      resultPath: pathOf(result),
+      transcriptPath,
+      score,
+      correct,
+      n: done.length,
+      ...(speed === null ? {} : { speedResultPath: pathOf(speed) }),
+    };
   } finally {
     unlock();
   }

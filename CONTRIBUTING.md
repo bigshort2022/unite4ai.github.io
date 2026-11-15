@@ -49,7 +49,7 @@ Using a coding agent (hosted or local LLM)? Run `bun run agent:setup` once and p
 
 ## Submitting an evaluation result
 
-Evaluation results are data in this repository. One run is one JSON file directly in
+Evaluation results are data in this repository. One result is one JSON file directly in
 `apps/web/src/content/evals/`, named
 `<model>--<benchmark>--<your-github-handle>--<YYYY-MM-DD>--<first 8 characters of evidence.sha256>.json`
 (handle in lowercase).
@@ -82,11 +82,13 @@ that is a weak guard on mlx-lm and Ollama, because they also list models that ar
 It sends one request at a time at temperature 0 and keeps a transcript in `.agent/evals/` so
 an interrupted run resumes, on the same day or a later one. When every item is answered it
 writes the result file into `apps/web/src/content/evals/` with the transcript's hash, dated
-the day the run completed. Keep the transcript: it is your evidence. Running a finished
-configuration again rewrites the same result; move its transcript away to start a new run. If
-the model can think before it answers, say with `--notes` whether thinking was enabled.
+the day the run completed. A `gsm8k-200` run that measured decode speed also writes a second
+file for `decode-speed-gsm8k-200`, with the same date and transcript hash; submit both. Keep
+the transcript: it is your evidence. Running a finished configuration again rewrites the same
+files; move its transcript away to start a new run. If the model can think before it answers,
+say with `--notes` whether thinking was enabled.
 
-`bun run validate` checks the file the same way CI does.
+`bun run validate` checks the files the same way CI does.
 
 Adding a benchmark is a pull request with one markdown file in `apps/web/src/content/benchmarks/`.
 Scoring must be deterministic (exact match, multiple choice, canary detection, or a measured
