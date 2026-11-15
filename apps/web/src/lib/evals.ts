@@ -55,6 +55,19 @@ export function formatNumber(value: number): string {
   return String(Number(Math.abs(value) < 1 ? value.toPrecision(3) : value.toFixed(2)));
 }
 
+/** A value with its unit: a percent sign attaches ("62%"), any other unit follows a space ("140.25 tok/s"), no unit adds nothing. */
+export function withUnit(text: string, unit: string): string {
+  if (unit === '') return text;
+  return unit === '%' ? `${text}%` : `${text} ${unit}`;
+}
+
+/** The runtimes behind a group: its one runtime with every version run when it is grouped by hardware, otherwise each runtime's name. */
+export function runtimeLabel(group: EvalGroup): string {
+  return group.runtime === null
+    ? group.runtimes.join(', ')
+    : `${group.runtime} ${(group.runtime_versions ?? []).join(', ')}`;
+}
+
 /** "60–64" when the group's runs disagree, null when they all scored the same. */
 export function scoreRange(group: EvalGroup): string | null {
   return group.score_min === group.score_max

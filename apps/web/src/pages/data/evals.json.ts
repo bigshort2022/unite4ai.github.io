@@ -25,7 +25,8 @@ export const GET: APIRoute = async () => {
       source_url: b.data.source_url,
     })),
     groups,
-    runs: runs.length,
+    // A run is one transcript, however many result files it backs.
+    runs: new Set(runs.map((run) => run.evidence.sha256)).size,
   };
   return new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json; charset=utf-8' } });
 };

@@ -1,11 +1,11 @@
 ---
 name: Decode speed on GSM8K-200
-summary: Tokens generated per second, after the first token, while a model answers the GSM8K-200 items one at a time. Ranked per machine, because speed only compares on the same hardware.
+summary: Tokens generated per second, after the first token, while a model answers the GSM8K-200 items one at a time. Grouped per machine and runtime, because speed only compares on the same hardware.
 category: efficiency
 version: "1"
 metric:
   name: decode speed
-  unit: " tok/s"
+  unit: "tok/s"
   higher_is_better: true
   min: 0
 scoring: measured

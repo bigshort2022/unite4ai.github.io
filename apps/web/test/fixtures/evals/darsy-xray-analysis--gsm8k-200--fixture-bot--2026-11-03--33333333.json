@@ -18,5 +18,6 @@
     "quantization": "Q4_K_M",
     "hardware": { "device": "Fixture Laptop", "accelerator": "apple-silicon", "memory_gb": 32 }
   },
+  "perf": { "tokens_per_second": 61.5, "time_to_first_token_ms": 480 },
   "evidence": { "sha256": "3333333333333333333333333333333333333333333333333333333333333333" }
 }

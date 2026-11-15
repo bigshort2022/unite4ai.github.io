@@ -1,7 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
 import { leaderboard, reproductionLabel } from '@unite4ai/core';
-import { CATEGORIES, CATEGORY_LABELS, SUBMIT_GUIDE, formatNumber, loadEvals, scoreRange } from '../../lib/evals';
+import { CATEGORIES, CATEGORY_LABELS, SUBMIT_GUIDE, formatNumber, loadEvals, runtimeLabel, scoreRange, withUnit } from '../../lib/evals';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const href = (p: string) => `${base}${p}` || '/';
@@ -9,6 +9,8 @@ const href = (p: string) => `${base}${p}` || '/';
 const { benchmarks, groups, modelNames } = await loadEvals();
 const boards = benchmarks.map((benchmark) => ({
   benchmark,
+  // A speed on one machine does not outrank a speed on another: measured boards are sorted, not ranked.
+  measured: benchmark.data.scoring === 'measured',
   rows: leaderboard(groups, {
     id: benchmark.id,
     version: benchmark.data.version,
@@ -75,7 +77,7 @@ const hasRows = boards.some((b) => b.rows.length > 0);
     {categories.map((category) => (
       <section style="margin-top:3rem" aria-labelledby={`category-${category}`} data-category={category}>
         <h2 id={`category-${category}`}>{CATEGORY_LABELS[category]}</h2>
-        {boards.filter((b) => b.benchmark.data.category === category).map(({ benchmark, rows }) => (
+        {boards.filter((b) => b.benchmark.data.category === category).map(({ benchmark, measured, rows }) => (
           <div style="margin-top:1.5rem" data-eval-board>
             <h3><a href={href(`/evals/${benchmark.id}`)}>{benchmark.data.name}</a></h3>
             <p style="color:var(--u-text-dim);max-width:70ch">{benchmark.data.summary}</p>
@@ -85,35 +87,39 @@ const hasRows = boards.some((b) => b.rows.length > 0);
                 on their own hardware. <a href={SUBMIT_GUIDE}>How to submit one.</a>
               </div>
             ) : (
+              <>
+              {measured && (
+                <p style="margin-top:1rem;color:var(--u-text-dim)">Grouped per machine and runtime. Compare rows on the same machine only.</p>
+              )}
               <div class="eval-scroll" tabindex="0" role="region" aria-label={`Leaderboard for ${benchmark.data.name}`}>
                 <table class="eval-table">
                   <caption class="sr-only">Leaderboard for {benchmark.data.name}</caption>
                   <thead>
                     <tr>
-                      <th scope="col"><span class="sr-only">Rank</span><span aria-hidden="true">#</span></th>
+                      {!measured && <th scope="col"><span class="sr-only">Rank</span><span aria-hidden="true">#</span></th>}
                       <th scope="col">Model</th>
                       <th scope="col">{benchmark.data.metric.name}</th>
                       <th scope="col">Setup</th>
-                      {benchmark.data.scoring !== 'measured' && <th scope="col">Speed</th>}
+                      {!measured && <th scope="col">Speed</th>}
                       <th scope="col">Runs</th>
                     </tr>
                   </thead>
                   <tbody>
                     {rows.map((row, index) => (
                       <tr data-runtimes={row.runtimes.join(',')} data-accelerators={row.accelerators.join(',')}>
-                        <td class="rank num">{index + 1}</td>
+                        {!measured && <td class="rank num">{index + 1}</td>}
                         <td><a href={href(`/registry/models/${row.model}`)}>{modelNames.get(row.model) ?? row.model}</a></td>
                         <td class="num">
-                          <span class="score">{formatNumber(row.score)}</span>{benchmark.data.metric.unit}
+                          <span class="score">{withUnit(formatNumber(row.score), benchmark.data.metric.unit)}</span>
                           {scoreRange(row) && <small>range {scoreRange(row)}</small>}
                           {benchmark.data.items > 0 && <small>n = {row.n}</small>}
                         </td>
                         <td>
                           {row.format} · {row.quantization}
-                          <small>{row.runtimes.join(', ')} · {row.accelerators.join(', ')}</small>
+                          <small>{runtimeLabel(row)} · {row.accelerators.join(', ')}</small>
                           {row.device !== null && <small>{row.device} · {row.memory_gb} GB</small>}
                         </td>
-                        {benchmark.data.scoring !== 'measured' && (
+                        {!measured && (
                           <td class="num">{row.tokens_per_second === null ? '—' : `${formatNumber(row.tokens_per_second)} tok/s`}</td>
                         )}
                         <td>
@@ -125,6 +131,7 @@ const hasRows = boards.some((b) => b.rows.length > 0);
                   </tbody>
                 </table>
               </div>
+              </>
             )}
             {rows.length > 0 && (
               <p class="empty" style="margin-top:1rem" hidden data-eval-none>No results match these filters.</p>
