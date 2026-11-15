@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
@@ -28,6 +29,18 @@ test('production build targets the unite4ai.com custom domain', { timeout: 120_0
   // Evaluation pages and feed exist in the real build, and test fixtures never reach it.
   const evalsHtml = await readFile(new URL('dist/evals/index.html', ROOT), 'utf8');
   assert.match(evalsHtml, /GSM8K \(first 200\)/);
+  // The canary benchmark sits under the Security heading, and only there.
+  const sections = evalsHtml.split(/<section[^>]* data-category="/).slice(1);
+  const security = sections.find((section) => section.startsWith('security"'));
+  assert.ok(security, 'the evaluations page must have a security section');
+  assert.match(security, /<h2 id="category-security"[^>]*>Security<\/h2>/);
+  assert.match(security, /<a href="\/evals\/canary-injection-v1"[^>]*>Prompt-injection canary \(v1\)<\/a>/);
+  assert.equal(sections.filter((section) => section.includes('Prompt-injection canary')).length, 1);
+  // Its data file is served at the benchmark's source_url, byte for byte what the definition pins.
+  const definition = await readFile(new URL('src/content/benchmarks/canary-injection-v1.md', ROOT), 'utf8');
+  assert.match(definition, /^source_url: https:\/\/unite4ai\.com\/data\/benchmarks\/canary-injection-v1\.jsonl$/m);
+  const served = await readFile(new URL('dist/data/benchmarks/canary-injection-v1.jsonl', ROOT));
+  assert.equal(createHash('sha256').update(served).digest('hex'), definition.match(/^source_sha256: ([a-f0-9]{64})$/m)?.[1]);
   const feedJson = await readFile(new URL('dist/data/evals.json', ROOT), 'utf8');
   assert.equal(JSON.parse(feedJson).schema_version, 1);
   // The rig fixture's device contains markup, so it appears escaped (or raw, if escaping broke).
@@ -35,7 +48,8 @@ test('production build targets the unite4ai.com custom domain', { timeout: 120_0
   assert.doesNotMatch(evalsHtml, fixtureMarkers);
   assert.doesNotMatch(feedJson, fixtureMarkers);
   // Submitters and devices are only printed on the benchmark and model pages.
-  for (const path of ['dist/evals/gsm8k-200/index.html', 'dist/registry/models/darsy-xray-analysis/index.html']) {
+  const detailPages = ['gsm8k-200', 'canary-injection-v1'].map((id) => `dist/evals/${id}/index.html`);
+  for (const path of [...detailPages, 'dist/registry/models/darsy-xray-analysis/index.html']) {
     assert.doesNotMatch(await readFile(new URL(path, ROOT), 'utf8'), fixtureMarkers, path);
   }
 
