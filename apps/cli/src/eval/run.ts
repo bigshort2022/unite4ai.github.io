@@ -56,6 +56,13 @@ interface TranscriptItem {
   completion_tokens: number | null;
 }
 
+/** The last line of a finished transcript. */
+interface TranscriptEnd {
+  type: 'complete';
+  /** The UTC date on which the last item was answered; it becomes the result's `run.date`. */
+  date: string;
+}
+
 const sha256 = (data: string | Uint8Array) => createHash('sha256').update(data).digest('hex');
 
 function median(values: number[]): number {
@@ -100,14 +107,69 @@ async function loadSource(options: EvalOptions, url: string, pinned: string | un
 }
 
 /**
+ * A listed id is a weak guard: mlx-lm and Ollama also list models they have not loaded, and
+ * posting one of those makes them swap models. An omp-managed server says what is loaded.
+ */
+async function checkServer(baseUrl: string, servedModel: string): Promise<void> {
+  const listed = await listModels(baseUrl);
+  if (!listed.includes(servedModel)) {
+    throw new Error(
+      `served model "${servedModel}" is not listed by the server (${listed.join(', ') || 'none'}); `
+      + 'posting it would make the server load it',
+    );
+  }
+  const status = await serverStatus(baseUrl);
+  if (status && status.model !== servedModel) {
+    throw new Error(`the server has "${status.model}" loaded; --served-model must name it`);
+  }
+  if (status && status.activeRequests > 0) {
+    throw new Error(`the server is busy with ${status.activeRequests} request(s); try again when it is idle`);
+  }
+}
+
+/**
+ * Reads this configuration's transcript, creating it when there is none: the finished items,
+ * and the completion date once every item has been answered.
+ */
+function readTranscript(path: string, header: string): { done: TranscriptItem[]; completedOn: string | null } {
+  if (!existsSync(path)) {
+    writeFileSync(path, `${header}\n`);
+    return { done: [], completedOn: null };
+  }
+  const [first, ...rest] = readFileSync(path, 'utf8').split('\n').filter((line) => line !== '');
+  if (first !== header) {
+    throw new Error(`the transcript at ${path} does not start with this run's header; move or delete it to start over`);
+  }
+  const lines = rest.map((line) => JSON.parse(line) as TranscriptItem | TranscriptEnd);
+  const end = lines.find((line): line is TranscriptEnd => line.type === 'complete');
+  return { done: lines.filter((line): line is TranscriptItem => line.type === 'item'), completedOn: end?.date ?? null };
+}
+
+/** Decode speed (tokens per second after the first token) and the median time to the first token. */
+function measure(done: TranscriptItem[]): NonNullable<EvalResult['perf']> {
+  const timed = done.flatMap((line) => (line.completion_tokens === null || line.ttft_ms === null
+    ? []
+    : [{ tokens: line.completion_tokens, ttftMs: line.ttft_ms, seconds: line.seconds }]));
+  // One untimed item would make the totals describe a different set of replies than the score.
+  if (timed.length === 0 || timed.length !== done.length) return {};
+  const perf: NonNullable<EvalResult['perf']> = {};
+  const tokens = timed.reduce((sum, line) => sum + line.tokens, 0);
+  const decodeSeconds = timed.reduce((sum, line) => sum + Math.max(line.seconds - line.ttftMs / 1000, 0), 0);
+  if (tokens > 0 && decodeSeconds > 0) perf.tokens_per_second = Number((tokens / decodeSeconds).toFixed(1));
+  const ttft = Number(median(timed.map((line) => line.ttftMs)).toFixed(1));
+  if (ttft > 0) perf.time_to_first_token_ms = ttft;
+  return perf;
+}
+
+/**
  * Runs one benchmark against one served model. Completed items are appended to a transcript
  * as they finish, so an interrupted run resumes; a result file is written only when every
  * item has been answered.
  */
 export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
   const log = options.log ?? (() => {});
-  const today = options.today ?? new Date().toISOString().slice(0, 10);
   const maxSeconds = options.maxSeconds ?? 3600;
+  const maxTokens = options.maxTokens ?? 512;
 
   // Preflight: everything that can fail without touching the model server fails here.
   const { definition, suite } = loadBenchmark(options.contentRoot, options.benchmark);
@@ -118,27 +180,10 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
   const source = await loadSource(options, definition.source_url, definition.source_sha256);
   const items = suite.items(source, definition.items);
 
-  // A listed id is a weak guard: mlx-lm and Ollama also list models they have not loaded, and
-  // posting one of those makes them swap models. An omp-managed server says what is loaded.
-  const listed = await listModels(options.baseUrl);
-  if (!listed.includes(options.servedModel)) {
-    throw new Error(
-      `served model "${options.servedModel}" is not listed by the server (${listed.join(', ') || 'none'}); `
-      + 'posting it would make the server load it',
-    );
-  }
-  const status = await serverStatus(options.baseUrl);
-  if (status && status.model !== options.servedModel) {
-    throw new Error(`the server has "${status.model}" loaded; --served-model must name it`);
-  }
-  if (status && status.activeRequests > 0) {
-    throw new Error(`the server is busy with ${status.activeRequests} request(s); try again when it is idle`);
-  }
-
-  // Transcript: a header that identifies the configuration, then one line per finished item.
-  // The file is named after the header's hash, so each configuration resumes only itself.
-  const name = `${options.model}--${options.benchmark}--${options.submitter}--${today}`;
-  const header = {
+  // Transcript: a header that identifies the configuration, one line per finished item, and a
+  // last line with the completion date. The file is named after the header's hash and not the
+  // day, so a configuration resumes only itself, on whatever day it is picked up again.
+  const header = JSON.stringify({
     type: 'header',
     benchmark: options.benchmark,
     benchmark_version: definition.version,
@@ -152,22 +197,19 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
     format: options.format,
     quantization: options.quantization,
     notes: options.notes ?? null,
-    max_tokens: options.maxTokens ?? 512,
-  };
-  const transcriptPath = join(options.workDir, `${name}--${sha256(JSON.stringify(header)).slice(0, 8)}.jsonl`);
-  const done: TranscriptItem[] = [];
+    max_tokens: maxTokens,
+  });
+  const name = `${options.model}--${options.benchmark}--${options.submitter}`;
+  const transcriptPath = join(options.workDir, `${name}--${sha256(header).slice(0, 8)}.jsonl`);
   mkdirSync(options.workDir, { recursive: true });
-  if (existsSync(transcriptPath)) {
-    const [first, ...rest] = readFileSync(transcriptPath, 'utf8').split('\n').filter((line) => line !== '');
-    if (first !== JSON.stringify(header)) {
-      throw new Error(`the transcript at ${transcriptPath} does not start with this run's header; move or delete it to start over`);
-    }
-    done.push(...rest.map((line) => JSON.parse(line) as TranscriptItem));
+  const { done, completedOn } = readTranscript(transcriptPath, header);
+  if (completedOn !== null) {
+    log(`this configuration completed on ${completedOn}; move ${transcriptPath} away to run it again`);
+  } else if (done.length > 0) {
     log(`resuming after ${done.length} of ${items.length} items`);
-  } else {
-    writeFileSync(transcriptPath, `${JSON.stringify(header)}\n`);
   }
 
+  if (done.length < items.length) await checkServer(options.baseUrl, options.servedModel);
   const started = Date.now();
   for (const item of items.slice(done.length)) {
     if ((Date.now() - started) / 1000 >= maxSeconds) {
@@ -179,7 +221,7 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
         baseUrl: options.baseUrl,
         model: options.servedModel,
         messages: item.messages,
-        maxTokens: header.max_tokens,
+        maxTokens,
         timeoutMs: options.requestTimeoutMs ?? 120_000,
       });
     } catch (error) {
@@ -204,20 +246,17 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
     log(`${done.length}/${items.length} ${verdict.correct ? 'correct' : 'wrong'}`);
   }
 
-  const correct = done.filter((line) => line.correct).length;
-  const score = Number(((100 * correct) / done.length).toFixed(2));
-
-  // Decode speed: tokens generated per second after the first token arrived.
-  const perf: NonNullable<EvalResult['perf']> = {};
-  const timed = done.filter((line) => line.completion_tokens !== null && line.ttft_ms !== null);
-  if (timed.length === done.length && done.length > 0) {
-    const tokens = timed.reduce((sum, line) => sum + (line.completion_tokens as number), 0);
-    const decodeSeconds = timed.reduce((sum, line) => sum + Math.max(line.seconds - (line.ttft_ms as number) / 1000, 0), 0);
-    if (tokens > 0 && decodeSeconds > 0) perf.tokens_per_second = Number((tokens / decodeSeconds).toFixed(1));
-    const ttft = Number(median(timed.map((line) => line.ttft_ms as number)).toFixed(1));
-    if (ttft > 0) perf.time_to_first_token_ms = ttft;
+  // The run is dated when its last item is answered, and the transcript records that date:
+  // running a finished configuration again rewrites the same result instead of a newer copy.
+  const date = completedOn ?? options.today ?? new Date().toISOString().slice(0, 10);
+  if (completedOn === null) {
+    const end: TranscriptEnd = { type: 'complete', date };
+    appendFileSync(transcriptPath, `${JSON.stringify(end)}\n`);
   }
 
+  const correct = done.filter((line) => line.correct).length;
+  const score = Number(((100 * correct) / done.length).toFixed(2));
+  const perf = measure(done);
   const transcript = readFileSync(transcriptPath);
   const result = evalResultSchema.parse({
     schema_version: 1,
@@ -226,7 +265,7 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
     benchmark_version: definition.version,
     score,
     n: done.length,
-    run: { date: today, submitter: options.submitter, harness: HARNESS, command: options.command },
+    run: { date, submitter: options.submitter, harness: HARNESS, command: options.command },
     setup: {
       runtime: options.runtime,
       runtime_version: options.runtimeVersion,
@@ -240,7 +279,7 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
   });
 
   // The filename carries the evidence prefix, as the content gate requires.
-  const resultPath = join(options.contentRoot, 'evals', `${name}--${result.evidence.sha256.slice(0, 8)}.json`);
+  const resultPath = join(options.contentRoot, 'evals', `${name}--${date}--${result.evidence.sha256.slice(0, 8)}.json`);
   mkdirSync(join(options.contentRoot, 'evals'), { recursive: true });
   writeFileSync(resultPath, `${JSON.stringify(result, null, 2)}\n`);
   return { resultPath, transcriptPath, score, correct, n: done.length };

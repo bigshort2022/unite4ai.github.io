@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import test, { after } from 'node:test';
 import { evalResultSchema } from '@unite4ai/schema';
 import { validateContent } from '@unite4ai/core/validate';
@@ -201,6 +201,9 @@ test('a complete run writes a result the content gate accepts, with evidence for
   const transcript = readFileSync(outcome.transcriptPath);
   assert.equal(result.evidence.sha256, sha256(transcript));
   assert.equal(result.evidence.bytes, transcript.length);
+  // The transcript is named for the configuration, not the day, and ends by saying when it completed.
+  assert.match(basename(outcome.transcriptPath), /^model-a--gsm8k-200--alice--[a-f0-9]{8}\.jsonl$/);
+  assert.deepEqual(transcriptLines(workspace).at(-1), { type: 'complete', date: '2026-11-10' });
 
   // The published speed, recomputed from the transcript with the runner's rounding: tokens
   // per second after the first token, and the median time to the first token.
@@ -417,4 +420,25 @@ test('a status that agrees, one in another shape, and a server without the endpo
     assert.equal(outcome.n, 3, JSON.stringify(status));
     assert.ok(stub.requests.includes('GET /_omp/status'), 'the server is asked what it has loaded');
   }
+});
+
+test('the run is dated when it completes, and a finished configuration keeps that date', async () => {
+  const workspace = makeWorkspace();
+  const stub = await stubServer({ ...GOOD, 'Q3?': 500 });
+  await assert.rejects(runEval(options(workspace, stub, { today: '2026-11-10' })), /item 3/);
+  assert.equal(stub.posts(), 3);
+
+  stub.setReplies({ 'Q3?': 'I think 9' });
+  const outcome = await runEval(options(workspace, stub, { today: '2026-11-11' }));
+  assert.equal(stub.posts(), 4, 'the resumed run requests only the missing item');
+  assert.match(basename(outcome.resultPath), /^model-a--gsm8k-200--alice--2026-11-11--[a-f0-9]{8}\.json$/);
+  assert.equal(JSON.parse(readFileSync(outcome.resultPath, 'utf8')).run.date, '2026-11-11');
+
+  // Run again later, the finished configuration asks the server nothing and rewrites the same result.
+  const requests = stub.requests.length;
+  const again = await runEval(options(workspace, stub, { today: '2026-11-12' }));
+  assert.equal(stub.requests.length, requests);
+  assert.deepEqual(again, outcome);
+  assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), [basename(outcome.resultPath)]);
+  assert.deepEqual((await validateContent(workspace.contentRoot)).errors, []);
 });
