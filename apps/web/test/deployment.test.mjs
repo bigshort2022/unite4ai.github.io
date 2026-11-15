@@ -5,6 +5,9 @@ import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 
 const ROOT = new URL('..', import.meta.url);
+// Text that only the page tests' fixtures contain; none of it may reach a normal build. The rig
+// fixture's device contains markup, so it appears escaped (or raw, if escaping broke).
+const fixtureMarkers = /fixture-bot|fixture-error-rate|Fixture (?:Laptop|Tower)|Fixture (?:&lt;b&gt;|<b>)?Rig|FIXTURE_Q|ghost-model/;
 
 // Spawns a full Astro + Pagefind build; CI runners routinely exceed bun's 5s default.
 test('production build targets the unite4ai.com custom domain', { timeout: 120_000 }, async () => {
@@ -48,8 +51,6 @@ test('production build targets the unite4ai.com custom domain', { timeout: 120_0
   assert.equal(createHash('sha256').update(served).digest('hex'), definition.match(/^source_sha256: ([a-f0-9]{64})$/m)?.[1]);
   const feedJson = await readFile(new URL('dist/data/evals.json', ROOT), 'utf8');
   assert.equal(JSON.parse(feedJson).schema_version, 1);
-  // The rig fixture's device contains markup, so it appears escaped (or raw, if escaping broke).
-  const fixtureMarkers = /fixture-bot|Fixture (?:Laptop|Tower)|Fixture (?:&lt;b&gt;|<b>)?Rig|Q4_K_M|ghost-model/;
   assert.doesNotMatch(evalsHtml, fixtureMarkers);
   assert.doesNotMatch(feedJson, fixtureMarkers);
   // The benchmark and model pages print more of each run: its submitter, its command, its device.
@@ -80,15 +81,17 @@ test('the home page leads with evaluations and carries no fixture text', async (
   assert.match(home, /<title>Equitable AI, actually open · Unite4AI<\/title>/);
 
   const description = home.match(/<meta name="description" content="([^"]+)"/)?.[1] ?? '';
-  assert.match(description, /^[^.]*evaluations/i);
+  assert.match(description, /^Self-reported evaluations/);
+  assert.doesNotMatch(description, /independent/i);
   assert.ok(description.length <= 160, `the description is ${description.length} characters`);
 
   const heroStart = text.indexOf('<section class="hero');
   const hero = text.slice(heroStart, text.indexOf('</section>', heroStart));
   assert.ok(hero.includes(
-    'Independent evaluations of open models, run on hardware people actually own. Every score comes with the '
-    + 'command that produced it and a hash of its transcript, so anyone can reproduce it. Around them: an open '
-    + 'model and dataset registry that grades real openness, and a free technology school.',
+    'Evaluations of open models, self-reported from hardware people actually own. Every score is published with '
+    + 'the command that produced it and a hash of the transcript its submitter keeps, so anyone with the same '
+    + 'setup can rerun it. Around them: an open model and dataset registry that grades real openness, and a free '
+    + 'technology school.',
   ));
   assert.deepEqual(
     [...hero.matchAll(/<a class="btn (btn-\w+)" href="([^"]+)">([^<]+)<\/a>/g)].map(([, kind, target, label]) => [
@@ -104,10 +107,16 @@ test('the home page leads with evaluations and carries no fixture text', async (
   );
 
   // The results follow the hero whether or not anyone has submitted one.
-  const latest = text.indexOf('<h2 id="latest-results-title">Latest results</h2>');
-  assert.notEqual(latest, -1, 'the home page must have a Latest results heading');
-  assert.equal(text.slice(heroStart, latest).split('<section').length - 1, 2);
-  assert.ok(text.slice(latest).includes('<a href="/evals">All leaderboards</a>'));
+  const leading = text.indexOf('<h2 id="leading-results-title">Leading results</h2>');
+  assert.notEqual(leading, -1, 'the home page must have a Leading results heading');
+  assert.equal(text.slice(heroStart, leading).split('<section').length - 1, 2);
+  const results = text.slice(leading, text.indexOf('</section>', leading));
+  assert.ok(results.includes(
+    'One row per benchmark: the leading result, its format and quantization, and how many others have reproduced it.',
+  ));
+  assert.ok(results.includes('<a href="/evals">All leaderboards</a>'));
+  assert.doesNotMatch(text, /Latest results/);
+  assert.doesNotMatch(results, /Fastest/);
 
   const definitions = (await readdir(new URL('src/content/benchmarks/', ROOT))).filter((name) => name.endsWith('.md'));
   const stats = [...text.matchAll(/<div class="stat"><b>(\d+)<\/b>\s*<span>([^<]+)<\/span>/g)];
@@ -124,8 +133,15 @@ test('the home page leads with evaluations and carries no fixture text', async (
     [...different.slice(0, different.indexOf('</section>')).matchAll(/<h3>([^<]+)<\/h3>/g)].map(([, title]) => title),
     ['Scores you can replay', 'Openness is graded, not claimed', 'The school is the product', 'Privacy-first by architecture'],
   );
+  assert.ok(different.includes(
+    'Every result names its model, runtime, quantization and machine, the exact command, and the hash of its '
+    + 'transcript. A second submitter running the same model, format and quantization turns "not yet reproduced" '
+    + 'into "reproduced by 1".',
+  ));
+  // The cards sit two by two through a class, not an inline rule.
+  assert.match(different, /<div class="grid grid-2 grid-pairs" style="margin-top:1\.8rem">/);
 
-  assert.doesNotMatch(home, /fixture-bot|Fixture (?:Laptop|Tower)|Fixture (?:&lt;b&gt;|<b>)?Rig|Q4_K_M|ghost-model/);
+  assert.doesNotMatch(home, fixtureMarkers);
 });
 
 test('the submit page points to the runner guide and to an issue form that exists', async () => {
@@ -152,16 +168,17 @@ async function filesUnder(dir, extensions) {
 test('every link to the repository comes from one constant, and none points at the old, missing repository', async () => {
   const { REPO, REPO_SLUG } = await import('../src/lib/site.ts');
   assert.equal(REPO, `https://github.com/${REPO_SLUG}`);
-  assert.doesNotMatch(REPO_SLUG, /^unite4ai\//);
+  const deadSlug = 'unite4ai/unite4ai.github.io';
 
-  // No page, layout, component or helper spells the repository out again.
+  // No page, layout, component or helper spells the repository out again, under either name.
   const sources = (await Promise.all(
     ['pages/', 'layouts/', 'components/', 'lib/'].map((dir) => filesUnder(new URL(`src/${dir}`, ROOT), ['.astro', '.ts', '.mjs'])),
   )).flat();
   const copies = [];
   for (const source of sources) {
     if (source.pathname.endsWith('/src/lib/site.ts')) continue;
-    if (/unite4ai\.github\.io|github\.com\/(?:repos\/)?unite4ai\b/.test(await readFile(source, 'utf8'))) copies.push(source.pathname);
+    const text = await readFile(source, 'utf8');
+    if (text.includes(REPO_SLUG) || text.includes(deadSlug)) copies.push(source.pathname);
   }
   assert.deepEqual(copies, []);
 
@@ -176,10 +193,15 @@ test('every link to the repository comes from one constant, and none points at t
   }
   const pages = await filesUnder(new URL('dist/', ROOT), ['.html']);
   assert.ok(pages.length > 20, `only ${pages.length} built pages were found`);
+  // The repository that does not exist, as a page link and as an API address.
+  const deadUrl = new RegExp(
+    `https://(?:github\\.com|api\\.github\\.com/repos)/${deadSlug.replaceAll('.', '\\.')}[^\\s"'\`<>)]*`,
+    'g',
+  );
   const dead = [];
   for (const page of pages) {
     const html = await readFile(page, 'utf8');
-    for (const [url] of html.matchAll(/https:\/\/(?:api\.)?github\.com\/(?:repos\/)?unite4ai\/[^\s"'`<>)]*/g)) {
+    for (const [url] of html.matchAll(deadUrl)) {
       if (!cardUrls.has(url)) dead.push(`${page.pathname.split('/dist/')[1]}: ${url}`);
     }
   }
@@ -193,4 +215,37 @@ test('every link to the repository comes from one constant, and none points at t
   assert.equal(submit.match(/const REPO = "([^"]+)";/)?.[1], REPO);
   assert.ok(submit.includes('`${REPO}/issues/new?title='));
   assert.match(submit, new RegExp(`href="${REPO.replaceAll('.', '\\.')}/issues/new\\?template=submit-eval-result\\.yml"`));
+});
+
+test('the governance metrics page computes its figures and prints no number of its own', async () => {
+  const metrics = (await readFile(new URL('dist/governance/metrics/index.html', ROOT), 'utf8')).replace(/\s+/g, ' ');
+  // Every tile starts empty: a figure appears only when the visitor's browser has computed it.
+  assert.deepEqual(
+    [...metrics.matchAll(/<div class="stat"><b data-metric="([\w-]+)">([^<]*)<\/b>\s*<span>([^<]+)<\/span>/g)].map(([, key, value, label]) => [key, value, label]),
+    [
+      ['time-to-merge', '—', 'Median time to merge'],
+      ['open-prs', '—', 'Open pull requests'],
+      ['merged-month', '—', 'Merged this month'],
+      ['contributors', '—', 'Contributors (all time)'],
+    ],
+  );
+  assert.match(metrics, /the median time from opening a pull request to merging it/);
+  assert.match(metrics, /It is not a review time/);
+  assert.doesNotMatch(metrics, /first maintainer review comment|Median PR review \(days\)/);
+
+  // The script is a module built from lib/repo-metrics and lib/site: one copy of each calculation,
+  // and no figure typed in. Astro puts a small module in the page and a larger one in a file.
+  const { REPO_SLUG } = await import('../src/lib/site.ts');
+  const files = await filesUnder(new URL('dist/_astro/', ROOT), ['.js']).catch(() => []);
+  const modules = [
+    ...[...metrics.matchAll(/<script type="module">(.*?)<\/script>/g)].map(([, code]) => code),
+    ...await Promise.all(files.map((file) => readFile(file, 'utf8'))),
+  ];
+  const script = modules.find((source) => source.includes('time-to-merge'));
+  assert.ok(script, 'the metrics page must ship its script as a module');
+  assert.doesNotMatch(metrics, /<script>/, 'a plain inline script cannot import the calculations');
+  for (const part of ['https://api.github.com/repos/', REPO_SLUG, 'pulls', 'contributors']) assert.ok(script.includes(part), part);
+  assert.doesNotMatch(script, /["'`](?:2\.4|12\+)["'`]/);
+  // It needs a median and a few filters, not the schema library the content gate uses.
+  assert.ok(script.length < 4000, `the metrics script is ${script.length} bytes`);
 });

@@ -88,6 +88,32 @@ export async function loadEvals() {
   };
 }
 
+/** The one group that stands for a board where there is room for a single row. */
+export interface Headline {
+  row: EvalGroup;
+  /** What makes it the one shown: "Best score" or "Most recent". */
+  label: string;
+  /** How many other groups share its score; always 0 on a measured board, which is not ranked. */
+  tiedWith: number;
+}
+
+/**
+ * A board's headline, or null for an empty board. A ranked board gives its best group. A measured
+ * board has no winner, because a speed only compares on one machine: it gives the group of its
+ * most recent run.
+ */
+export function headline(board: Board): Headline | null {
+  const [best] = board.rows;
+  if (!best) return null;
+  if (!board.measured) {
+    return { row: best, label: 'Best score', tiedWith: board.rows.filter((row) => row.score === best.score).length - 1 };
+  }
+  const [latest] = board.runs;
+  // Every run of the current version is in exactly one of the board's groups.
+  const row = board.rows.find((group) => group.run_ids.includes(latest.id)) as EvalGroup;
+  return { row, label: 'Most recent', tiedWith: 0 };
+}
+
 /** Two decimals at most, without trailing zeros (62, 62.5, 62.25); three significant digits below 1 (0.123). */
 export function formatNumber(value: number): string {
   return String(Number(Math.abs(value) < 1 ? value.toPrecision(3) : value.toFixed(2)));

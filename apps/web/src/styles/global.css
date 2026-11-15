@@ -145,6 +145,8 @@ p  { margin: 0 0 1.1em; }
 .grid { display: grid; gap: 1.1rem; }
 .grid-3 { grid-template-columns: repeat(auto-fill, minmax(285px, 1fr)); }
 .grid-2 { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+/* grid-2 fits a third column on the widest screens; this caps it at two, so four cards make two rows of two. */
+.grid-2.grid-pairs { grid-template-columns: repeat(auto-fill, minmax(max(340px, 34%), 1fr)); }
 
 .card {
   position: relative; display: flex; flex-direction: column; gap: .6rem;
