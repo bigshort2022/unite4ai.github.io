@@ -258,7 +258,15 @@ test('model page lists its evaluations and local setups; the feed publishes the 
     feed.notice,
     'Results are self-reported by contributors. Each benchmark page lists every run with its reproduce command and evidence hash.',
   );
-  assert.deepEqual(feed.benchmarks.map((b) => b.id), ['gsm8k-200', 'canary-injection-v1', 'decode-speed-gsm8k-200']);
+  assert.equal(
+    feed.note,
+    'Groups include runs of previous benchmark versions; compare only groups whose benchmark_version equals the benchmark\'s version.',
+  );
+  assert.deepEqual(feed.benchmarks.map((b) => [b.id, b.version, b.previous_versions]), [
+    ['gsm8k-200', '2', ['1']],
+    ['canary-injection-v1', '1', []],
+    ['decode-speed-gsm8k-200', '2', ['1']],
+  ]);
   assert.equal(feed.benchmarks[0].higher_is_better, true);
   // Groups of a measured benchmark carry their runtime and machine; quality groups do not.
   assert.equal(feed.groups.length, 7);
