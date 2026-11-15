@@ -1,5 +1,6 @@
 ---
 import Base from '../../layouts/Base.astro';
+import { RESULT_ISSUE_FORM, SUBMIT_GUIDE } from '../../lib/evals';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const href = (p: string) => `${base}${p}` || '/';
@@ -61,6 +62,19 @@ const REPO = 'https://github.com/unite4ai/unite4ai.github.io';
     <p style="margin-top:1.5rem;font-size:.88rem;color:var(--u-text-faint)">
       Or run locally: <code>bun run publish:cli -- validate</code> then <code>bun run publish:cli -- new-model my-slug</code>
     </p>
+
+    <section style="margin-top:3rem" aria-labelledby="submit-evals-title">
+      <h2 id="submit-evals-title">Evaluation results</h2>
+      <p style="max-width:62ch;color:var(--u-text-dim)">
+        A benchmark result is not typed into the form above: the runner writes the result file
+        on your machine. Send that file by pull request, or paste it into an issue form and a
+        maintainer turns it into one.
+      </p>
+      <p style="margin-top:1rem">
+        <a class="btn btn-ghost" href={SUBMIT_GUIDE}>Read the runner guide</a>
+        <a class="btn btn-ghost" href={RESULT_ISSUE_FORM}>Paste a result into the issue form</a>
+      </p>
+    </section>
   </section>
 
   <style>

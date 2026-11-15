@@ -4,6 +4,8 @@ import { EVAL_CATEGORIES } from '@unite4ai/schema';
 
 export const REPO = 'https://github.com/bigshort2022/unite4ai.github.io';
 export const SUBMIT_GUIDE = `${REPO}/blob/main/CONTRIBUTING.md#submitting-an-evaluation-result`;
+/** The no-git route: the issue form a maintainer turns into a pull request. */
+export const RESULT_ISSUE_FORM = `${REPO}/issues/new?template=submit-eval-result.yml`;
 
 export const CATEGORIES = EVAL_CATEGORIES;
 export const CATEGORY_LABELS: Record<(typeof CATEGORIES)[number], string> = {

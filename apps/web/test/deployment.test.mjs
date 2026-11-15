@@ -127,3 +127,14 @@ test('the home page leads with evaluations and carries no fixture text', async (
 
   assert.doesNotMatch(home, /fixture-bot|Fixture (?:Laptop|Tower)|Fixture (?:&lt;b&gt;|<b>)?Rig|Q4_K_M|ghost-model/);
 });
+
+test('the submit page points to the runner guide and to an issue form that exists', async () => {
+  const submit = await readFile(new URL('dist/submit/index.html', ROOT), 'utf8');
+  const block = submit.slice(submit.indexOf('Evaluation results</h2>'));
+  const form = block.match(/href="(https:\/\/github\.com\/[^/"]+\/[^/"]+)\/issues\/new\?template=([\w.-]+)"/);
+  assert.ok(form, 'the submit page must link to the evaluation result issue form');
+  const [, repo, template] = form;
+  assert.equal(template, 'submit-eval-result.yml');
+  assert.ok((await stat(new URL(`../../.github/ISSUE_TEMPLATE/${template}`, ROOT))).isFile());
+  assert.ok(block.includes(`href="${repo}/blob/main/CONTRIBUTING.md#submitting-an-evaluation-result"`));
+});

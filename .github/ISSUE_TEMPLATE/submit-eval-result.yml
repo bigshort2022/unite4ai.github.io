@@ -1,0 +1,57 @@
+name: Submit an evaluation result
+description: Share a benchmark result you ran on your own hardware. No git required — a maintainer turns this into a pull request.
+title: "[Eval] "
+labels: ["submission", "evaluation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for running a benchmark. Results are self-reported: the site shows who submitted each one and whether anyone else has reproduced it.
+        A maintainer checks the file you paste against the validation gate, the same one every pull request goes through.
+        **A result without a kept transcript cannot be accepted** — the transcript is the evidence behind the hash in the file.
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      description: The model card id on the site (the last part of the card's address). If the model has no card yet, give its name and URL.
+      placeholder: darsy-xray-analysis
+    validations: { required: true }
+  - type: dropdown
+    id: benchmark
+    attributes:
+      label: Benchmark
+      description: The benchmark you passed to the runner with --benchmark.
+      options:
+        - gsm8k-200
+        - canary-injection-v1
+    validations: { required: true }
+  - type: textarea
+    id: result
+    attributes:
+      label: Result file
+      description: The JSON file the runner wrote, pasted unchanged. For gsm8k-200 paste BOTH files the run wrote, one after the other.
+      render: json
+    validations: { required: true }
+  - type: input
+    id: transcript
+    attributes:
+      label: Where can the transcript be obtained on request? (optional)
+      placeholder: e.g. a link, or "ask me in this issue"
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes (optional)
+      description: Anything unusual about the run.
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Confirmation
+      options:
+        - label: I ran this myself with bun run eval and did not edit the result file.
+          required: true
+        - label: I kept the transcript and will share it if a maintainer asks.
+          required: true
+        - label: The model's licence is on the allowlist, or I have said above that I am not sure.
+          required: true
+        - label: I agree to license this result under CC BY 4.0.
+          required: true
