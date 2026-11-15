@@ -349,12 +349,15 @@ test('when no benchmark has a result for its current version, the home page list
   const latest = latestResultsOf(home).replace(/\s+/g, ' ');
   assert.match(latest, /^<h2 id="latest-results-title"[^>]*>Latest results<\/h2>/);
   assert.doesNotMatch(latest, /<table|\/evals\/gsm8k-200|>99%<|Darsy/);
-  // The wording of the evaluations page's empty state, with its link.
-  const wording = /No results yet\. Results arrive by pull request from people who ran this benchmark on their own hardware\. /;
-  assert.match(latest, new RegExp(wording.source + SUBMIT_GUIDE_LINK.source));
+  // The evaluations page's empty state with its link, but about "a benchmark": none is in view here.
+  const emptyState = (subject) => new RegExp(
+    `No results yet\\. Results arrive by pull request from people who ran ${subject} on their own hardware\\. ${SUBMIT_GUIDE_LINK.source}`,
+  );
+  assert.match(latest, emptyState('a benchmark'));
+  assert.doesNotMatch(latest, /this benchmark/);
   assert.match(
     categorySection(readFileSync(join(previousOnlyOut, 'evals/index.html'), 'utf8'), 'quality').replace(/\s+/g, ' '),
-    new RegExp(wording.source + SUBMIT_GUIDE_LINK.source),
+    emptyState('this benchmark'),
   );
   assert.match(latest, /<a href="\/evals">All leaderboards<\/a>/);
 });

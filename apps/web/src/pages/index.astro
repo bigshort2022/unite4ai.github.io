@@ -45,7 +45,7 @@ const nextEvents = events.filter((e) => e.data.starts > new Date()).slice(0, 2);
     <h2 id="latest-results-title">Latest results</h2>
     <p class="lede">One row per benchmark: the current best result, who else reproduced it, and where it ran.</p>
     {latest.length === 0 ? (
-      <NoResults />
+      <NoResults subject="a benchmark" />
     ) : (
       <div class="eval-scroll" tabindex="0" role="region" aria-label="Latest results">
         <table class="eval-table">
