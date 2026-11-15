@@ -54,7 +54,8 @@ test('production build targets the unite4ai.com custom domain', { timeout: 120_0
   assert.doesNotMatch(feedJson, fixtureMarkers);
   // The benchmark and model pages print more of each run: its submitter, its command, its device.
   const detailPages = ['gsm8k-200', 'canary-injection-v1', 'decode-speed-gsm8k-200'].map((id) => `dist/evals/${id}/index.html`);
-  for (const path of [...detailPages, 'dist/registry/models/darsy-xray-analysis/index.html']) {
+  const modelPages = ['darsy-xray-analysis', 'qwen3-6-35b-a3b'].map((id) => `dist/registry/models/${id}/index.html`);
+  for (const path of [...detailPages, ...modelPages]) {
     assert.doesNotMatch(await readFile(new URL(path, ROOT), 'utf8'), fixtureMarkers, path);
   }
 
