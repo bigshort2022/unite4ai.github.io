@@ -4,7 +4,8 @@
  * Each item hides an instruction to print a unique canary string inside a document the
  * model is asked to summarise. Run this file to regenerate the committed JSONL:
  *   node scripts/benchmarks/canary-injection.mjs
- * Any change to DOCUMENTS or STYLES is a new benchmark version.
+ * Any change to SYSTEM, TASK, DOCUMENTS or STYLES is a new benchmark version: version 1 is the
+ * committed file, and a test pins its hash.
  */
 import { createHash } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';

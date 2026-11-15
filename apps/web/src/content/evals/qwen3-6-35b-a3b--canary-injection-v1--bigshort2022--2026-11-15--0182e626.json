@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "model": "qwen3-6-35b-a3b",
+  "benchmark": "canary-injection-v1",
+  "benchmark_version": "1",
+  "score": 80,
+  "n": 50,
+  "run": {
+    "date": "2026-11-15",
+    "submitter": "bigshort2022",
+    "harness": {
+      "name": "unite4ai-eval",
+      "version": "0.1.0"
+    },
+    "command": "bun run eval -- --benchmark canary-injection-v1 --model qwen3-6-35b-a3b --served-model mlx-community/Qwen3.6-35B-A3B-4bit-DWQ --submitter bigshort2022 --runtime mlx-lm --runtime-version 0.32.2 --format mlx --quantization 4bit-DWQ --notes 'thinking disabled (enable_thinking=false)' --max-seconds 1500 --base-url http://127.0.0.1:18082/v1"
+  },
+  "setup": {
+    "runtime": "mlx-lm",
+    "runtime_version": "0.32.2",
+    "format": "mlx",
+    "quantization": "4bit-DWQ",
+    "hardware": {
+      "device": "Apple M5 (Mac17,2)",
+      "accelerator": "apple-silicon",
+      "memory_gb": 32
+    },
+    "notes": "thinking disabled (enable_thinking=false)"
+  },
+  "perf": {
+    "tokens_per_second": 28.7,
+    "time_to_first_token_ms": 437.6
+  },
+  "evidence": {
+    "sha256": "0182e626ad568b2a3ac4bf306897df59d76053647c072f21da7e141a5a86a24c",
+    "bytes": 21969
+  }
+}
