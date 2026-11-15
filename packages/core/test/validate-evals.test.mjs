@@ -122,13 +122,40 @@ test('a result must reference an existing model card and benchmark', async () =>
   assert.match(ghostBench[0], /benchmark "ghost" is not defined/);
 });
 
-test('a result cannot reference a model card whose slug overrides its id', async () => {
-  const slugged = MODEL_CARD.replace('name: Model A', 'name: Model A\nslug: another-id');
-  const errors = await errorsFor({ models: { 'model-a.md': slugged }, evals: { [FILE]: result() } });
-  assert.equal(errors.length, 1);
-  assert.match(errors[0], /^evals\/model-a--bench-a--alice--2026-11-10--aaaaaaaa\.json: model card sets `slug`, which changes its id; remove it/);
+const withSlug = (line) => MODEL_CARD.replace('name: Model A', `name: Model A\n${line}`);
+const slugError = (file) => `models/${file}: a model card must not set \`slug\`: it changes the card's id, and results reference the filename`;
+
+test('no model card may set a slug, however the key is written', async () => {
+  for (const line of ['slug: another-id', '"slug": another-id', "'slug': another-id"]) {
+    const errors = await errorsFor({ models: { 'model-a.md': withSlug(line) }, evals: { [FILE]: result() } });
+    assert.deepEqual(errors, [slugError('model-a.md')], line);
+  }
   const mentioned = MODEL_CARD.replace('Fixture.\n', 'Fixture.\n\nslug: only body text\n');
   assert.deepEqual(await errorsFor({ models: { 'model-a.md': mentioned }, evals: { [FILE]: result() } }), []);
+});
+
+test('a card that no result references cannot take over another card\'s id with a slug', async () => {
+  const models = { 'model-a.md': MODEL_CARD, 'model-b.md': withSlug('slug: model-a') };
+  assert.deepEqual(await errorsFor({ models, evals: { [FILE]: result() } }), [slugError('model-b.md')]);
+  assert.deepEqual(await errorsFor({ models }), [slugError('model-b.md')]);
+
+  // Astro's loader reads subfolders of models/, so a nested card is checked too.
+  const root = makeRoot({ evals: { [FILE]: result() } });
+  mkdirSync(join(root, 'models', 'nested'));
+  writeFileSync(join(root, 'models', 'nested', 'model-c.md'), withSlug('slug: model-a'));
+  assert.deepEqual((await validateContent(root)).errors, [slugError('nested/model-c.md')]);
+});
+
+test('a card whose frontmatter cannot be parsed is left to the model checks', async () => {
+  const errors = [];
+  const broken = MODEL_CARD.replace('name: Model A', 'name: [unclosed\nslug: another-id');
+  await validateEvals(makeRoot({ models: { 'model-a.md': broken } }), errors, []);
+  assert.deepEqual(errors, []);
+});
+
+test('two card files cannot share one id', async () => {
+  const errors = await errorsFor({ models: { 'model-a.md': MODEL_CARD, 'model-a.mdx': MODEL_CARD } });
+  assert.deepEqual(errors, ['models/model-a.mdx: same id as models/model-a.md; one id is one file']);
 });
 
 test('a benchmark filename must be a lowercase id', async () => {

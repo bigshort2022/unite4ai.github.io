@@ -1,7 +1,7 @@
 /// <reference types="bun" />
 import type { Dirent } from 'node:fs';
 import { readdir, readFile, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import {
   CONTENT_ID,
   EVAL_RESULT_MAX_BYTES,
@@ -22,9 +22,16 @@ function describe(issues: SchemaIssue[]): string {
   return issues.map((issue) => `${issue.path.map(String).join('.') || '(root)'}: ${issue.message}`).join('; ');
 }
 
-async function list(dir: string, pattern: RegExp): Promise<string[]> {
+/**
+ * Every model card under models/, as a /-separated path in name order. Astro's loader reads
+ * subfolders there, so a nested card is a card too.
+ */
+async function listModelCards(dir: string): Promise<string[]> {
   try {
-    return (await readdir(dir)).filter((file) => pattern.test(file)).sort();
+    return (await readdir(dir, { recursive: true, withFileTypes: true }))
+      .filter((entry) => !entry.isDirectory() && /\.mdx?$/.test(entry.name))
+      .map((entry) => relative(dir, join(entry.parentPath, entry.name)).split(sep).join('/'))
+      .sort();
   } catch {
     return [];
   }
@@ -69,8 +76,9 @@ function isRealDate(date: string): boolean {
 
 /**
  * Validates benchmark definitions and evaluation result files, including the rules a schema
- * cannot express: flat directories, size, cross-references, score bounds, full runs, duplicate
- * evidence and filename/content agreement. `today` is a UTC date, `YYYY-MM-DD`.
+ * cannot express: one id per model card, flat directories, size, cross-references, score
+ * bounds, full runs, duplicate evidence and filename/content agreement. `today` is a UTC date,
+ * `YYYY-MM-DD`.
  */
 export async function validateEvals(
   contentRoot: string,
@@ -78,11 +86,29 @@ export async function validateEvals(
   warnings: string[],
   today: string = new Date().toISOString().slice(0, 10),
 ): Promise<void> {
-  /** Model id to its card file. */
+  /** Model id to its card file, for the cards directly in models/: the ones a result can reference. */
   const models = new Map<string, string>();
-  for (const file of await list(join(contentRoot, 'models'), /\.mdx?$/)) models.set(file.replace(/\.mdx?$/, ''), file);
-  /** Model id to whether its card overrides that id with a frontmatter `slug`; filled on first reference. */
-  const slugged = new Map<string, boolean>();
+  for (const card of await listModelCards(join(contentRoot, 'models'))) {
+    if (!card.includes('/')) {
+      const id = card.replace(/\.mdx?$/, '');
+      const owner = models.get(id);
+      if (owner) errors.push(`models/${card}: same id as models/${owner}; one id is one file`);
+      else models.set(id, card);
+    }
+    // A card that cannot be read or parsed is reported by the model checks, not here.
+    let data: unknown;
+    try {
+      const frontmatter = (await readFile(join(contentRoot, 'models', card), 'utf8')).match(FRONTMATTER);
+      data = frontmatter && Bun.YAML.parse(frontmatter[1]);
+    } catch {
+      continue;
+    }
+    if (typeof data === 'object' && data !== null && 'slug' in data) {
+      errors.push(
+        `models/${card}: a model card must not set \`slug\`: it changes the card's id, and results reference the filename`,
+      );
+    }
+  }
 
   const benchmarks = new Map<string, BenchmarkData>();
   for (const file of await listFlat(contentRoot, 'benchmarks', '.md', 'benchmark', errors)) {
@@ -168,19 +194,8 @@ export async function validateEvals(
       errors.push(`${rel}: run.date ${result.run.date} is in the future`);
     }
 
-    const card = models.get(result.model);
-    if (!card) {
+    if (!models.has(result.model)) {
       errors.push(`${rel}: model "${result.model}" has no card in models/. Add the model card first.`);
-    } else {
-      let hasSlug = slugged.get(result.model);
-      if (hasSlug === undefined) {
-        const cardFrontmatter = (await readFile(join(contentRoot, 'models', card), 'utf8')).match(FRONTMATTER);
-        hasSlug = cardFrontmatter !== null && /^slug\s*:/m.test(cardFrontmatter[1]);
-        slugged.set(result.model, hasSlug);
-      }
-      if (hasSlug) {
-        errors.push(`${rel}: model card sets \`slug\`, which changes its id; remove it (models/${card})`);
-      }
     }
 
     const benchmark = benchmarks.get(result.benchmark);
