@@ -12,6 +12,14 @@ export interface Completion {
   finishReason: string | null;
 }
 
+/** The URL without a user name or password, for text that is published. */
+export function withoutCredentials(url: string): string {
+  const parsed = new URL(url);
+  parsed.username = '';
+  parsed.password = '';
+  return parsed.href.replace(/\/$/, '');
+}
+
 export async function listModels(baseUrl: string): Promise<string[]> {
   const response = await fetch(`${baseUrl}/models`, { signal: AbortSignal.timeout(10_000) });
   if (!response.ok) throw new Error(`GET /models → ${response.status}`);

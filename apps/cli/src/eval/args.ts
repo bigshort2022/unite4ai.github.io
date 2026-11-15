@@ -1,5 +1,6 @@
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { EVAL_ACCELERATORS, EVAL_FORMATS, EVAL_RUNTIMES, evalResultSchema } from '@unite4ai/schema';
+import { withoutCredentials } from './client.ts';
 import type { Hardware } from './hardware.ts';
 import type { EvalOptions } from './run.ts';
 
@@ -57,6 +58,18 @@ export function parseEvalArgs(
   if (flags.has('memory-gb')) hardware.memory_gb = positive('memory-gb', get('memory-gb'));
 
   const baseUrl = (flags.get('base-url') ?? context.env.AGENT_MODEL_BASE_URL ?? 'http://127.0.0.1:18082/v1').replace(/\/$/, '');
+  if (!/^https?:\/\//.test(baseUrl) || !URL.canParse(baseUrl)) {
+    throw new Error('--base-url must be a URL like http://127.0.0.1:18082/v1');
+  }
+  // The command is published with the result: it always says which server the run used, and
+  // it gives away neither a local path nor a password.
+  const published = argv.map((arg, index) => {
+    const flag = index % 2 === 1 ? argv[index - 1] : null;
+    if (flag === '--source-file') return basename(arg);
+    if (flag === '--base-url') return withoutCredentials(baseUrl);
+    return arg;
+  });
+  if (!flags.has('base-url')) published.push('--base-url', withoutCredentials(baseUrl));
   return {
     benchmark: get('benchmark'),
     model: get('model'),
@@ -69,7 +82,7 @@ export function parseEvalArgs(
     baseUrl,
     contentRoot: join(context.root, 'apps/web/src/content'),
     workDir: join(context.root, '.agent/evals'),
-    command: `bun run eval -- ${argv.map(quote).join(' ')}`,
+    command: `bun run eval -- ${published.map(quote).join(' ')}`,
     maxSeconds: flags.has('max-seconds') ? positive('max-seconds', get('max-seconds')) : 3600,
     ...(flags.has('notes') ? { notes: get('notes') } : {}),
     ...(flags.has('source-file') ? { sourceFile: get('source-file') } : {}),

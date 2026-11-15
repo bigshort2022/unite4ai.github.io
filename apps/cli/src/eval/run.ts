@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { benchmarkSchema, evalResultSchema, type EvalResult } from '@unite4ai/schema';
-import { listModels, serverStatus, streamChat } from './client.ts';
+import { listModels, serverStatus, streamChat, withoutCredentials } from './client.ts';
 import { detectHardware, type Hardware } from './hardware.ts';
 import { SUITES } from './suites.ts';
 
@@ -311,7 +311,8 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
     prompt_version: suite.promptVersion,
     model: options.model,
     served_model: options.servedModel,
-    base_url: options.baseUrl,
+    // The transcript is evidence that may be hosted in public.
+    base_url: withoutCredentials(options.baseUrl),
     runtime: options.runtime,
     runtime_version: options.runtimeVersion,
     format: options.format,

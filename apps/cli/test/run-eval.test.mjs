@@ -541,3 +541,12 @@ test('of two runs of one configuration at the same time, one answers the items a
   assert.deepEqual(transcriptItems(workspace), [0, 1, 2]);
   assert.deepEqual(readdirSync(workspace.workDir).filter((name) => name.endsWith('.lock')), []);
 });
+
+test('credentials in the base URL reach the server but not the transcript', async () => {
+  const workspace = makeWorkspace();
+  const stub = await stubServer({ ...GOOD });
+  const outcome = await runEval(options(workspace, stub, { baseUrl: stub.baseUrl.replace('http://', 'http://carol:hunter2@') }));
+  assert.equal(outcome.n, 3);
+  assert.doesNotMatch(readFileSync(outcome.transcriptPath, 'utf8'), /carol|hunter2/);
+  assert.equal(transcriptLines(workspace)[0].base_url, stub.baseUrl);
+});
