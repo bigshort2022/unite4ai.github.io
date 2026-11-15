@@ -63,6 +63,8 @@ export async function loadEvals() {
         version: benchmark.data.version,
         higher_is_better: benchmark.data.metric.higher_is_better,
       }),
+      /** Runs of versions other than the current one: kept on the benchmark page, off the leaderboard. */
+      earlierRuns: runs.filter((run) => run.benchmark === benchmark.id && run.benchmark_version !== benchmark.data.version).length,
     })),
   };
 }

@@ -337,27 +337,79 @@ after(() => {
   rmSync(previousOnlyOut, { recursive: true, force: true });
 });
 
+/** The explained empty state: nobody has run the subject at all. */
+const noResultsYet = (subject) => new RegExp(
+  `No results yet\\. Results arrive by pull request from people who ran ${subject} on their own hardware\\. ${SUBMIT_GUIDE_LINK.source}`,
+);
+const previousOnlyPage = (path) => readFileSync(join(previousOnlyOut, path), 'utf8').replace(/\s+/g, ' ');
+
 test('when no benchmark has a result for its current version, the home page lists none and says how results arrive', { timeout: 120_000 }, () => {
-  // The only result is the run of a version "0" that GSM8K-200 never had.
+  // Only runs of a version "0" that no benchmark ever had: two of GSM8K-200, one of the speed
+  // benchmark, none of the canary.
+  const fixture = (name) => JSON.parse(readFileSync(join(ROOT, 'test/fixtures/evals', name), 'utf8'));
+  const write = (name, run) => writeFileSync(join(previousOnlyEvals, name), JSON.stringify(run));
   const previous = 'darsy-xray-analysis--gsm8k-200--fixture-bot--2026-10-01--44444444.json';
-  cpSync(join(ROOT, 'test/fixtures/evals', previous), join(previousOnlyEvals, previous));
+  const speed = 'darsy-xray-analysis--decode-speed-gsm8k-200--fixture-bot--2026-11-03--33333333.json';
+  write(previous, fixture(previous));
+  write('darsy-xray-analysis--gsm8k-200--fixture-bot--2026-10-02--88888888.json', {
+    ...fixture(previous),
+    run: { ...fixture(previous).run, date: '2026-10-02' },
+    evidence: { sha256: '8'.repeat(64) },
+  });
+  write(speed, { ...fixture(speed), benchmark_version: '0' });
   const build = buildWith(previousOnlyEvals, previousOnlyOut);
   assert.equal(build.status, 0, `${build.stdout}${build.stderr}`);
 
-  const home = readFileSync(join(previousOnlyOut, 'index.html'), 'utf8');
-  assert.match(home, /<b>1<\/b>\s*<span>Evaluation runs<\/span>/);
-  const latest = latestResultsOf(home).replace(/\s+/g, ' ');
+  const home = previousOnlyPage('index.html');
+  assert.match(home, /<b>3<\/b>\s*<span>Evaluation runs<\/span>/);
+  const latest = latestResultsOf(home);
   assert.match(latest, /^<h2 id="latest-results-title"[^>]*>Latest results<\/h2>/);
   assert.doesNotMatch(latest, /<table|\/evals\/gsm8k-200|>99%<|Darsy/);
   // The evaluations page's empty state with its link, but about "a benchmark": none is in view here.
-  const emptyState = (subject) => new RegExp(
-    `No results yet\\. Results arrive by pull request from people who ran ${subject} on their own hardware\\. ${SUBMIT_GUIDE_LINK.source}`,
-  );
-  assert.match(latest, emptyState('a benchmark'));
+  assert.match(latest, noResultsYet('a benchmark'));
   assert.doesNotMatch(latest, /this benchmark/);
-  assert.match(
-    categorySection(readFileSync(join(previousOnlyOut, 'evals/index.html'), 'utf8'), 'quality').replace(/\s+/g, ' '),
-    emptyState('this benchmark'),
-  );
   assert.match(latest, /<a href="\/evals">All leaderboards<\/a>/);
+});
+
+test('a benchmark with runs of earlier versions only says which version has no result and where those runs are', () => {
+  const board = previousOnlyPage('evals/index.html');
+  const guide = SUBMIT_GUIDE_LINK.source;
+  // "No results yet" would be false: the runs exist, they are of an earlier version.
+  const quality = categorySection(board, 'quality');
+  assert.match(quality, new RegExp(
+    'No results for version 1 yet\\. 2 runs of earlier versions are listed on the '
+    + `<a href="/evals/gsm8k-200"[^>]*>benchmark page</a>\\. ${guide}`,
+  ));
+  assert.doesNotMatch(quality, /No results yet/);
+  const efficiency = categorySection(board, 'efficiency');
+  assert.match(efficiency, new RegExp(
+    'No results for version 1 yet\\. 1 run of an earlier version is listed on the '
+    + `<a href="/evals/decode-speed-gsm8k-200"[^>]*>benchmark page</a>\\. ${guide}`,
+  ));
+  assert.doesNotMatch(efficiency, /No results yet/);
+  // Two benchmarks are in this state, so the two links read differently to a screen reader.
+  assert.match(quality, /aria-label="GSM8K \(first 200\) benchmark page"/);
+  assert.match(efficiency, /aria-label="Decode speed on GSM8K-200 benchmark page"/);
+  // Nobody has run the canary in any version.
+  assert.match(categorySection(board, 'security'), noResultsYet('this benchmark'));
+
+  // The benchmark page points down to its own list of those runs.
+  const gsm8k = previousOnlyPage('evals/gsm8k-200/index.html');
+  assert.match(leaderboardOf(gsm8k), new RegExp(
+    `No results for version 1 yet\\. Earlier-version runs are <a href="#previous-versions">listed below</a>\\. ${guide}`,
+  ));
+  assert.match(gsm8k, /<section id="previous-versions"[^>]*> ?<h2>Previous versions<\/h2>/);
+  assert.match(leaderboardOf(previousOnlyPage('evals/decode-speed-gsm8k-200/index.html')), new RegExp(
+    `No results for version 1 yet\\. An earlier-version run is <a href="#previous-versions">listed below</a>\\. ${guide}`,
+  ));
+  const canary = previousOnlyPage('evals/canary-injection-v1/index.html');
+  assert.match(leaderboardOf(canary), new RegExp(`No results for version 1 yet\\. ${guide}`));
+  assert.doesNotMatch(canary, /previous-versions|[Ee]arlier-version/);
+});
+
+test('a benchmark page with current results has no empty state, and its previous versions keep their anchor', () => {
+  const detail = page('evals/gsm8k-200/index.html');
+  assert.doesNotMatch(leaderboardOf(detail), /No results/);
+  assert.match(detail, /<section id="previous-versions"[^>]*>\s*<h2>Previous versions<\/h2>/);
+  assert.doesNotMatch(page('evals/index.html'), /of (?:an )?earlier versions?/);
 });
