@@ -55,7 +55,7 @@ function makeWorkspace({ source = SOURCE, sourceSha = sha256(source), speedDefin
     name: 'GSM8K fixture',
     summary: 'Three items for tests.',
     category: 'quality',
-    version: '1',
+    version: '2',
     metric: { name: 'accuracy', unit: '%', higher_is_better: true, min: 0, max: 100 },
     scoring: 'exact-match',
     items: 3,
@@ -71,7 +71,7 @@ function makeWorkspace({ source = SOURCE, sourceSha = sha256(source), speedDefin
       name: 'Decode speed fixture',
       summary: 'Tokens per second during the fixture run.',
       category: 'efficiency',
-      version: '1',
+      version: '2',
       metric: { name: 'decode speed', unit: 'tok/s', higher_is_better: true, min: 0 },
       scoring: 'measured',
       items: 0,
@@ -91,7 +91,7 @@ const INSTRUCTION = 'Solve this step by step. Finish with the final answer as a 
 
 /** What a completion request gets wrong against the benchmark page's method; null when nothing. */
 function requestProblem(body, question) {
-  const fixed = { model: 'stub-model', temperature: 0, max_tokens: 512, stream: true };
+  const fixed = { model: 'stub-model', temperature: 0, max_tokens: 2048, stream: true };
   for (const [key, value] of Object.entries(fixed)) {
     if (body[key] !== value) return `${key} must be ${JSON.stringify(value)}, got ${JSON.stringify(body[key])}`;
   }
@@ -102,6 +102,7 @@ function requestProblem(body, question) {
 
 /**
  * OpenAI-compatible stub. `replies` maps a question to the reply text, to a status code, to
+ * `{ cut }` (that text, then finish_reason "length": the server stopped at the token limit), to
  * `{ error }` (an error event inside a 200 stream), to `{ truncate }` (one content chunk, then
  * the response ends with neither a finish_reason nor [DONE]) or to `{ hang: true }` (no answer
  * at all). A completion request that departs from the published method gets a 500 that says
@@ -147,15 +148,16 @@ function stubServer(replies, { models = ['stub-model'], delayMs = 15, status, us
         res.setHeader('content-type', 'text/event-stream');
         const event = (payload) => `data: ${JSON.stringify(payload)}\n\n`;
         const content = (text) => event({ choices: [{ delta: { content: text }, finish_reason: null }] });
-        if (typeof reply === 'object') {
+        if (typeof reply === 'object' && !('cut' in reply)) {
           res.write('error' in reply ? event({ error: { message: reply.error } }) : content(reply.truncate));
           return finish();
         }
-        const half = Math.ceil(reply.length / 2);
-        res.write(content(reply.slice(0, half)));
+        const [text, finishReason] = typeof reply === 'object' ? [reply.cut, 'length'] : [reply, 'stop'];
+        const half = Math.ceil(text.length / 2);
+        res.write(content(text.slice(0, half)));
         setTimeout(() => {
-          res.write(content(reply.slice(half)));
-          res.write(event({ choices: [{ delta: {}, finish_reason: 'stop' }] }));
+          res.write(content(text.slice(half)));
+          res.write(event({ choices: [{ delta: {}, finish_reason: finishReason }] }));
           if (usage) res.write(event({ choices: [], usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 } }));
           res.write('data: [DONE]\n\n');
           finish();
@@ -226,6 +228,12 @@ test('a complete run writes a result the content gate accepts, with evidence for
   // The transcript is named for the configuration, not the day, and ends by saying when it completed.
   assert.match(basename(outcome.transcriptPath), /^model-a--gsm8k-200--alice--[a-f0-9]{8}\.jsonl$/);
   assert.deepEqual(transcriptLines(workspace).at(-1), { type: 'complete', date: '2026-11-10' });
+  // The header records the benchmark version, the prompt version and the token limit of the run.
+  const [header] = transcriptLines(workspace);
+  assert.deepEqual(
+    [header.type, header.benchmark_version, header.prompt_version, header.max_tokens],
+    ['header', '2', 'gsm8k-2', 2048],
+  );
 
   // The published speed, recomputed from the transcript with the runner's rounding: tokens
   // per second after the first token, and the median time to the first token.
@@ -247,7 +255,7 @@ test('a complete run writes a result the content gate accepts, with evidence for
   assert.deepEqual(stub.bodies, ['Q1?', 'Q2?', 'Q3?'].map((question) => ({
     model: 'stub-model',
     messages: [{ role: 'user', content: `${question}\n\n${INSTRUCTION}` }],
-    max_tokens: 512,
+    max_tokens: 2048,
     temperature: 0,
     stream: true,
     stream_options: { include_usage: true },
@@ -387,7 +395,7 @@ test('the run stops at its time limit between items, and the next run finishes i
 test('the stub refuses a request that departs from the published method', async () => {
   const workspace = makeWorkspace();
   const stub = await stubServer({ ...GOOD });
-  await assert.rejects(runEval(options(workspace, stub, { maxTokens: 256 })), /item 1 failed: .*stub: max_tokens must be 512, got 256/);
+  await assert.rejects(runEval(options(workspace, stub, { maxTokens: 256 })), /item 1 failed: .*stub: max_tokens must be 2048, got 256/);
   assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), []);
 });
 
@@ -398,6 +406,30 @@ test('a request the server never answers fails the item at the request timeout',
   assert.equal(stub.posts(), 2);
   assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), []);
   assert.deepEqual(transcriptItems(workspace), [0]);
+});
+
+test('a reply cut off at the token limit is wrong in the transcript and in the score, whatever it contains', async () => {
+  const workspace = makeWorkspace();
+  // Cut off, the first reply still ends in the right answer: version 1 scored it as correct.
+  const stub = await stubServer({ ...GOOD, 'Q1?': { cut: 'Nine eggs at $2 each is 18' } });
+  const outcome = await runEval(options(workspace, stub));
+
+  assert.equal(outcome.n, 3);
+  assert.equal(outcome.correct, 1, 'only the second item counts');
+  assert.equal(outcome.score, 33.33);
+  const [first, second] = itemLines(workspace);
+  assert.deepEqual(
+    [first.reply, first.finish_reason, first.extracted, first.expected, first.correct],
+    ['Nine eggs at $2 each is 18', 'length', null, '18', false],
+  );
+  assert.deepEqual([second.finish_reason, second.extracted, second.correct], ['stop', '2125', true]);
+  assert.equal(JSON.parse(readFileSync(outcome.resultPath, 'utf8')).score, 33.33);
+  assert.deepEqual((await validateContent(workspace.contentRoot)).errors, []);
+
+  // A finished configuration is rescored from the verdicts stored in its transcript.
+  const requests = stub.requests.length;
+  assert.deepEqual(await runEval(options(workspace, stub)), outcome);
+  assert.equal(stub.requests.length, requests);
 });
 
 test('a note about the setup is published with the result and is part of the configuration', async () => {
@@ -483,7 +515,7 @@ test('with its speed benchmark defined, a complete run also publishes the decode
   assert.deepEqual(speed, {
     ...result,
     benchmark: 'decode-speed-gsm8k-200',
-    benchmark_version: '1',
+    benchmark_version: '2',
     score: result.perf.tokens_per_second,
   });
   assert.equal(speed.evidence.sha256, sha256(readFileSync(outcome.transcriptPath)));
@@ -553,6 +585,32 @@ async function interrupted() {
   const [file] = readdirSync(workspace.workDir).filter((name) => name.endsWith('.jsonl'));
   return { workspace, stub, path: join(workspace.workDir, file) };
 }
+
+test('a transcript of benchmark version 1 is never resumed into version 2', async () => {
+  const { workspace, stub, path } = await interrupted();
+  const [header, first, second] = readFileSync(path, 'utf8').trimEnd().split('\n');
+  // What version 1 wrote for the same model and setup: its own versions and the 512-token limit.
+  const oldHeader = JSON.stringify({ ...JSON.parse(header), benchmark_version: '1', prompt_version: 'gsm8k-1', max_tokens: 512 });
+  assert.notEqual(oldHeader, header);
+  const third = JSON.stringify({ ...JSON.parse(second), index: 2, expected: '7', extracted: '7', correct: true });
+  const finished = [oldHeader, first, second, third, JSON.stringify({ type: 'complete', date: '2026-11-09' })]
+    .map((line) => `${line}\n`).join('');
+
+  // Under its own name (the header's hash) it is another configuration's file: left alone, not read.
+  const oldPath = join(workspace.workDir, `model-a--gsm8k-200--alice--${sha256(oldHeader).slice(0, 8)}.jsonl`);
+  assert.notEqual(oldPath, path);
+  writeFileSync(oldPath, finished);
+  const outcome = await runEval(options(workspace, stub));
+  assert.equal(outcome.transcriptPath, path);
+  assert.equal(stub.posts(), 4, 'version 2 answers its own third item');
+  assert.equal(outcome.correct, 2, "version 1's three correct verdicts are not counted");
+  assert.equal(readFileSync(oldPath, 'utf8'), finished);
+
+  // Renamed to this run's file, it is refused by its header.
+  writeFileSync(path, finished);
+  await assert.rejects(runEval(options(workspace, stub)), /does not start with this run's header/);
+  assert.equal(stub.posts(), 4);
+});
 
 test('a last line cut short by a killed run is dropped, and the run continues', async () => {
   const { workspace, stub, path } = await interrupted();

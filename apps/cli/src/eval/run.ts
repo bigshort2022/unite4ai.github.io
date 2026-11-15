@@ -292,10 +292,10 @@ const FLAG_OF: Record<string, string> = {
 export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
   const log = options.log ?? (() => {});
   const maxSeconds = options.maxSeconds ?? 3600;
-  const maxTokens = options.maxTokens ?? 512;
 
   // Preflight: everything that can fail without touching the model server fails here.
   const { definition, suite, speedBenchmark } = loadBenchmark(options.contentRoot, options.benchmark);
+  const maxTokens = options.maxTokens ?? suite.maxTokens;
   if (!['md', 'mdx'].some((ext) => existsSync(join(options.contentRoot, 'models', `${options.model}.${ext}`)))) {
     throw new Error(`model "${options.model}" has no card in models/. Add the model card first.`);
   }
@@ -393,7 +393,7 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
       } catch (error) {
         throw new Error(`item ${item.index + 1} failed: ${(error as Error).message}; rerun to resume`);
       }
-      const verdict = item.judge(completion.text);
+      const verdict = item.judge(completion.text, { finishReason: completion.finishReason });
       const line: TranscriptItem = {
         type: 'item',
         index: item.index,

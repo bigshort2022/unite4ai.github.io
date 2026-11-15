@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildMessages, extractAnswer, isCorrect, parseItems } from '../src/eval/gsm8k.ts';
+import { buildMessages, extractAnswer, isCorrect, judge, parseItems } from '../src/eval/gsm8k.ts';
 import { SUITES } from '../src/eval/suites.ts';
 
 const line = (question, answer) => JSON.stringify({ question, answer });
@@ -62,7 +62,26 @@ test('the prompt is the question, a blank line and the published instruction; th
     role: 'user',
     content: 'How many?\n\nSolve this step by step. Finish with the final answer as a number on its own line.',
   }]);
-  assert.equal(SUITES['gsm8k-200'].promptVersion, 'gsm8k-1');
+  assert.equal(SUITES['gsm8k-200'].promptVersion, 'gsm8k-2');
   const [item] = SUITES['gsm8k-200'].items(`${JSON.stringify({ question: 'How many?', answer: 'w\n#### 4' })}\n`, 1);
   assert.deepEqual(item.messages, buildMessages('How many?'));
+});
+
+test('each suite sets its own token limit: 2048 for GSM8K, 512 for the canary suite', () => {
+  assert.equal(SUITES['gsm8k-200'].maxTokens, 2048);
+  assert.equal(SUITES['canary-injection-v1'].maxTokens, 512);
+});
+
+test('a reply the server cut off at the token limit is wrong, whatever numbers it contains', () => {
+  const [item] = SUITES['gsm8k-200'].items(`${JSON.stringify({ question: 'How many?', answer: 'w\n#### 18' })}\n`, 1);
+  const reply = 'Nine eggs at $2 each is 18';
+  assert.deepEqual(item.judge(reply, { finishReason: 'length' }), { correct: false, extracted: null });
+  assert.deepEqual(item.judge(reply, { finishReason: 'stop' }), { correct: true, extracted: '18' });
+  // A server that reports no finish reason gives no sign of a cut-off, so the reply is judged as it stands.
+  assert.deepEqual(item.judge(reply, { finishReason: null }), { correct: true, extracted: '18' });
+  assert.deepEqual(item.judge('It is 19', { finishReason: null }), { correct: false, extracted: '19' });
+  assert.deepEqual(item.judge('No idea', { finishReason: 'stop' }), { correct: false, extracted: null });
+  // Direct calls agree with the suite.
+  assert.deepEqual(judge(reply, 18, 'length'), { correct: false, extracted: null });
+  assert.deepEqual(judge(reply, 18, 'stop'), { correct: true, extracted: '18' });
 });

@@ -1,10 +1,14 @@
 /**
- * GSM8K suite. The method is published on the benchmark page
+ * GSM8K suite, benchmark version 2. The method is published on the benchmark page
  * (apps/web/src/content/benchmarks/gsm8k-200.md); change them together and bump the version.
+ * Version 1 allowed 512 new tokens and scored the last number of a reply that was cut off there.
  */
 
-/** Recorded in every transcript; bump when the prompt or the extraction rule changes. */
-export const PROMPT_VERSION = 'gsm8k-1';
+/** Recorded in every transcript; bump when the prompt, the token limit or the answer rule changes. */
+export const PROMPT_VERSION = 'gsm8k-2';
+
+/** New tokens allowed per reply, reasoning included. */
+export const MAX_TOKENS = 2048;
 
 export interface Gsm8kItem {
   index: number;
@@ -60,4 +64,19 @@ export function extractAnswer(reply: string): number | null {
 export function isCorrect(reply: string, expected: number): boolean {
   const answer = extractAnswer(reply);
   return answer !== null && Math.abs(answer - expected) < 1e-6;
+}
+
+/**
+ * The verdict on one reply. A reply the server cut off at the token limit (finish reason
+ * "length") is wrong whatever numbers it contains: its last number is where the text stopped,
+ * not an answer. A server that reports no finish reason gives no sign of a cut-off.
+ */
+export function judge(
+  reply: string,
+  expected: number,
+  finishReason: string | null,
+): { correct: boolean; extracted: string | null } {
+  if (finishReason === 'length') return { correct: false, extracted: null };
+  const answer = extractAnswer(reply);
+  return { correct: isCorrect(reply, expected), extracted: answer === null ? null : String(answer) };
 }
