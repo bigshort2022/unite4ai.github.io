@@ -41,9 +41,12 @@ export function buildMessages(question: string): ChatMessage[] {
   }];
 }
 
-/** The last number in the visible reply, with thousands separators removed. */
+/**
+ * The last number in the visible reply, with thousands separators removed. A think block that
+ * is never closed (the reply ran out of tokens mid-thought) hides everything after it.
+ */
 export function extractAnswer(reply: string): number | null {
-  const visible = reply.replace(/<think>[\s\S]*?<\/think>/g, ' ');
+  const visible = reply.replace(/<think>[\s\S]*?<\/think>/g, ' ').replace(/<think>[\s\S]*$/, '');
   const numbers = visible.match(NUMBER);
   if (!numbers) return null;
   const value = toNumber(numbers[numbers.length - 1]);

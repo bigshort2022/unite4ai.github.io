@@ -35,6 +35,12 @@ test('extractAnswer ignores numbers inside a think block', () => {
   assert.equal(extractAnswer('<think>only thoughts 5</think>'), null);
 });
 
+test('extractAnswer treats a think block that is never closed as running to the end', () => {
+  assert.equal(extractAnswer('<think>so it is 42'), null);
+  assert.equal(extractAnswer('The answer is 7 <think>or maybe 9'), 7);
+  assert.equal(extractAnswer('<think>first 3</think>The answer is 7 <think>or maybe 9'), 7);
+});
+
 test('isCorrect compares numerically, so 18 and 18.0 match and a missing answer is wrong', () => {
   assert.equal(isCorrect('#### 18.0', 18), true);
   assert.equal(isCorrect('#### 19', 18), false);
