@@ -12,7 +12,7 @@ scoring: measured
 items: 0
 measured_on: gsm8k-200
 source_url: https://github.com/bigshort2022/unite4ai.github.io/blob/main/apps/cli/src/eval/run.ts
-license: apache-2.0
+license: mit
 updated: 2026-11-14
 ---
 
@@ -32,18 +32,32 @@ and the machine. It says nothing about answer quality; read it next to
    generating after the first token, across all 200 requests.
 4. A run whose server reports no token count has no speed result. Nothing is estimated.
 
-The result carries the same transcript hash as the quality result of that run.
+The result carries the same transcript hash as the quality result of that run, and is
+accepted only together with it.
+
+## How results are grouped
+
+Runs are pooled only when they share all of: model, format, quantization, runtime, device,
+accelerator and memory. Each such group is one row, showing the median of its runs and every
+runtime version among them. Device names are compared without regard to case or spacing.
+Rows are sorted by speed but not ranked: compare rows on the same machine only.
 
 ## Known weaknesses
 
 - **It depends on what else the machine was doing.** Other processes, memory pressure and
   thermal throttling all move the number. Treat a single run as indicative.
 - **The token count is the server's.** Runtimes count tokens slightly differently, and the
-  count includes end-of-sequence and any reasoning tokens.
+  count may include end-of-sequence and any reasoning tokens, depending on the runtime.
+- **Hidden reasoning inflates it.** If a server does not stream its reasoning, that time is
+  not counted but its tokens are.
+- **Thinking mode matters.** Runs with and without thinking are pooled; check each run's
+  setup notes.
+- **Tied to the workload's version.** The number is only comparable between runs of the same
+  GSM8K-200 version and prompt.
 - **One workload.** Short prompts and replies of a few hundred tokens; long-context
   throughput can differ.
 - **No energy figure.** Power draw is not measured.
 
 ## Licence
 
-The method is the runner's source code, Apache-2.0.
+The method is the runner's source code, under this repository's LICENSE file (MIT).

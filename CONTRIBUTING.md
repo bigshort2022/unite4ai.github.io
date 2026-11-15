@@ -63,6 +63,9 @@ Evaluation results are data in this repository. One result is one JSON file dire
   reproduced is shown as such; a lone result is shown as not yet reproduced.
 - Reproducing someone else's result is as valuable as a new one: submit your own file for the
   same model, benchmark, format and quantization.
+- A speed only compares on the same machine with the same runtime. To reproduce a
+  `decode-speed-gsm8k-200` row, copy its device, accelerator, memory and runtime exactly
+  (`--device`, `--accelerator`, `--memory-gb`, `--runtime`); anything else is a new row.
 
 The runner does the bookkeeping for you. Runnable benchmarks today: `gsm8k-200` (quality) and
 `canary-injection-v1` (security). Point it at any OpenAI-compatible local server (mlx-lm,
@@ -83,16 +86,20 @@ It sends one request at a time at temperature 0 and keeps a transcript in `.agen
 an interrupted run resumes, on the same day or a later one. When every item is answered it
 writes the result file into `apps/web/src/content/evals/` with the transcript's hash, dated
 the day the run completed. A `gsm8k-200` run that measured decode speed also writes a second
-file for `decode-speed-gsm8k-200`, with the same date and transcript hash; submit both. Keep
-the transcript: it is your evidence. Running a finished configuration again rewrites the same
-files; move its transcript away to start a new run. If the model can think before it answers,
-say with `--notes` whether thinking was enabled.
+file for `decode-speed-gsm8k-200`, with the same date and transcript hash. Submit the two
+files together: a speed result is rejected without the result of the run it was measured on.
+Keep the transcript: it is your evidence. Running a finished configuration again rewrites the
+same files; move its transcript away to start a new run. If the model can think before it
+answers, say with `--notes` whether thinking was enabled.
 
 `bun run validate` checks the files the same way CI does.
 
 Adding a benchmark is a pull request with one markdown file in `apps/web/src/content/benchmarks/`.
 Scoring must be deterministic (exact match, multiple choice, canary detection, or a measured
 quantity), the data must be openly licensed, and the page must state the benchmark's weaknesses.
+A benchmark of a measured quantity names, in `measured_on`, the benchmark whose runs it is
+measured on; its results are accepted only beside the result of that run, with the same
+transcript hash. No other two results may share a hash.
 When the method changes, raise `version` and add the old one to `previous_versions`: results for
 a listed previous version are kept but leave the leaderboard, and any other version is rejected.
 
