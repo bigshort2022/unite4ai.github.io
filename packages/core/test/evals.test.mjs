@@ -155,3 +155,16 @@ test('groups are ordered by code units, so the order is the same in every locale
   const groups = groupEvals([run('x', { model: 'a-model' }), run('y', { model: 'B-model' })]);
   assert.deepEqual(groups.map((g) => g.model), ['B-model', 'a-model']);
 });
+
+test('a full tie on score and reproduction ranks models by code units, not by locale', () => {
+  // localeCompare would put "alpha" before "Zeta"; code units put the capital first.
+  const groups = groupEvals([run('a', { model: 'alpha', score: 80 }), run('z', { model: 'Zeta', score: 80 })]);
+  const ranked = leaderboard(groups, { id: 'bench-a', version: '1', higher_is_better: true });
+  assert.deepEqual(ranked.map((g) => g.model), ['Zeta', 'alpha']);
+});
+
+test('localSetups orders setups by code units, not by locale', () => {
+  const on = (device) => setup({ hardware: { ...result().setup.hardware, device } });
+  const setups = localSetups([run('a', { setup: on('apple box') }), run('z', { setup: on('Zen box') })]);
+  assert.deepEqual(setups.map((s) => s.device), ['Zen box', 'apple box']);
+});

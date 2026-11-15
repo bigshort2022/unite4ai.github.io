@@ -1,8 +1,8 @@
 ---
 import Base from '../../layouts/Base.astro';
 import { getCollection, render } from 'astro:content';
-import { leaderboard, reproductionLabel } from '@unite4ai/core';
-import { CATEGORY_LABELS, SUBMIT_GUIDE, byCodeUnit, formatNumber, loadEvals, scoreRange } from '../../lib/evals';
+import { byCodeUnit, leaderboard, reproductionLabel } from '@unite4ai/core';
+import { CATEGORY_LABELS, SUBMIT_GUIDE, formatNumber, loadEvals, scoreRange } from '../../lib/evals';
 
 export async function getStaticPaths() {
   const benchmarks = await getCollection('benchmarks');
@@ -103,7 +103,7 @@ const modelName = (id: string) => modelNames.get(id) ?? id;
                 <tr>
                   <td class="num">{run.run.date}<small>v{run.benchmark_version}</small></td>
                   <td><a href={href(`/registry/models/${run.model}`)}>{modelName(run.model)}</a></td>
-                  <td class="num"><span class="score">{formatNumber(run.score)}</span>{d.metric.unit}<small>n = {run.n}</small></td>
+                  <td class="num"><span class="score">{formatNumber(run.score)}</span>{d.metric.unit}{d.items > 0 && <small>n = {run.n}</small>}</td>
                   <td>
                     {run.setup.format} · {run.setup.quantization}
                     <small>{run.setup.runtime} {run.setup.runtime_version}</small>

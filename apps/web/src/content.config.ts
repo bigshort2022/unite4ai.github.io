@@ -1,6 +1,14 @@
 import { defineCollection, z } from 'astro:content';
 import { glob } from 'astro/loaders';
-import { CONTENT_ID, OPEN_LICENSES } from '@unite4ai/schema';
+import {
+  CONTENT_ID,
+  EVAL_ACCELERATORS,
+  EVAL_CATEGORIES,
+  EVAL_FORMATS,
+  EVAL_RUNTIMES,
+  EVAL_SCORING,
+  OPEN_LICENSES,
+} from '@unite4ai/schema';
 
 /**
  * THE DATA MODEL.
@@ -171,11 +179,17 @@ const httpsUrl = z.string().url().refine((value) => value.startsWith('https://')
 const sha256Hex = z.string().regex(/^[a-f0-9]{64}$/, 'must be a 64-character lowercase hex sha256');
 const contentId = z.string().regex(CONTENT_ID, 'must be a lowercase id like my-model-7b');
 
-/** Free text that readers see or paste: one bounded line, no control or invisible formatting characters. */
-const line = (max: number) => z.string().min(1).max(max).regex(
+/**
+ * Free text that readers see or paste: one bounded line, no control or invisible formatting
+ * characters. `wrongType` replaces the message for a value that is not a string at all.
+ */
+const line = (max: number, wrongType?: string) => z.string(wrongType ? { error: wrongType } : undefined).min(1).max(max).regex(
   /^[^\p{Cc}\p{Cf}\p{Zl}\p{Zp}]+$/u,
   'must be a single line without control or invisible formatting characters',
 );
+
+/** A contributor's link, printed as an href. */
+const evidenceUrl = line(500).url().refine((value) => value.startsWith('https://'), { message: 'must be an https URL' });
 
 /**
  * A benchmark definition. Mirrors benchmarkSchema in @unite4ai/schema field for field.
@@ -186,8 +200,9 @@ const benchmarks = defineCollection({
   schema: z.strictObject({
     name: z.string().min(1),
     summary: z.string().max(300),
-    category: z.enum(['quality', 'security', 'efficiency']),
-    version: z.string({ error: 'must be a quoted string, e.g. version: "1"' }).min(1),
+    category: z.enum(EVAL_CATEGORIES),
+    version: line(50, 'must be a quoted string, e.g. version: "1"'),
+    previous_versions: z.array(line(50)).default([]),
     metric: z.strictObject({
       name: z.string().min(1),
       unit: z.string(),
@@ -198,7 +213,7 @@ const benchmarks = defineCollection({
       path: ['min'],
       message: 'must not be greater than max',
     }),
-    scoring: z.enum(['exact-match', 'multiple-choice', 'canary', 'measured']),
+    scoring: z.enum(EVAL_SCORING),
     items: z.number().int().nonnegative(),
     source_url: httpsUrl,
     source_sha256: sha256Hex.optional(),
@@ -234,13 +249,13 @@ const evals = defineCollection({
       command: line(2000),
     }),
     setup: z.strictObject({
-      runtime: z.enum(['mlx-lm', 'ollama', 'llama.cpp', 'vllm', 'transformers', 'other']),
+      runtime: z.enum(EVAL_RUNTIMES),
       runtime_version: line(100),
-      format: z.enum(['mlx', 'gguf', 'safetensors', 'other']),
+      format: z.enum(EVAL_FORMATS),
       quantization: line(100),
       hardware: z.strictObject({
         device: line(200),
-        accelerator: z.enum(['apple-silicon', 'nvidia', 'amd', 'cpu', 'other']),
+        accelerator: z.enum(EVAL_ACCELERATORS),
         memory_gb: z.number().positive(),
       }),
     }),
@@ -252,7 +267,7 @@ const evals = defineCollection({
     }).optional(),
     evidence: z.strictObject({
       sha256: sha256Hex,
-      url: httpsUrl.optional(),
+      url: evidenceUrl.optional(),
       bytes: z.number().int().positive().optional(),
     }),
   }),

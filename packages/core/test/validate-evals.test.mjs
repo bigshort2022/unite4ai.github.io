@@ -122,13 +122,40 @@ test('a result must reference an existing model card and benchmark', async () =>
   assert.match(ghostBench[0], /benchmark "ghost" is not defined/);
 });
 
-test('a result cannot reference a model card whose slug overrides its id', async () => {
-  const slugged = MODEL_CARD.replace('name: Model A', 'name: Model A\nslug: another-id');
-  const errors = await errorsFor({ models: { 'model-a.md': slugged }, evals: { [FILE]: result() } });
-  assert.equal(errors.length, 1);
-  assert.match(errors[0], /^evals\/model-a--bench-a--alice--2026-11-10--aaaaaaaa\.json: model card sets `slug`, which changes its id; remove it/);
+const withSlug = (line) => MODEL_CARD.replace('name: Model A', `name: Model A\n${line}`);
+const slugError = (file) => `models/${file}: a model card must not set \`slug\`: it changes the card's id, and results reference the filename`;
+
+test('no model card may set a slug, however the key is written', async () => {
+  for (const line of ['slug: another-id', '"slug": another-id', "'slug': another-id"]) {
+    const errors = await errorsFor({ models: { 'model-a.md': withSlug(line) }, evals: { [FILE]: result() } });
+    assert.deepEqual(errors, [slugError('model-a.md')], line);
+  }
   const mentioned = MODEL_CARD.replace('Fixture.\n', 'Fixture.\n\nslug: only body text\n');
   assert.deepEqual(await errorsFor({ models: { 'model-a.md': mentioned }, evals: { [FILE]: result() } }), []);
+});
+
+test('a card that no result references cannot take over another card\'s id with a slug', async () => {
+  const models = { 'model-a.md': MODEL_CARD, 'model-b.md': withSlug('slug: model-a') };
+  assert.deepEqual(await errorsFor({ models, evals: { [FILE]: result() } }), [slugError('model-b.md')]);
+  assert.deepEqual(await errorsFor({ models }), [slugError('model-b.md')]);
+
+  // Astro's loader reads subfolders of models/, so a nested card is checked too.
+  const root = makeRoot({ evals: { [FILE]: result() } });
+  mkdirSync(join(root, 'models', 'nested'));
+  writeFileSync(join(root, 'models', 'nested', 'model-c.md'), withSlug('slug: model-a'));
+  assert.deepEqual((await validateContent(root)).errors, [slugError('nested/model-c.md')]);
+});
+
+test('a card whose frontmatter cannot be parsed is left to the model checks', async () => {
+  const errors = [];
+  const broken = MODEL_CARD.replace('name: Model A', 'name: [unclosed\nslug: another-id');
+  await validateEvals(makeRoot({ models: { 'model-a.md': broken } }), errors, []);
+  assert.deepEqual(errors, []);
+});
+
+test('two card files cannot share one id', async () => {
+  const errors = await errorsFor({ models: { 'model-a.md': MODEL_CARD, 'model-a.mdx': MODEL_CARD } });
+  assert.deepEqual(errors, ['models/model-a.mdx: same id as models/model-a.md; one id is one file']);
 });
 
 test('a benchmark filename must be a lowercase id', async () => {
@@ -204,15 +231,27 @@ test('a run dated tomorrow in UTC is accepted, so a contributor ahead of UTC can
   assert.match(dayAfter[0], /run\.date 2026-11-12 is in the future/);
 });
 
-test('a result for an older benchmark version is kept with a warning that it is off the leaderboard', async () => {
-  const root = makeRoot({ evals: { [FILE]: result({ benchmark_version: '0', n: 150 }) } });
+test('a result for a listed previous version is kept with a warning and is not checked against the current definition', async () => {
+  // The definition describes version 1, so its item count and score range say nothing about version 0.
+  const benchmarks = { 'bench-a': benchmark({ previous_versions: ['0'] }) };
+  const root = makeRoot({ benchmarks, evals: { [FILE]: result({ benchmark_version: '0', n: 150, score: 140 }) } });
   const { errors, warnings } = await validateContent(root);
   assert.deepEqual(errors, []);
   assert.deepEqual(warnings, [
     `evals/${FILE}: result is for benchmark version 0; the current version is 1, so it will not appear on the leaderboard`,
   ]);
-  const current = await validateContent(makeRoot({ evals: { [FILE]: result() } }));
+  const current = await validateContent(makeRoot({ benchmarks, evals: { [FILE]: result() } }));
+  assert.deepEqual(current.errors, []);
   assert.deepEqual(current.warnings, []);
+});
+
+test('a result for a version the benchmark never had is an error', async () => {
+  const expected = `evals/${FILE}: benchmark_version "9" is not the current version "1" nor one of its previous versions`;
+  const unlisted = await validateContent(makeRoot({ evals: { [FILE]: result({ benchmark_version: '9' }) } }));
+  assert.deepEqual(unlisted.errors, [expected]);
+  assert.deepEqual(unlisted.warnings, []);
+  const benchmarks = { 'bench-a': benchmark({ previous_versions: ['0'] }) };
+  assert.deepEqual(await errorsFor({ benchmarks, evals: { [FILE]: result({ benchmark_version: '9' }) } }), [expected]);
 });
 
 test('malformed files are reported by name, with the failing field', async () => {

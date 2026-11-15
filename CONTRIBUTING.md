@@ -86,6 +86,8 @@ it is your evidence.
 Adding a benchmark is a pull request with one markdown file in `apps/web/src/content/benchmarks/`.
 Scoring must be deterministic (exact match, multiple choice, canary detection, or a measured
 quantity), the data must be openly licensed, and the page must state the benchmark's weaknesses.
+When the method changes, raise `version` and add the old one to `previous_versions`: results for
+a listed previous version are kept but leave the leaderboard, and any other version is rejected.
 
 ## What gets checked
 
@@ -94,7 +96,7 @@ Every pull request runs the same gate:
 1. **Schemas** — required fields present and well-formed
 2. **License allowlist** — restrictive "open" licenses are rejected with an explanation
 3. **Checksums** — `sha256` values must be valid 64-character hex digests
-4. **Evaluations** — result files match the schema, reference a real model and benchmark, stay under 16 KB, and their scores fit the benchmark's range
+4. **Evaluations** — a result file matches the schema with no unknown keys; references a real model and benchmark, and the benchmark's current version or a listed previous one; is a full run (`n` equals the benchmark's item count); has a filename ending in the first 8 hex characters of its evidence hash; shares that hash with no other file; stays under 16 KB; and has a score within the benchmark's range. Model cards must not set `slug`
 5. **Build** — the site must build cleanly with your change
 
 A red check is information, not judgment. The message names the file and the field.
