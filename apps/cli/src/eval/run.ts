@@ -197,6 +197,22 @@ function measure(done: TranscriptItem[]): NonNullable<EvalResult['perf']> {
   return perf;
 }
 
+/** The flag behind each result field a contributor sets, so a schema complaint can name it. */
+const FLAG_OF: Record<string, string> = {
+  model: '--model',
+  benchmark: '--benchmark',
+  'run.submitter': '--submitter',
+  'run.command': 'the command line',
+  'setup.runtime': '--runtime',
+  'setup.runtime_version': '--runtime-version',
+  'setup.format': '--format',
+  'setup.quantization': '--quantization',
+  'setup.notes': '--notes',
+  'setup.hardware.device': '--device',
+  'setup.hardware.accelerator': '--accelerator',
+  'setup.hardware.memory_gb': '--memory-gb',
+};
+
 /**
  * Runs one benchmark against one served model. Completed items are appended to a transcript
  * as they finish, so an interrupted run resumes; a result file is written only when every
@@ -213,6 +229,46 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
     throw new Error(`model "${options.model}" has no card in models/. Add the model card first.`);
   }
   const hardware = detectHardware(options.hardware);
+  const resultWith = (measured: {
+    score: number;
+    n: number;
+    date: string;
+    perf: NonNullable<EvalResult['perf']>;
+    evidence: EvalResult['evidence'];
+  }) => ({
+    schema_version: 1,
+    model: options.model,
+    benchmark: options.benchmark,
+    benchmark_version: definition.version,
+    score: measured.score,
+    n: measured.n,
+    run: { date: measured.date, submitter: options.submitter, harness: HARNESS, command: options.command },
+    setup: {
+      runtime: options.runtime,
+      runtime_version: options.runtimeVersion,
+      format: options.format,
+      quantization: options.quantization,
+      hardware,
+      ...(options.notes === undefined ? {} : { notes: options.notes }),
+    },
+    ...(Object.keys(measured.perf).length > 0 ? { perf: measured.perf } : {}),
+    evidence: measured.evidence,
+  });
+  // A value the schema rejects would otherwise surface only after every item had been answered.
+  const dry = evalResultSchema.safeParse(resultWith({
+    score: 0,
+    n: definition.items,
+    date: options.today ?? new Date().toISOString().slice(0, 10),
+    perf: {},
+    evidence: { sha256: '0'.repeat(64) },
+  }));
+  if (!dry.success) {
+    const problems = dry.error.issues.map((issue) => {
+      const field = issue.path.map(String).join('.');
+      return `${FLAG_OF[field] ?? field}: ${issue.message}`;
+    });
+    throw new Error(`this run could not be published: ${problems.join('; ')}`);
+  }
   const source = await loadSource(options, definition.source_url, definition.source_sha256);
   const items = suite.items(source, definition.items);
 
@@ -292,27 +348,14 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
 
   const correct = done.filter((line) => line.correct).length;
   const score = Number(((100 * correct) / done.length).toFixed(2));
-  const perf = measure(done);
   const transcript = readFileSync(transcriptPath);
-  const result = evalResultSchema.parse({
-    schema_version: 1,
-    model: options.model,
-    benchmark: options.benchmark,
-    benchmark_version: definition.version,
+  const result = evalResultSchema.parse(resultWith({
     score,
     n: done.length,
-    run: { date, submitter: options.submitter, harness: HARNESS, command: options.command },
-    setup: {
-      runtime: options.runtime,
-      runtime_version: options.runtimeVersion,
-      format: options.format,
-      quantization: options.quantization,
-      hardware,
-      ...(options.notes === undefined ? {} : { notes: options.notes }),
-    },
-    ...(Object.keys(perf).length > 0 ? { perf } : {}),
+    date,
+    perf: measure(done),
     evidence: { sha256: sha256(transcript), bytes: transcript.length },
-  });
+  }));
 
   // The filename carries the evidence prefix, as the content gate requires.
   const resultPath = join(options.contentRoot, 'evals', `${name}--${date}--${result.evidence.sha256.slice(0, 8)}.json`);

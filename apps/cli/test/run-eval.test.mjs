@@ -492,3 +492,19 @@ test('a transcript damaged anywhere but its last line is refused, naming the fil
   assert.equal(stub.posts(), 3, 'nothing is requested while the transcript is refused');
   assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), []);
 });
+
+test('a value the result file could not carry is refused, naming its flag, before any request', async () => {
+  const workspace = makeWorkspace();
+  const stub = await stubServer({ ...GOOD });
+  const refused = (overrides, problem) => assert.rejects(runEval(options(workspace, stub, overrides)), problem);
+  await refused({ quantization: '' }, /^Error: this run could not be published: --quantization: /);
+  await refused({ runtimeVersion: '1'.repeat(101) }, /--runtime-version: /);
+  await refused({ runtime: 'lmstudio' }, /--runtime: /);
+  await refused({ notes: 'two\nlines' }, /--notes: must be a single line/);
+  await refused({ submitter: 'Alice' }, /--submitter: must be a lowercase GitHub handle/);
+  await refused({ command: 'x'.repeat(2001) }, /the command line: /);
+  await refused({ hardware: { device: 'd'.repeat(201), accelerator: 'cpu', memory_gb: 16 } }, /--device: /);
+  await refused({ quantization: '', notes: '' }, /--quantization: [^;]+; --notes: /);
+  assert.deepEqual(stub.requests, []);
+  assert.equal(existsSync(workspace.workDir), false, 'no transcript is started');
+});
