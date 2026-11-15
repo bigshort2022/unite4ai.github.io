@@ -7,7 +7,7 @@ import { detectHardware, type Hardware } from './hardware.ts';
 import { speedResultFrom } from './speed.ts';
 import { SUITES } from './suites.ts';
 
-export const HARNESS = { name: 'unite4ai-eval', version: '0.1.0' };
+export const HARNESS = { name: 'unite4ai-eval', version: '0.2.0' };
 
 /**
  * Seconds one invocation may run: four hours, because a 2048-token benchmark can take hours on

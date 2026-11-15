@@ -225,6 +225,8 @@ test('a complete run writes a result the content gate accepts, with evidence for
   assert.equal(evalResultSchema.safeParse(result).success, true);
   assert.equal(result.score, 66.67);
   assert.equal(result.run.command, 'bun run eval -- --benchmark gsm8k-200 --model model-a');
+  // 0.2.0 is the runner with per-suite token limits and the cut-off rule; 0.1.0 ran version 1.
+  assert.deepEqual(result.run.harness, { name: 'unite4ai-eval', version: '0.2.0' });
   assert.deepEqual(result.setup.hardware, { device: 'Test Box', accelerator: 'cpu', memory_gb: 16 });
   const transcript = readFileSync(outcome.transcriptPath);
   assert.equal(result.evidence.sha256, sha256(transcript));
