@@ -1,21 +1,24 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { validateContent } from '@unite4ai/core/validate';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const out = mkdtempSync(join(tmpdir(), 'u4ai-evals-site-'));
 const danglingOut = mkdtempSync(join(tmpdir(), 'u4ai-evals-dangling-'));
 const unknownKeyOut = mkdtempSync(join(tmpdir(), 'u4ai-evals-unknown-key-'));
+const gateRoot = mkdtempSync(join(tmpdir(), 'u4ai-evals-gate-'));
 // The fixture builds keep their content store in their own cacheDir (see astro.config.mjs), so
 // fixture rows cannot reach a normal build even if this run is killed; remove it when done.
 after(() => {
   rmSync(out, { recursive: true, force: true });
   rmSync(danglingOut, { recursive: true, force: true });
   rmSync(unknownKeyOut, { recursive: true, force: true });
+  rmSync(gateRoot, { recursive: true, force: true });
   rmSync(join(ROOT, 'node_modules/.astro-fixtures'), { recursive: true, force: true });
 });
 
@@ -42,6 +45,24 @@ const categorySection = (board, category) => board
 /** A benchmark page's leaderboard, without the method prose and run tables that follow it. */
 const leaderboardOf = (detail) => detail.slice(detail.indexOf('<h2>Leaderboard</h2>'), detail.indexOf('<div class="prose"'));
 
+test('the fixture results pass the content gate, so the pages are tested with results that could be published', async () => {
+  for (const dir of ['models', 'benchmarks']) cpSync(join(ROOT, 'src/content', dir), join(gateRoot, dir), { recursive: true });
+  cpSync(join(ROOT, 'test/fixtures/evals'), join(gateRoot, 'evals'), { recursive: true });
+  // One fixture is a run of a version "0" that GSM8K-200 never had. Only in this copy is it a
+  // listed previous version; the real definition is not changed for a fixture.
+  const gsm8k = join(gateRoot, 'benchmarks/gsm8k-200.md');
+  const definition = readFileSync(gsm8k, 'utf8');
+  assert.match(definition, /^version: "1"$/m);
+  writeFileSync(gsm8k, definition.replace(/^version: "1"$/m, 'version: "1"\nprevious_versions: ["0"]'));
+
+  const { errors, warnings } = await validateContent(gateRoot);
+  assert.deepEqual(errors, []);
+  assert.deepEqual(warnings.filter((warning) => warning.startsWith('evals/')), [
+    'evals/darsy-xray-analysis--gsm8k-200--fixture-bot--2026-10-01--44444444.json: result is for benchmark version 0; '
+    + 'the current version is 1, so it will not appear on the leaderboard',
+  ]);
+});
+
 test('leaderboard and benchmark page render fixture results', { timeout: 120_000 }, () => {
   const build = buildWith('./test/fixtures/evals', out);
   assert.equal(build.status, 0, `${build.stdout}${build.stderr}`);
@@ -49,7 +70,7 @@ test('leaderboard and benchmark page render fixture results', { timeout: 120_000
   const board = page('evals/index.html');
   assert.match(board, /GSM8K \(first 200\)/);
   assert.match(board, /href="\/registry\/models\/darsy-xray-analysis"/);
-  // Two groups: gguf (70) ranks above mlx (median of 60 and 64 = 62).
+  // Two groups: gguf (two runs at 70, on two machines) ranks above mlx (median of 60 and 64 = 62).
   const gguf = board.indexOf('Q4_K_M');
   const mlx = board.indexOf('4bit');
   assert.notEqual(gguf, -1, 'the gguf group must be on the leaderboard');
@@ -196,8 +217,8 @@ test('model page lists its evaluations and local setups; the feed publishes the 
     assert.match(row, /<td class="num">—<\/td>/);
     assert.doesNotMatch(row, /tok\/s<\/td>/);
   }
-  // A quality row keeps the speed its runs measured.
-  assert.match(evaluations, /<td class="num">61\.5 tok\/s<\/td>/);
+  // A quality row pools its machines, so its speed is the median of what they measured (61.5 and 140.25).
+  assert.match(evaluations, /<td class="num">100\.88 tok\/s<\/td>/);
   assert.match(model, /<caption class="sr-only">Evaluation results for Darsy X-Ray Analysis<\/caption>/);
   assert.match(model, ESCAPED_DEVICE);
   assert.doesNotMatch(model, RAW_DEVICE);
@@ -230,7 +251,12 @@ test('model page lists its evaluations and local setups; the feed publishes the 
     'darsy-xray-analysis--gsm8k-200--fixture-bot--2026-11-01--11111111',
     'darsy-xray-analysis--gsm8k-200--fixture-bot-2--2026-11-02--22222222',
   ]);
-  // Six files, five runs: the laptop's speed result and its GSM8K result are one run, with one transcript.
+  const gguf = current.find((g) => g.format === 'gguf');
+  assert.equal(gguf.score, 70);
+  assert.equal(gguf.runs, 2);
+  assert.deepEqual(gguf.accelerators, ['apple-silicon', 'nvidia']);
+  assert.equal(gguf.tokens_per_second, 100.875);
+  // Seven files, five runs: each speed result shares its run, and so its transcript, with a GSM8K result.
   assert.equal(feed.runs, 5);
 
   const home = page('index.html');

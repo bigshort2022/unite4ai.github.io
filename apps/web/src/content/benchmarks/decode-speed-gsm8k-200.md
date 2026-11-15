@@ -39,7 +39,8 @@ accepted only together with it.
 
 Runs are pooled only when they share all of: model, format, quantization, runtime, device,
 accelerator and memory. Each such group is one row, showing the median of its runs and every
-runtime version among them. Device names are compared without regard to case or spacing.
+runtime version among them. Device names are compared without regard to letter case; runs of
+spaces count as one.
 Rows are sorted by speed but not ranked: compare rows on the same machine only.
 
 ## Known weaknesses

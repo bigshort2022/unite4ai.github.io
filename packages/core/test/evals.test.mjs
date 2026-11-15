@@ -171,7 +171,7 @@ test('localSetups orders setups by code units, not by locale', () => {
 
 const hardware = (overrides = {}) => ({ ...result().setup.hardware, ...overrides });
 
-test('measured benchmarks are grouped per device; other benchmarks are not', () => {
+test('measured benchmarks are grouped per machine and runtime; other benchmarks are not', () => {
   const runs = [
     run('q1', { benchmark: 'bench-a', score: 60 }),
     run('q2', { benchmark: 'bench-a', score: 70, setup: setup({ hardware: hardware({ device: 'Other Box', accelerator: 'nvidia', memory_gb: 24 }) }) }),
@@ -206,7 +206,7 @@ test('devices that differ only in memory are separate measured groups', () => {
   assert.deepEqual(groups.map((g) => g.memory_gb).sort((x, y) => x - y), [32, 64]);
 });
 
-test('without the option every benchmark groups as before', () => {
+test('without the option no benchmark is grouped by hardware', () => {
   const groups = groupEvals([
     run('a', { benchmark: 'speed-a', score: 40 }),
     run('b', { benchmark: 'speed-a', score: 50, setup: setup({ hardware: hardware({ device: 'Other Box' }) }) }),

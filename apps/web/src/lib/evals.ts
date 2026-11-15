@@ -37,7 +37,7 @@ export async function loadEvals() {
     throw new Error(`Evaluation results reference content that does not exist:\n${dangling.sort(byCodeUnit).join('\n')}`);
   }
 
-  // A measured quantity such as speed only compares on one machine, so those groups are per device.
+  // A measured quantity such as speed only compares on one machine, so those groups are per machine and runtime.
   const byHardware = new Set(benchmarks.filter((b) => b.data.scoring === 'measured').map((b) => b.id));
   return {
     benchmarks: benchmarks.sort((a, b) =>

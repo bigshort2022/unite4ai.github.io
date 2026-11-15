@@ -102,6 +102,8 @@ measured on; its results are accepted only beside the result of that run, with t
 transcript hash. No other two results may share a hash.
 When the method changes, raise `version` and add the old one to `previous_versions`: results for
 a listed previous version are kept but leave the leaderboard, and any other version is rejected.
+Raising a benchmark's version requires raising the version of every benchmark measured on it:
+a current measured result needs a run of the current version.
 
 ## What gets checked
 
@@ -110,7 +112,7 @@ Every pull request runs the same gate:
 1. **Schemas** — required fields present and well-formed
 2. **License allowlist** — restrictive "open" licenses are rejected with an explanation
 3. **Checksums** — `sha256` values must be valid 64-character hex digests
-4. **Evaluations** — a result file matches the schema with no unknown keys; references a real model and benchmark, and the benchmark's current version or a listed previous one; is a full run (`n` equals the benchmark's item count); has a filename ending in the first 8 hex characters of its evidence hash; shares that hash with no other file for the same benchmark; stays under 16 KB; and has a score within the benchmark's range. Model cards must not set `slug`
+4. **Evaluations** — a result file matches the schema with no unknown keys; references a real model and benchmark, and the benchmark's current version or a listed previous one; is a full run (`n` equals the benchmark's item count); has a filename ending in the first 8 hex characters of its evidence hash; shares that hash with no other result, except that a measured result shares it with the run it was measured on; stays under 16 KB; and has a score within the benchmark's range. A result of a measured benchmark must score exactly its `perf.tokens_per_second` and sit beside the result of the run it was measured on: same model, run, setup, `n`, `perf` and evidence, and of the current version when the measured result is. Model cards must not set `slug`
 5. **Build** — the site must build cleanly with your change
 
 A red check is information, not judgment. The message names the file and the field.
