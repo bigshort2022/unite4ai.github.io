@@ -2,7 +2,7 @@
   "schema_version": 1,
   "model": "darsy-xray-analysis",
   "benchmark": "gsm8k-200",
-  "benchmark_version": "1",
+  "benchmark_version": "2",
   "score": 64,
   "n": 200,
   "run": {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { after } from 'node:test';
@@ -48,18 +48,35 @@ const leaderboardOf = (detail) => detail.slice(detail.indexOf('<h2>Leaderboard</
 test('the fixture results pass the content gate, so the pages are tested with results that could be published', async () => {
   for (const dir of ['models', 'benchmarks']) cpSync(join(ROOT, 'src/content', dir), join(gateRoot, dir), { recursive: true });
   cpSync(join(ROOT, 'test/fixtures/evals'), join(gateRoot, 'evals'), { recursive: true });
-  // One fixture is a run of a version "0" that GSM8K-200 never had. Only in this copy is it a
-  // listed previous version; the real definition is not changed for a fixture.
-  const gsm8k = join(gateRoot, 'benchmarks/gsm8k-200.md');
-  const definition = readFileSync(gsm8k, 'utf8');
-  assert.match(definition, /^version: "1"$/m);
-  writeFileSync(gsm8k, definition.replace(/^version: "1"$/m, 'version: "1"\nprevious_versions: ["0"]'));
-
+  // One fixture is a run of GSM8K-200 version 1, which the definition lists as a previous version.
   const { errors, warnings } = await validateContent(gateRoot);
   assert.deepEqual(errors, []);
   assert.deepEqual(warnings.filter((warning) => warning.startsWith('evals/')), [
-    'evals/darsy-xray-analysis--gsm8k-200--fixture-bot--2026-10-01--44444444.json: result is for benchmark version 0; '
-    + 'the current version is 1, so it will not appear on the leaderboard',
+    'evals/darsy-xray-analysis--gsm8k-200--fixture-bot--2026-10-01--44444444.json: result is for benchmark version 1; '
+    + 'the current version is 2, so it will not appear on the leaderboard',
+  ]);
+});
+
+test('the published results pass the content gate; the version 1 GSM8K run and its speed are kept as previous-version results', async () => {
+  const contentRoot = join(ROOT, 'src/content');
+  const run = 'bigshort2022--2026-11-15--eb8811e4.json';
+  const published = readdirSync(join(contentRoot, 'evals'));
+  for (const file of [
+    'qwen3-6-35b-a3b--canary-injection-v1--bigshort2022--2026-11-15--0182e626.json',
+    `qwen3-6-35b-a3b--decode-speed-gsm8k-200--${run}`,
+    `qwen3-6-35b-a3b--gsm8k-200--${run}`,
+  ]) {
+    assert.ok(published.includes(file), `${file} must stay in the repository`);
+  }
+
+  const { errors, warnings } = await validateContent(contentRoot);
+  assert.deepEqual(errors, []);
+  // Exactly these two: the canary result is for its benchmark's current version.
+  assert.deepEqual(warnings.filter((warning) => warning.startsWith('evals/')), [
+    `evals/qwen3-6-35b-a3b--decode-speed-gsm8k-200--${run}: result is for benchmark version 1; `
+    + 'the current version is 2, so it will not appear on the leaderboard',
+    `evals/qwen3-6-35b-a3b--gsm8k-200--${run}: result is for benchmark version 1; `
+    + 'the current version is 2, so it will not appear on the leaderboard',
   ]);
 });
 
@@ -89,7 +106,7 @@ test('leaderboard and benchmark page render fixture results', { timeout: 120_000
   );
   // GSM8K has a fixed item count, so each row states how many items the run answered.
   assert.match(board, /<small>n = 200<\/small>/);
-  // The version "0" run (score 99) belongs to a previous version and stays off the leaderboard.
+  // The version 1 run (score 99) belongs to a previous version and stays off the leaderboard.
   assert.doesNotMatch(board, />99%</);
 
   assert.match(board, /<caption class="sr-only">Leaderboard for GSM8K \(first 200\)<\/caption>/);
@@ -115,7 +132,12 @@ test('leaderboard and benchmark page render fixture results', { timeout: 120_000
   assert.doesNotMatch(detail.slice(0, previous), />99%</);
   const previousRuns = detail.slice(previous);
   assert.match(previousRuns, />99%</);
-  assert.match(previousRuns, /--fixture-zero/);
+  assert.match(previousRuns, /--fixture-previous/);
+  // Each run is marked with its benchmark version: the previous one here, the current one above.
+  assert.match(previousRuns, /<td class="num">2026-10-01<small>v1<\/small><\/td>/);
+  assert.doesNotMatch(previousRuns, /<small>v2<\/small>/);
+  assert.match(detail.slice(0, previous), /<td class="num">2026-11-05<small>v2<\/small><\/td>/);
+  assert.doesNotMatch(detail.slice(0, previous), /<small>v1<\/small>/);
   assert.match(previousRuns, /0\.123 tok\/s/);
 
   // A run's setup note is printed with its setup, on that run only.

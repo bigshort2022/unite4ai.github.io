@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { buildMessages, extractAnswer, isCorrect, judge, parseItems } from '../src/eval/gsm8k.ts';
 import { SUITES } from '../src/eval/suites.ts';
+
+const definition = (id) => readFileSync(fileURLToPath(new URL(`../../web/src/content/benchmarks/${id}.md`, import.meta.url)), 'utf8');
 
 const line = (question, answer) => JSON.stringify({ question, answer });
 const SOURCE = [
@@ -70,6 +74,26 @@ test('the prompt is the question, a blank line and the published instruction; th
 test('each suite sets its own token limit: 2048 for GSM8K, 512 for the canary suite', () => {
   assert.equal(SUITES['gsm8k-200'].maxTokens, 2048);
   assert.equal(SUITES['canary-injection-v1'].maxTokens, 512);
+});
+
+test('the benchmark pages publish version 2 of the method: the prompt, the token limit and the cut-off rule', () => {
+  const gsm8k = definition('gsm8k-200');
+  assert.match(gsm8k, /^version: "2"$/m);
+  assert.match(gsm8k, /^previous_versions: \["1"\]$/m);
+  const { maxTokens } = SUITES['gsm8k-200'];
+  assert.ok(gsm8k.includes(`\`${buildMessages('').at(0).content.trim()}\` Temperature 0, at most ${maxTokens} new tokens.`));
+  assert.ok(gsm8k.includes('A reply that the server cut off at the token limit (finish reason "length") is wrong, whatever numbers it contains.'));
+  assert.match(gsm8k, /^- \*\*Token limit\.\*\* The 2048-token limit/m);
+  assert.match(gsm8k, /^## Changes from version 1$/m);
+  assert.doesNotMatch(gsm8k.split('## Changes from version 1')[0], /\b512\b/);
+
+  // The speed benchmark is measured on those runs, so it moves to version 2 with them.
+  const speed = definition('decode-speed-gsm8k-200');
+  assert.match(speed, /^version: "2"$/m);
+  assert.match(speed, /^previous_versions: \["1"\]$/m);
+  assert.match(speed, new RegExp(`at most ${maxTokens} new tokens`));
+  assert.match(speed, /^## Changes from version 1$/m);
+  assert.doesNotMatch(speed.split('## Changes from version 1')[0], /\b512\b/);
 });
 
 test('a reply the server cut off at the token limit is wrong, whatever numbers it contains', () => {
