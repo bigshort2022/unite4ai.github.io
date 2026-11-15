@@ -133,7 +133,7 @@ from the evaluation set. That scrutiny is the product.
 
 ## Licensing your contribution
 
-Content under CC BY 4.0, code under Apache-2.0. By opening a pull request you agree to these.
+Content under CC BY 4.0, code under MIT (see `LICENSE`). By opening a pull request you agree to these.
 
 ## First time?
 
