@@ -17,6 +17,8 @@ export interface EvalOptions {
   runtimeVersion: string;
   format: string;
   quantization: string;
+  /** One line about the setup that the other fields cannot express, e.g. "thinking disabled". */
+  notes?: string;
   baseUrl: string;
   contentRoot: string;
   workDir: string;
@@ -140,6 +142,7 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
     runtime_version: options.runtimeVersion,
     format: options.format,
     quantization: options.quantization,
+    notes: options.notes ?? null,
     max_tokens: options.maxTokens ?? 512,
   };
   const transcriptPath = join(options.workDir, `${name}--${sha256(JSON.stringify(header)).slice(0, 8)}.jsonl`);
@@ -221,6 +224,7 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
       format: options.format,
       quantization: options.quantization,
       hardware,
+      ...(options.notes === undefined ? {} : { notes: options.notes }),
     },
     ...(Object.keys(perf).length > 0 ? { perf } : {}),
     evidence: { sha256: sha256(transcript), bytes: transcript.length },

@@ -371,3 +371,17 @@ test('a request the server never answers fails the item at the request timeout',
   assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), []);
   assert.deepEqual(transcriptItems(workspace), [0]);
 });
+
+test('a note about the setup is published with the result and is part of the configuration', async () => {
+  const workspace = makeWorkspace();
+  const stub = await stubServer({ ...GOOD });
+  const plain = await runEval(options(workspace, stub));
+  assert.equal('notes' in JSON.parse(readFileSync(plain.resultPath, 'utf8')).setup, false);
+
+  const noted = await runEval(options(workspace, stub, { notes: 'thinking disabled' }));
+  assert.equal(JSON.parse(readFileSync(noted.resultPath, 'utf8')).setup.notes, 'thinking disabled');
+  assert.equal(JSON.parse(readFileSync(noted.transcriptPath, 'utf8').split('\n')[0]).notes, 'thinking disabled');
+  assert.notEqual(noted.transcriptPath, plain.transcriptPath);
+  assert.equal(stub.posts(), 6, 'the noted run answers every item itself');
+  assert.deepEqual((await validateContent(workspace.contentRoot)).errors, []);
+});

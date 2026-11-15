@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseEvalArgs } from '../src/eval/args.ts';
+import { EVAL_USAGE, parseEvalArgs } from '../src/eval/args.ts';
 
 const REQUIRED = [
   '--benchmark', 'gsm8k-200', '--model', 'model-a', '--served-model', 'org/model-a-4bit',
@@ -20,6 +20,7 @@ test('required flags map onto options, with defaults for the rest', () => {
   assert.equal(options.maxSeconds, 3600);
   assert.equal(options.command, `bun run eval -- ${REQUIRED.join(' ')}`);
   assert.deepEqual(options.hardware, {});
+  assert.equal('notes' in options, false);
 });
 
 test('optional flags and the environment override defaults', () => {
@@ -32,6 +33,17 @@ test('optional flags and the environment override defaults', () => {
   assert.deepEqual(options.hardware, { device: 'My Box', accelerator: 'nvidia', memory_gb: 24 });
   assert.equal(options.sourceFile, '/tmp/x.jsonl');
   assert.match(options.command, /--device 'My Box'/);
+});
+
+test('--notes carries one line about the setup into the options and the recorded command', () => {
+  const options = parseEvalArgs([...REQUIRED, '--notes', 'thinking disabled'], { root: '/repo', env });
+  assert.equal(options.notes, 'thinking disabled');
+  assert.match(options.command, /--notes 'thinking disabled'/);
+});
+
+test('the usage text names --notes and says the time limit is per invocation', () => {
+  assert.match(EVAL_USAGE, /\[--notes <[^>]+>\]/);
+  assert.match(EVAL_USAGE, /--max-seconds 3600[^\n]*per invocation[^\n]*resumed run gets a fresh limit/);
 });
 
 test('missing flags are all named at once', () => {
