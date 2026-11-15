@@ -79,7 +79,7 @@ Updated at the end of each milestone: branch, PR number, CI result, review outco
 | Milestone | State | Notes |
 |---|---|---|
 | M0 | done | Branch `rename-sustainability-site`, PR #8, CI green. Diff is path substitutions only (reviewed line by line). Not merged. |
-| M1 | done, pending final re-review | Branch `eval-first-hub`, PR #9 (stacked on #8). Two task reviews found one critical hole (results in a subfolder skipped validation) and several important ones (id mismatch with Astro, inflatable reproduction count, partial runs ranked as full, filename collisions, loose free text, GSM8K text errors); all fixed, see the task plan's "Post-review changes". 109 tests. No results shipped. |
+| M1 | done | Branch `eval-first-hub`, PR #9 (stacked on #8), CI green. Three review rounds: one critical hole (results in a subfolder skipped validation), then id mismatch with Astro, inflatable reproduction count, partial runs ranked as full, filename collisions, loose free text, a `slug` bypass, unknown benchmark versions; all fixed (see the task plan's "Post-review changes" plus commits `975d73d`..`8527571`). 118 tests. No results shipped. Known gap: two model card filenames that slugify to the same id (`Model-A.md` beside `model-a.md`) are not caught. |
 | M2 | not started | |
 | M3 | not started | |
 | M4 | not started | |
