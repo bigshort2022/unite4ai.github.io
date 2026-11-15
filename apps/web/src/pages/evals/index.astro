@@ -1,0 +1,129 @@
+---
+import Base from '../../layouts/Base.astro';
+import { leaderboard, reproductionLabel } from '@unite4ai/core';
+import { CATEGORIES, CATEGORY_LABELS, SUBMIT_GUIDE, formatNumber, loadEvals, scoreRange } from '../../lib/evals';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (p: string) => `${base}${p}` || '/';
+
+const { benchmarks, groups, modelNames } = await loadEvals();
+const boards = benchmarks.map((benchmark) => ({
+  benchmark,
+  rows: leaderboard(groups, {
+    id: benchmark.id,
+    version: benchmark.data.version,
+    higher_is_better: benchmark.data.metric.higher_is_better,
+  }),
+}));
+const categories = CATEGORIES.filter((category) => boards.some((b) => b.benchmark.data.category === category));
+const runtimes = [...new Set(boards.flatMap((b) => b.rows.flatMap((row) => row.runtimes)))].sort();
+const accelerators = [...new Set(boards.flatMap((b) => b.rows.flatMap((row) => row.accelerators)))].sort();
+const hasRows = boards.some((b) => b.rows.length > 0);
+---
+<Base title="Evaluations" description="Open models measured on contributors' own hardware: scores, speed, setup, and the command to reproduce each result.">
+  <section class="wrap section">
+    <p class="eyebrow">Evaluations</p>
+    <h1>Open models, <span class="grad-text">measured</span> on real hardware</h1>
+    <p class="lede">
+      Every number here was produced on a contributor's own machine and is published with the
+      exact command, the setup, and a hash of the raw output. Results are self-reported: give
+      the most weight to the ones other people have reproduced.
+    </p>
+    <p style="margin-top:1rem">
+      <a class="btn btn-primary" href={SUBMIT_GUIDE}>Submit a result</a>
+      <a class="btn btn-ghost" href={href('/data/evals.json')}>Data feed (JSON)</a>
+    </p>
+
+    {hasRows && (
+      <div class="registry-controls" style="margin-top:1.5rem">
+        <label>
+          <span class="sr-only">Filter by runtime</span>
+          <select data-eval-filter="runtimes">
+            <option value="">All runtimes</option>
+            {runtimes.map((runtime) => <option value={runtime}>{runtime}</option>)}
+          </select>
+        </label>
+        <label>
+          <span class="sr-only">Filter by accelerator</span>
+          <select data-eval-filter="accelerators">
+            <option value="">All hardware</option>
+            {accelerators.map((accelerator) => <option value={accelerator}>{accelerator}</option>)}
+          </select>
+        </label>
+      </div>
+    )}
+
+    {boards.length === 0 && (
+      <div class="empty" style="margin-top:2rem">No benchmarks are defined yet.</div>
+    )}
+
+    {categories.map((category) => (
+      <section style="margin-top:3rem" aria-labelledby={`category-${category}`}>
+        <h2 id={`category-${category}`}>{CATEGORY_LABELS[category]}</h2>
+        {boards.filter((b) => b.benchmark.data.category === category).map(({ benchmark, rows }) => (
+          <div style="margin-top:1.5rem">
+            <h3><a href={href(`/evals/${benchmark.id}`)}>{benchmark.data.name}</a></h3>
+            <p style="color:var(--u-text-dim);max-width:70ch">{benchmark.data.summary}</p>
+            {rows.length === 0 ? (
+              <div class="empty" style="margin-top:1rem">
+                No results yet. Results arrive by pull request from people who ran this benchmark
+                on their own hardware. <a href={SUBMIT_GUIDE}>How to submit one.</a>
+              </div>
+            ) : (
+              <div class="eval-scroll">
+                <table class="eval-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">#</th>
+                      <th scope="col">Model</th>
+                      <th scope="col">{benchmark.data.metric.name}</th>
+                      <th scope="col">Setup</th>
+                      <th scope="col">Speed</th>
+                      <th scope="col">Runs</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row) => (
+                      <tr data-runtimes={row.runtimes.join(',')} data-accelerators={row.accelerators.join(',')}>
+                        <td class="rank num"></td>
+                        <td><a href={href(`/registry/models/${row.model}`)}>{modelNames.get(row.model) ?? row.model}</a></td>
+                        <td class="num">
+                          <span class="score">{formatNumber(row.score)}</span>{benchmark.data.metric.unit}
+                          {scoreRange(row) && <small>range {scoreRange(row)}</small>}
+                          <small>n = {row.n}</small>
+                        </td>
+                        <td>
+                          {row.format} · {row.quantization}
+                          <small>{row.runtimes.join(', ')} · {row.accelerators.join(', ')}</small>
+                        </td>
+                        <td class="num">{row.tokens_per_second === null ? '—' : `${formatNumber(row.tokens_per_second)} tok/s`}</td>
+                        <td>
+                          <span class={`tag${row.submitters.length > 1 ? ' tag-open' : ''}`}>{reproductionLabel(row)}</span>
+                          <small>{row.runs} {row.runs === 1 ? 'run' : 'runs'} · latest {row.latest}</small>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ))}
+      </section>
+    ))}
+  </section>
+
+  <script is:inline>
+    const filters = [...document.querySelectorAll('[data-eval-filter]')];
+    const rows = [...document.querySelectorAll('.eval-table tbody tr')];
+    function applyEvalFilters() {
+      rows.forEach((row) => {
+        row.hidden = filters.some((filter) => {
+          const wanted = filter.value;
+          return wanted && !(row.dataset[filter.dataset.evalFilter] ?? '').split(',').includes(wanted);
+        });
+      });
+    }
+    filters.forEach((filter) => filter.addEventListener('change', applyEvalFilters));
+  </script>
+</Base>
