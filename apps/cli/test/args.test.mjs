@@ -18,6 +18,8 @@ test('required flags map onto options, with defaults for the rest', () => {
   assert.equal(options.contentRoot, '/repo/apps/web/src/content');
   assert.equal(options.workDir, '/repo/.agent/evals');
   assert.equal(options.maxSeconds, 3600);
+  assert.equal(options.requestTimeoutMs, 600_000);
+  // Only what was typed is recorded: a default is not written into the command.
   assert.equal(options.command, `bun run eval -- ${REQUIRED.join(' ')} --base-url http://127.0.0.1:18082/v1`);
   assert.deepEqual(options.hardware, {});
   assert.equal('notes' in options, false);
@@ -33,6 +35,22 @@ test('optional flags and the environment override defaults', () => {
   assert.deepEqual(options.hardware, { device: 'My Box', accelerator: 'nvidia', memory_gb: 24 });
   assert.equal(options.sourceFile, '/tmp/x.jsonl');
   assert.match(options.command, /--device 'My Box'/);
+});
+
+test('--request-timeout is seconds per reply, and is recorded in the command only when given', () => {
+  const options = parseEvalArgs([...REQUIRED, '--request-timeout', '900'], { root: '/repo', env });
+  assert.equal(options.requestTimeoutMs, 900_000);
+  assert.equal(options.command, `bun run eval -- ${REQUIRED.join(' ')} --request-timeout 900 --base-url http://127.0.0.1:18082/v1`);
+  assert.equal(parseEvalArgs([...REQUIRED, '--request-timeout', '0.5'], { root: '/repo', env }).requestTimeoutMs, 500);
+
+  for (const value of ['0', '-5', 'soon', '', 'Infinity', '10s']) {
+    assert.throws(
+      () => parseEvalArgs([...REQUIRED, '--request-timeout', value], { root: '/repo', env }),
+      /--request-timeout must be a positive number/,
+      JSON.stringify(value),
+    );
+  }
+  assert.throws(() => parseEvalArgs([...REQUIRED, '--request-timeout'], { root: '/repo', env }), /--request-timeout needs a value/);
 });
 
 test('--notes carries one line about the setup into the options and the recorded command', () => {
@@ -62,9 +80,10 @@ test('the recorded command carries no local path and no credentials, and always 
   assert.throws(() => parseEvalArgs(REQUIRED, { root: '/repo', env: { AGENT_MODEL_BASE_URL: 'localhost' } }), /--base-url must be a URL/);
 });
 
-test('the usage text names --notes and says the time limit is per invocation', () => {
+test('the usage text names --notes and --request-timeout, and says the time limit is per invocation', () => {
   assert.match(EVAL_USAGE, /\[--notes <[^>]+>\]/);
   assert.match(EVAL_USAGE, /--max-seconds 3600[^\n]*per invocation[^\n]*resumed run gets a fresh limit/);
+  assert.match(EVAL_USAGE, /\[--request-timeout 600\][^\n]*seconds[^\n]*one reply/);
 });
 
 test('missing flags are all named at once', () => {

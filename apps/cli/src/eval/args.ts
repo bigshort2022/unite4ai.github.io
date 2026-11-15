@@ -5,7 +5,7 @@ import type { Hardware } from './hardware.ts';
 import type { EvalOptions } from './run.ts';
 
 const REQUIRED = ['benchmark', 'model', 'served-model', 'submitter', 'runtime', 'runtime-version', 'format', 'quantization'];
-const OPTIONAL = ['notes', 'base-url', 'max-seconds', 'source-file', 'device', 'accelerator', 'memory-gb'];
+const OPTIONAL = ['notes', 'base-url', 'max-seconds', 'request-timeout', 'source-file', 'device', 'accelerator', 'memory-gb'];
 
 export const EVAL_USAGE = `usage: bun run eval -- --benchmark <id> --model <model-card-id> --served-model <id of the model the server has loaded>
   --submitter <github-handle> --runtime <${EVAL_RUNTIMES.join('|')}> --runtime-version <version>
@@ -13,6 +13,7 @@ export const EVAL_USAGE = `usage: bun run eval -- --benchmark <id> --model <mode
   [--notes <one line about the setup, e.g. "thinking disabled">]
   [--base-url <url>] [--source-file <path>]
   [--max-seconds 3600] (per invocation: a resumed run gets a fresh limit)
+  [--request-timeout 600] (seconds allowed for one reply; a slower reply fails its item)
   [--device <text>] [--accelerator <${EVAL_ACCELERATORS.join('|')}>] [--memory-gb <number>]`;
 
 const quote = (arg: string) => (/^[\w./:@=,+-]+$/.test(arg) ? arg : `'${arg.replace(/'/g, `'\\''`)}'`);
@@ -84,6 +85,7 @@ export function parseEvalArgs(
     workDir: join(context.root, '.agent/evals'),
     command: `bun run eval -- ${published.map(quote).join(' ')}`,
     maxSeconds: flags.has('max-seconds') ? positive('max-seconds', get('max-seconds')) : 3600,
+    requestTimeoutMs: flags.has('request-timeout') ? Math.round(positive('request-timeout', get('request-timeout')) * 1000) : 600_000,
     ...(flags.has('notes') ? { notes: get('notes') } : {}),
     ...(flags.has('source-file') ? { sourceFile: get('source-file') } : {}),
     hardware,

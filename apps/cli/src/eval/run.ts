@@ -388,7 +388,8 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
           model: options.servedModel,
           messages: item.messages,
           maxTokens,
-          timeoutMs: options.requestTimeoutMs ?? 120_000,
+          // Ten minutes: a reply of a few thousand tokens fits even on a slow machine.
+          timeoutMs: options.requestTimeoutMs ?? 600_000,
         });
       } catch (error) {
         throw new Error(`item ${item.index + 1} failed: ${(error as Error).message}; rerun to resume`);

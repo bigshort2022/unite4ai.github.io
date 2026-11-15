@@ -7,6 +7,7 @@ import { basename, join } from 'node:path';
 import test, { after } from 'node:test';
 import { evalResultSchema } from '@unite4ai/schema';
 import { validateContent } from '@unite4ai/core/validate';
+import { parseEvalArgs } from '../src/eval/args.ts';
 import { runEval } from '../src/eval/run.ts';
 
 const sha256 = (data) => createHash('sha256').update(data).digest('hex');
@@ -406,6 +407,43 @@ test('a request the server never answers fails the item at the request timeout',
   assert.equal(stub.posts(), 2);
   assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), []);
   assert.deepEqual(transcriptItems(workspace), [0]);
+});
+
+test('a reply slower than --request-timeout fails the item, and a run with the default limit resumes', async () => {
+  const workspace = makeWorkspace();
+  const stub = await stubServer({ ...GOOD }, { delayMs: 400 });
+  // The flag is in seconds; the runner works in milliseconds.
+  const { requestTimeoutMs } = parseEvalArgs(
+    [
+      '--benchmark', 'gsm8k-200', '--model', 'model-a', '--served-model', 'stub-model', '--submitter', 'alice',
+      '--runtime', 'mlx-lm', '--runtime-version', '0.32.2', '--format', 'mlx', '--quantization', '4bit',
+      '--request-timeout', '0.1',
+    ],
+    { root: workspace.root, env: {} },
+  );
+  assert.equal(requestTimeoutMs, 100);
+  await assert.rejects(runEval(options(workspace, stub, { requestTimeoutMs })), /item 1 failed: request timed out after 100 ms; rerun to resume/);
+  assert.equal(stub.posts(), 1);
+  assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), []);
+  assert.deepEqual(transcriptItems(workspace), [], 'a reply that did not finish in time is not scored');
+
+  // Without the option each reply gets ten minutes, so the same slow replies complete.
+  const realTimeout = AbortSignal.timeout;
+  const limits = [];
+  AbortSignal.timeout = (ms) => {
+    limits.push(ms);
+    return realTimeout.call(AbortSignal, ms);
+  };
+  let outcome;
+  try {
+    outcome = await runEval(options(workspace, stub));
+  } finally {
+    AbortSignal.timeout = realTimeout;
+  }
+  assert.deepEqual(limits.filter((ms) => ms > 60_000), [600_000, 600_000, 600_000], 'one ten-minute limit per reply');
+  assert.equal(outcome.n, 3);
+  assert.equal(outcome.correct, 2);
+  assert.deepEqual(transcriptItems(workspace), [0, 1, 2]);
 });
 
 test('a reply cut off at the token limit is wrong in the transcript and in the score, whatever it contains', async () => {
