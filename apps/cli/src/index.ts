@@ -6,10 +6,13 @@
  *   bun run publish:cli -- validate
  *   bun run publish:cli -- new-model my-model-slug
  *   bun run publish:cli -- new-dataset my-dataset-slug
+ *   bun run eval -- --help
  */
 import { spawnSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { EVAL_USAGE, parseEvalArgs } from './eval/args.ts';
+import { runEval } from './eval/run.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 const WEB = join(ROOT, 'apps/web');
@@ -42,6 +45,22 @@ switch (command) {
   case 'sync':
     spawnSync('bun', ['run', 'sync:d1'], { cwd: ROOT, stdio: 'inherit' });
     break;
+  case 'eval': {
+    if (process.argv.includes('--help')) {
+      console.log(EVAL_USAGE);
+      break;
+    }
+    try {
+      const options = parseEvalArgs(process.argv.slice(3), { root: ROOT, env: process.env });
+      const outcome = await runEval({ ...options, log: (line) => console.error(line) });
+      console.log(JSON.stringify({ status: 'complete', ...outcome }));
+      console.error(`\n${outcome.correct}/${outcome.n} correct (${outcome.score}). Result: ${outcome.resultPath}\nRun \`bun run validate\`, then open a pull request with that file.`);
+    } catch (error) {
+      console.error(`eval failed: ${(error as Error).message}`);
+      process.exit(1);
+    }
+    break;
+  }
   default:
     console.log(`unite4ai — open registry tooling
 
@@ -49,6 +68,7 @@ Commands:
   validate              Run content validation (same as CI)
   new-model <slug>      Scaffold a model card
   new-dataset <slug>    Scaffold a dataset card
+  eval <flags>          Run a benchmark against a local model (bun run eval -- --help)
   sync                  Regenerate registry JSON snapshot
 `);
 }
