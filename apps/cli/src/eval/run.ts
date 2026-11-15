@@ -82,23 +82,37 @@ function loadBenchmark(contentRoot: string, id: string) {
   return { definition: benchmarkSchema.parse(Bun.YAML.parse(frontmatter[1])), suite };
 }
 
-async function loadSource(options: EvalOptions, url: string, pinned: string | undefined): Promise<string> {
+/**
+ * The benchmark's source text, from the first of: a file the caller names, the copy vendored in
+ * the repository, the cache, the network. Whatever the origin, the bytes must match the pin.
+ */
+async function loadSource(
+  options: EvalOptions,
+  url: string,
+  pinned: string | undefined,
+  localSource: string | undefined,
+): Promise<string> {
   if (!pinned) throw new Error('the benchmark definition has no source_sha256; refusing to run against an unpinned source');
+  const vendored = localSource === undefined ? null : join(options.contentRoot, localSource);
   const cached = join(options.workDir, 'cache', `${pinned}.txt`);
   let bytes: Uint8Array;
+  let fetched = false;
   if (options.sourceFile) {
     bytes = readFileSync(options.sourceFile);
+  } else if (vendored !== null && existsSync(vendored)) {
+    bytes = readFileSync(vendored);
   } else if (existsSync(cached)) {
     bytes = readFileSync(cached);
   } else {
     const response = await fetch(url, { signal: AbortSignal.timeout(60_000) });
     if (!response.ok) throw new Error(`could not fetch the benchmark source: ${response.status} ${url}`);
     bytes = new Uint8Array(await response.arrayBuffer());
+    fetched = true;
   }
   // The pin covers the file's bytes as published, so they are hashed before any decoding.
   const actual = sha256(bytes);
   if (actual !== pinned) throw new Error(`source hash mismatch: expected ${pinned}, got ${actual}`);
-  if (!options.sourceFile && !existsSync(cached)) {
+  if (fetched) {
     mkdirSync(join(options.workDir, 'cache'), { recursive: true });
     writeFileSync(cached, bytes);
   }
@@ -297,7 +311,7 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
     });
     throw new Error(`this run could not be published: ${problems.join('; ')}`);
   }
-  const source = await loadSource(options, definition.source_url, definition.source_sha256);
+  const source = await loadSource(options, definition.source_url, definition.source_sha256, suite.localSource);
   const items = suite.items(source, definition.items);
 
   // Transcript: a header that identifies the configuration, one line per finished item, and a

@@ -64,8 +64,9 @@ Evaluation results are data in this repository. One run is one JSON file directl
 - Reproducing someone else's result is as valuable as a new one: submit your own file for the
   same model, benchmark, format and quantization.
 
-The runner does the bookkeeping for you. Point it at any OpenAI-compatible local server
-(mlx-lm, Ollama, llama.cpp, vLLM):
+The runner does the bookkeeping for you. Runnable benchmarks today: `gsm8k-200` (quality) and
+`canary-injection-v1` (security). Point it at any OpenAI-compatible local server (mlx-lm,
+Ollama, llama.cpp, vLLM):
 
 ```bash
 bun run eval -- --benchmark gsm8k-200 --model <model-card-id> \
