@@ -43,3 +43,24 @@ test('leaderboard and benchmark page render fixture results', { timeout: 120_000
   assert.match(detail, /--fixture-three/);
   assert.match(detail, /3{12}/);
 });
+
+test('model page lists its evaluations and local setups; the feed publishes the groups', () => {
+  const model = page('registry/models/darsy-xray-analysis/index.html');
+  assert.match(model, /Evaluations/);
+  assert.match(model, /href="\/evals\/gsm8k-200"/);
+  assert.match(model, /Runs locally on/);
+  assert.match(model, /Fixture Laptop/);
+  assert.match(model, /70 tok\/s/);
+
+  const feed = JSON.parse(page('data/evals.json'));
+  assert.equal(feed.schema_version, 1);
+  assert.deepEqual(feed.benchmarks.map((b) => b.id), ['gsm8k-200']);
+  assert.equal(feed.benchmarks[0].higher_is_better, true);
+  assert.equal(feed.groups.length, 2);
+  const mlx = feed.groups.find((g) => g.format === 'mlx');
+  assert.equal(mlx.score, 62);
+  assert.deepEqual(mlx.submitters, ['fixture-bot', 'fixture-bot-2']);
+  assert.equal(feed.runs, 3);
+
+  assert.match(page('index.html'), /href="\/evals"/);
+});
