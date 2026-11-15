@@ -188,22 +188,29 @@ export async function validateEvals(
       errors.push(`${rel}: benchmark "${result.benchmark}" is not defined (or failed validation) in benchmarks/`);
       continue;
     }
-    const { min, max } = benchmark.metric;
-    if (min !== undefined && result.score < min) {
-      errors.push(`${rel}: score ${result.score} is below the benchmark minimum ${min}`);
-    }
-    if (max !== undefined && result.score > max) {
-      errors.push(`${rel}: score ${result.score} is above the benchmark maximum ${max}`);
-    }
-    if (result.benchmark_version !== benchmark.version) {
-      // The definition only describes the current version, so an older run's item count cannot be checked.
+    if (result.benchmark_version === benchmark.version) {
+      const { min, max } = benchmark.metric;
+      if (min !== undefined && result.score < min) {
+        errors.push(`${rel}: score ${result.score} is below the benchmark minimum ${min}`);
+      }
+      if (max !== undefined && result.score > max) {
+        errors.push(`${rel}: score ${result.score} is above the benchmark maximum ${max}`);
+      }
+      if (benchmark.items > 0 && result.n !== benchmark.items) {
+        errors.push(
+          `${rel}: n ${result.n} must equal the benchmark's ${benchmark.items} items; partial runs are not accepted`,
+        );
+      }
+    } else if (benchmark.previous_versions.includes(result.benchmark_version)) {
+      // The definition describes only the current version, so an older run's score range and item count cannot be checked.
       warnings.push(
         `${rel}: result is for benchmark version ${result.benchmark_version}; `
         + `the current version is ${benchmark.version}, so it will not appear on the leaderboard`,
       );
-    } else if (benchmark.items > 0 && result.n !== benchmark.items) {
+    } else {
       errors.push(
-        `${rel}: n ${result.n} must equal the benchmark's ${benchmark.items} items; partial runs are not accepted`,
+        `${rel}: benchmark_version "${result.benchmark_version}" is not the current version "${benchmark.version}" `
+        + 'nor one of its previous versions',
       );
     }
   }

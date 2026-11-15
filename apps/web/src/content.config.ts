@@ -171,11 +171,17 @@ const httpsUrl = z.string().url().refine((value) => value.startsWith('https://')
 const sha256Hex = z.string().regex(/^[a-f0-9]{64}$/, 'must be a 64-character lowercase hex sha256');
 const contentId = z.string().regex(CONTENT_ID, 'must be a lowercase id like my-model-7b');
 
-/** Free text that readers see or paste: one bounded line, no control or invisible formatting characters. */
-const line = (max: number) => z.string().min(1).max(max).regex(
+/**
+ * Free text that readers see or paste: one bounded line, no control or invisible formatting
+ * characters. `wrongType` replaces the message for a value that is not a string at all.
+ */
+const line = (max: number, wrongType?: string) => z.string(wrongType ? { error: wrongType } : undefined).min(1).max(max).regex(
   /^[^\p{Cc}\p{Cf}\p{Zl}\p{Zp}]+$/u,
   'must be a single line without control or invisible formatting characters',
 );
+
+/** A contributor's link, printed as an href. */
+const evidenceUrl = line(500).url().refine((value) => value.startsWith('https://'), { message: 'must be an https URL' });
 
 /**
  * A benchmark definition. Mirrors benchmarkSchema in @unite4ai/schema field for field.
@@ -187,7 +193,8 @@ const benchmarks = defineCollection({
     name: z.string().min(1),
     summary: z.string().max(300),
     category: z.enum(['quality', 'security', 'efficiency']),
-    version: z.string({ error: 'must be a quoted string, e.g. version: "1"' }).min(1),
+    version: line(50, 'must be a quoted string, e.g. version: "1"'),
+    previous_versions: z.array(line(50)).default([]),
     metric: z.strictObject({
       name: z.string().min(1),
       unit: z.string(),
@@ -252,7 +259,7 @@ const evals = defineCollection({
     }).optional(),
     evidence: z.strictObject({
       sha256: sha256Hex,
-      url: httpsUrl.optional(),
+      url: evidenceUrl.optional(),
       bytes: z.number().int().positive().optional(),
     }),
   }),

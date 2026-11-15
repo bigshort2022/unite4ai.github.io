@@ -204,15 +204,27 @@ test('a run dated tomorrow in UTC is accepted, so a contributor ahead of UTC can
   assert.match(dayAfter[0], /run\.date 2026-11-12 is in the future/);
 });
 
-test('a result for an older benchmark version is kept with a warning that it is off the leaderboard', async () => {
-  const root = makeRoot({ evals: { [FILE]: result({ benchmark_version: '0', n: 150 }) } });
+test('a result for a listed previous version is kept with a warning and is not checked against the current definition', async () => {
+  // The definition describes version 1, so its item count and score range say nothing about version 0.
+  const benchmarks = { 'bench-a': benchmark({ previous_versions: ['0'] }) };
+  const root = makeRoot({ benchmarks, evals: { [FILE]: result({ benchmark_version: '0', n: 150, score: 140 }) } });
   const { errors, warnings } = await validateContent(root);
   assert.deepEqual(errors, []);
   assert.deepEqual(warnings, [
     `evals/${FILE}: result is for benchmark version 0; the current version is 1, so it will not appear on the leaderboard`,
   ]);
-  const current = await validateContent(makeRoot({ evals: { [FILE]: result() } }));
+  const current = await validateContent(makeRoot({ benchmarks, evals: { [FILE]: result() } }));
+  assert.deepEqual(current.errors, []);
   assert.deepEqual(current.warnings, []);
+});
+
+test('a result for a version the benchmark never had is an error', async () => {
+  const expected = `evals/${FILE}: benchmark_version "9" is not the current version "1" nor one of its previous versions`;
+  const unlisted = await validateContent(makeRoot({ evals: { [FILE]: result({ benchmark_version: '9' }) } }));
+  assert.deepEqual(unlisted.errors, [expected]);
+  assert.deepEqual(unlisted.warnings, []);
+  const benchmarks = { 'bench-a': benchmark({ previous_versions: ['0'] }) };
+  assert.deepEqual(await errorsFor({ benchmarks, evals: { [FILE]: result({ benchmark_version: '9' }) } }), [expected]);
 });
 
 test('malformed files are reported by name, with the failing field', async () => {

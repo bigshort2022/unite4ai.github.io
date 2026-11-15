@@ -167,11 +167,17 @@ const sha256Hex = z.string().regex(/^[a-f0-9]{64}$/, 'must be a 64-character low
 export const CONTENT_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const contentId = z.string().regex(CONTENT_ID, 'must be a lowercase id like my-model-7b');
 
-/** Free text that readers see or paste: one bounded line, no control or invisible formatting characters. */
-const line = (max: number) => z.string().min(1).max(max).regex(
+/**
+ * Free text that readers see or paste: one bounded line, no control or invisible formatting
+ * characters. `wrongType` replaces the message for a value that is not a string at all.
+ */
+const line = (max: number, wrongType?: string) => z.string(wrongType ? { error: wrongType } : undefined).min(1).max(max).regex(
   /^[^\p{Cc}\p{Cf}\p{Zl}\p{Zp}]+$/u,
   'must be a single line without control or invisible formatting characters',
 );
+
+/** A contributor's link, printed as an href. */
+const evidenceUrl = line(500).url().refine((value) => value.startsWith('https://'), { message: 'must be an https URL' });
 
 export const EVAL_CATEGORIES = ['quality', 'security', 'efficiency'] as const;
 /** Deterministic scoring only: a hosted LLM judge would be a per-run API bill. */
@@ -187,7 +193,9 @@ export const benchmarkSchema = z.strictObject({
   name: z.string().min(1),
   summary: z.string().max(300),
   category: z.enum(EVAL_CATEGORIES),
-  version: z.string({ error: 'must be a quoted string, e.g. version: "1"' }).min(1),
+  version: line(50, 'must be a quoted string, e.g. version: "1"'),
+  /** Versions that results may still carry; their runs are kept off the leaderboard and not checked against this definition. */
+  previous_versions: z.array(line(50)).default([]),
   metric: z.strictObject({
     name: z.string().min(1),
     unit: z.string(),
@@ -246,7 +254,7 @@ export const evalResultSchema = z.strictObject({
   }).optional(),
   evidence: z.strictObject({
     sha256: sha256Hex,
-    url: httpsUrl.optional(),
+    url: evidenceUrl.optional(),
     bytes: z.number().int().positive().optional(),
   }),
 });

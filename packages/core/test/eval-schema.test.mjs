@@ -128,3 +128,28 @@ test('free-text fields are a single bounded line, so a result cannot smuggle lay
   ];
   bad.forEach((value, index) => assert.equal(ok(evalResultSchema, value), false, `case ${index}`));
 });
+
+test('evidence.url is a bounded single-line https URL, because it is printed as a link', () => {
+  const linked = (url) => result({ evidence: { ...result().evidence, url } });
+  const base = 'https://example.org/';
+  assert.equal(ok(evalResultSchema, linked(`${base}raw.jsonl`)), true);
+  assert.equal(ok(evalResultSchema, linked(base + 'x'.repeat(500 - base.length))), true);
+  assert.equal(ok(evalResultSchema, linked(base + 'x'.repeat(501 - base.length))), false);
+  const message = /^evidence\.url: must be a single line without control or invisible formatting characters$/m;
+  assert.match(messages(evalResultSchema, linked(`${base}raw\n.jsonl`)), message);
+  assert.match(messages(evalResultSchema, linked(`${base}\u202Eraw.jsonl`)), message);
+  assert.match(messages(evalResultSchema, linked('http://example.org/raw.jsonl')), /^evidence\.url: must be an https URL$/m);
+});
+
+test('a benchmark version is one bounded line, and earlier versions are listed explicitly', () => {
+  assert.deepEqual(benchmarkSchema.parse(benchmark()).previous_versions, []);
+  assert.deepEqual(benchmarkSchema.parse(benchmark({ version: '2', previous_versions: ['0', '1'] })).previous_versions, ['0', '1']);
+  assert.match(messages(benchmarkSchema, benchmark({ previous_versions: ['two\nlines'] })), /^previous_versions\.0: must be a single line/m);
+  assert.match(messages(benchmarkSchema, benchmark({ previous_versions: ['1'.repeat(51)] })), /^previous_versions\.0: /m);
+  assert.match(messages(benchmarkSchema, benchmark({ previous_versions: [0] })), /^previous_versions\.0: /m);
+  assert.match(messages(benchmarkSchema, benchmark({ previous_versions: '0' })), /^previous_versions: /m);
+
+  assert.match(messages(benchmarkSchema, benchmark({ version: 'two\nlines' })), /^version: must be a single line/m);
+  assert.match(messages(benchmarkSchema, benchmark({ version: '1'.repeat(51) })), /^version: /m);
+  assert.match(messages(benchmarkSchema, benchmark({ version: '' })), /^version: /m);
+});
