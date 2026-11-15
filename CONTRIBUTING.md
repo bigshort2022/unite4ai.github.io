@@ -47,6 +47,27 @@ bun run verify-artifacts
 
 Using a coding agent (hosted or local LLM)? Run `bun run agent:setup` once and point it at `AGENTS.md`. `bun run agent:verify` runs CI's validate/build/test commands for the hub, plus the sustainability site's `npm test`, `astro check` and build, which CI does not run; its last line is a JSON verdict. Details in [docs/agents/local-llm.md](docs/agents/local-llm.md).
 
+## Submitting an evaluation result
+
+Evaluation results are data in this repository. One run is one JSON file in
+`apps/web/src/content/evals/`, named `<model>--<benchmark>--<your-github-handle>--<YYYY-MM-DD>.json`.
+
+- The model must already have a card in `apps/web/src/content/models/`, and the benchmark a
+  definition in `apps/web/src/content/benchmarks/`.
+- Run it on your own hardware and report the setup honestly: runtime, format, quantization, device.
+- Keep the raw output yourself. The result file carries only its `sha256` (and, if you host
+  it, an HTTPS link). Files over 16 KB are rejected.
+- Include the exact command, so someone else can reproduce the run. A result that others have
+  reproduced is shown as such; a lone result is shown as a single run.
+- Reproducing someone else's result is as valuable as a new one: submit your own file for the
+  same model, benchmark, format and quantization.
+
+`bun run validate` checks the file the same way CI does.
+
+Adding a benchmark is a pull request with one markdown file in `apps/web/src/content/benchmarks/`.
+Scoring must be deterministic (exact match, multiple choice, canary detection, or a measured
+quantity), the data must be openly licensed, and the page must state the benchmark's weaknesses.
+
 ## What gets checked
 
 Every pull request runs the same gate:
@@ -54,7 +75,8 @@ Every pull request runs the same gate:
 1. **Schemas** — required fields present and well-formed
 2. **License allowlist** — restrictive "open" licenses are rejected with an explanation
 3. **Checksums** — `sha256` values must be valid 64-character hex digests
-4. **Build** — the site must build cleanly with your change
+4. **Evaluations** — result files match the schema, reference a real model and benchmark, stay under 16 KB, and their scores fit the benchmark's range
+5. **Build** — the site must build cleanly with your change
 
 A red check is information, not judgment. The message names the file and the field.
 

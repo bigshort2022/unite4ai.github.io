@@ -38,9 +38,10 @@ See [apps/api/README.md](apps/api/README.md). Deploy to Cloudflare Workers (free
 - Web form: `/submit` on the site
 - CLI: `bun run publish:cli -- new-model my-slug`
 - Git PR: add markdown under `apps/web/src/content/`
+- Evaluation results: one JSON file per run under `apps/web/src/content/evals/` (see CONTRIBUTING)
 
 ## Cost
 
-Static site on GitHub Pages: **$0**. Cloudflare Worker + D1 free tiers cover registry API until ~100k requests/day.
+Static site on GitHub Pages: **$0**. Evaluations follow the same rule: leaderboards and the data feed (`/data/evals.json`) are static files, runs happen on contributors' hardware, and raw output is referenced by hash instead of stored. Cloudflare Worker + D1 free tiers cover registry API until ~100k requests/day.
 
 The Sustainable Places app lives in [`sites/sustainability/`](sites/sustainability/README.md), a standalone npm/Astro project staged for its own repo and `sustainability.unite4ai.com`; it is not part of the Bun workspace.

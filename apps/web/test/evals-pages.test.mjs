@@ -8,11 +8,11 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const out = mkdtempSync(join(tmpdir(), 'u4ai-evals-site-'));
-// Astro's glob loader keeps stale entries when a directory is empty, so the build cache
-// (cacheDir, not .astro/) must go too or fixture rows would appear in the next real build.
+// The fixture build keeps its content store in its own cacheDir (see astro.config.mjs), so
+// fixture rows cannot reach a normal build even if this run is killed; remove it when done.
 after(() => {
   rmSync(out, { recursive: true, force: true });
-  rmSync(join(ROOT, 'node_modules/.astro/data-store.json'), { force: true });
+  rmSync(join(ROOT, 'node_modules/.astro-fixtures'), { recursive: true, force: true });
 });
 
 const page = (path) => readFileSync(join(out, path), 'utf8');

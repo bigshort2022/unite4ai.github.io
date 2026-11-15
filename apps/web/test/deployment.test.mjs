@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 
@@ -24,4 +24,26 @@ test('production build targets the unite4ai.com custom domain', { timeout: 120_0
 
   assert.match(homeHtml, /Equitable AI/);
   assert.match(homeHtml, /href="\/registry"/);
+
+  // Evaluation pages and feed exist in the real build, and test fixtures never reach it.
+  const evalsHtml = await readFile(new URL('dist/evals/index.html', ROOT), 'utf8');
+  assert.match(evalsHtml, /GSM8K \(first 200\)/);
+  const feedJson = await readFile(new URL('dist/data/evals.json', ROOT), 'utf8');
+  assert.equal(JSON.parse(feedJson).schema_version, 1);
+  const fixtureMarkers = /fixture-bot|Fixture Laptop|Q4_K_M/;
+  assert.doesNotMatch(evalsHtml, fixtureMarkers);
+  assert.doesNotMatch(feedJson, fixtureMarkers);
+
+  // Cost guard: GitHub Pages serves at most 1 GB; fail long before that.
+  const bytes = await directorySize(new URL('dist/', ROOT));
+  assert.ok(bytes < 250 * 1024 * 1024, `dist is ${bytes} bytes; the budget is 250 MB`);
 });
+
+async function directorySize(dir) {
+  let total = 0;
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const url = new URL(entry.isDirectory() ? `${entry.name}/` : entry.name, dir);
+    total += entry.isDirectory() ? await directorySize(url) : (await stat(url)).size;
+  }
+  return total;
+}

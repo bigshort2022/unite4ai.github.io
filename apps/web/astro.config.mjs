@@ -24,6 +24,10 @@ export default defineConfig({
   trailingSlash: 'ignore',
   integrations: [mdx(), sitemap()],
   build: { format: 'directory' },
+  // The fixture build (U4AI_EVALS_DIR, see test/evals-pages.test.mjs) gets its own cache:
+  // Astro's content store lives in cacheDir and keeps stale entries, so sharing the default
+  // one would let fixture results leak into the next normal build.
+  ...(process.env.U4AI_EVALS_DIR ? { cacheDir: './node_modules/.astro-fixtures' } : {}),
   vite: {
     ssr: { noExternal: ['@unite4ai/core', '@unite4ai/schema'] },
     optimizeDeps: { include: ['@unite4ai/core', '@unite4ai/schema'] },
