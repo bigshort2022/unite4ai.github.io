@@ -1914,3 +1914,17 @@ Wait for CI. Do not merge.
 **Type consistency.** `EvalRun`/`EvalGroup`/`BenchmarkRef`/`LocalSetup` and `median`, `groupEvals`, `leaderboard`, `reproductionLabel`, `localSetups` are defined in Task 2 and used with those names in Tasks 5–6. `loadEvals()` returns `{ benchmarks, runs, groups, modelNames }`, used with those names in Task 5 Steps 6–7 and Task 6 Steps 2–3. `formatNumber`, `scoreRange`, `REPO`, `SUBMIT_GUIDE`, `CATEGORIES`, `CATEGORY_LABELS` are defined in Task 5 Step 4. Schema field names in Task 1 match the Astro mirror in Task 4 and the fixtures.
 
 **Known deviation from the spec.** `evals` schema objects are not strict (unknown keys are dropped by Zod rather than rejected); the 16 KB cap bounds the damage.
+
+## Post-review changes (2026-11-14)
+
+The code blocks above are the plan as first executed. Two reviews then tightened it; the spec's "Validation" and "Aggregation" sections carry the resulting rules, and the repository is the source of truth for the code. Commits on `eval-first-hub`:
+
+| Commit | Change |
+|---|---|
+| `5a17644` | Flat `evals/` and `benchmarks/` directories; one id grammar; strict objects; lowercase submitter; duplicate-evidence error; full runs only (`n === items`); filename gains the evidence prefix; benchmark sanity checks; `+++` and unquoted-version guards; tomorrow-tolerant date check; version-mismatch warning; single-line free text |
+| `ee8deb6` | JSON group keys (no `|` collisions); total leaderboard order; group `n` is the minimum; label "not yet reproduced" |
+| `08713f4`, `c00ceca` | Code-unit group ordering; `.DS_Store` ignored like `.gitkeep` |
+| `8cbd84b` | The Astro collections mirror the tightened schemas; flat loader globs |
+| `1feef76` | Build fails on dangling references; captions, printed ranks, focusable scroll regions, category filter; fixtures for escaping, previous versions and a dangling reference |
+| `f3fc56e` | GSM8K-200 method rewritten as a complete contract (prompt, zero-shot, 512 tokens, numeric comparison on both sides); corrected statistics wording |
+| `863a64e` | Fixture builds use an isolated Astro cache (`node_modules/.astro-fixtures`), because Astro's glob loader does not purge stale entries when a directory is empty |

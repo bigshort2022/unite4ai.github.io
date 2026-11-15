@@ -89,7 +89,7 @@ Two new collections in `apps/web/src/content/`, with schemas in `@unite4ai/schem
 }
 ```
 
-**`evals/<model>--<benchmark>--<submitter>--<YYYY-MM-DD>.json`** (one run):
+**`evals/<model>--<benchmark>--<submitter>--<YYYY-MM-DD>--<first 8 hex of evidence.sha256>.json`** (one run):
 
 ```ts
 {
@@ -114,16 +114,22 @@ Two new collections in `apps/web/src/content/`, with schemas in `@unite4ai/schem
 
 ### Validation (extends `validateContent`, runs in CI)
 
-- JSON parses and matches the schema; file ≤ 16 KB.
-- `model` and `benchmark` exist; `benchmark_version` is a non-empty string. Results for a version other than the benchmark's current one stay valid but are shown only on the benchmark page under "previous versions", never on the leaderboard.
-- `score` lies within the benchmark's `min`/`max` when set; `n` ≤ `items` when `items` > 0.
-- `run.date` is not in the future; the filename's four parts equal the file's `model`, `benchmark`, `run.submitter`, `run.date`.
-- `evidence.sha256` is 64 hex chars; `evidence.url`, if present, is HTTPS.
-- Benchmarks: licence on the allowlist; `scoring` is one of the four deterministic kinds; `source_url` is HTTPS.
+Tightened after the first review of the implementation (2026-11-14); the repository is the source of truth for exact messages.
+
+- **Flat directories.** `evals/` and `benchmarks/` hold files only. A subfolder, link or stray file is an error (`.gitkeep` and `.DS_Store` are ignored), and the site's loaders read the same flat set, so nothing can be loaded without being validated.
+- **One id grammar.** Model and benchmark ids are lowercase, digits and single hyphens (`my-model-7b`). A model card referenced by a result may not override its id with `slug`. Validator ids therefore equal the site's ids.
+- **Strict shape.** JSON parses and matches the schema with no unknown keys; file ≤ 16 KB. Free-text fields are single-line and bounded.
+- **References.** `model` and `benchmark` exist. A result for a benchmark version other than the current one stays valid with a warning, and is shown only on the benchmark page under "previous versions".
+- **Score and size.** `score` lies within the benchmark's `min`/`max` when set. For the current version, `n` must equal `items` (full runs only) unless the benchmark is `measured`.
+- **Identity.** `run.submitter` is a lowercase GitHub handle. The filename's parts equal the file's `model`, `benchmark`, `run.submitter`, `run.date` and evidence prefix. Two files may not share an `evidence.sha256`.
+- **Dates.** `run.date` is a real date and not later than tomorrow (UTC).
+- **Evidence.** `evidence.sha256` is 64 hex chars; `evidence.url`, if present, is HTTPS.
+- **Benchmarks.** Licence on the allowlist; `scoring` is one of the four deterministic kinds; `source_url` is HTTPS; `min ≤ max`; `items` > 0 except for `measured` benchmarks, which have 0.
+- **Build.** The site build fails when a result references a model or benchmark that the site does not have.
 
 ### Aggregation (`packages/core/src/evals.ts`, pure functions)
 
-Runs are grouped by **model + benchmark + benchmark_version + format + quantization**. A group reports the median score, the min–max range, the run count, and `submitters` (distinct handles). A group with one submitter is labelled **single run**; with more, **reproduced by N**. Results are self-reported, so the page says so, and reproduction count is the trust signal. No tolerance heuristics in this piece: the range is shown as is.
+Runs are grouped by **model + benchmark + benchmark_version + format + quantization**. A group reports the median score, the min–max range, the run count, and `submitters` (distinct handles). A group with one submitter is labelled **not yet reproduced**; with more, **reproduced by N** (N counts the other submitters). Results are self-reported, so the page says so, and reproduction count is the trust signal. No tolerance heuristics in this piece: the range is shown as is.
 
 ### Pages
 
