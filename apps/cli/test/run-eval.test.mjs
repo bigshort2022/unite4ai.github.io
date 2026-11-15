@@ -84,9 +84,11 @@ function requestProblem(body, question) {
  * `{ error }` (an error event inside a 200 stream), to `{ truncate }` (one content chunk, then
  * the response ends with neither a finish_reason nor [DONE]) or to `{ hang: true }` (no answer
  * at all). A completion request that departs from the published method gets a 500 that says
- * how. `delayMs` is how long a reply takes after its first chunk.
+ * how. `delayMs` is how long a reply takes after its first chunk. `status` is what
+ * /_omp/status answers, as an omp-managed server does (a string is sent as it is); without
+ * it the route is a 404, as on plain mlx-lm and Ollama.
  */
-function stubServer(replies, { models = ['stub-model'], delayMs = 15 } = {}) {
+function stubServer(replies, { models = ['stub-model'], delayMs = 15, status } = {}) {
   const requests = [];
   const bodies = [];
   let active = 0;
@@ -97,12 +99,13 @@ function stubServer(replies, { models = ['stub-model'], delayMs = 15 } = {}) {
       req.on('data', (chunk) => { body += chunk; });
       req.on('end', () => {
         requests.push(`${req.method} ${req.url}`);
-        const json = (status, payload) => {
-          res.statusCode = status;
+        const json = (code, payload) => {
+          res.statusCode = code;
           res.setHeader('content-type', 'application/json');
-          res.end(JSON.stringify(payload));
+          res.end(typeof payload === 'string' ? payload : JSON.stringify(payload));
         };
         if (req.url === '/v1/models') return json(200, { data: models.map((id) => ({ id })) });
+        if (req.url === '/_omp/status' && status !== undefined) return json(200, status);
         if (req.method !== 'POST' || req.url !== '/v1/chat/completions') return json(404, { error: 'not found' });
         const parsed = JSON.parse(body);
         bodies.push(parsed);
@@ -384,4 +387,34 @@ test('a note about the setup is published with the result and is part of the con
   assert.notEqual(noted.transcriptPath, plain.transcriptPath);
   assert.equal(stub.posts(), 6, 'the noted run answers every item itself');
   assert.deepEqual((await validateContent(workspace.contentRoot)).errors, []);
+});
+
+test('an omp-managed server that has another model loaded, or is busy, is refused before any completion', async () => {
+  const workspace = makeWorkspace();
+  const other = await stubServer({ ...GOOD }, {
+    models: ['stub-model', 'other-model'],
+    status: { version: 1, model: 'other-model', active_requests: 0 },
+  });
+  await assert.rejects(runEval(options(workspace, other)), /the server has "other-model" loaded; --served-model must name it/);
+  assert.equal(other.posts(), 0);
+
+  const busy = await stubServer({ ...GOOD }, { status: { version: 1, model: 'stub-model', active_requests: 2 } });
+  await assert.rejects(runEval(options(workspace, busy)), /the server is busy with 2 request\(s\); try again when it is idle/);
+  assert.equal(busy.posts(), 0);
+  assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), []);
+});
+
+test('a status that agrees, one in another shape, and a server without the endpoint all let the run proceed', async () => {
+  const statuses = [
+    { version: 1, model: 'stub-model', active_requests: 0 },
+    { version: 2, model: 'other-model', active_requests: 5 },
+    'not json',
+    undefined,
+  ];
+  for (const status of statuses) {
+    const stub = await stubServer({ ...GOOD }, { status });
+    const outcome = await runEval(options(makeWorkspace(), stub));
+    assert.equal(outcome.n, 3, JSON.stringify(status));
+    assert.ok(stub.requests.includes('GET /_omp/status'), 'the server is asked what it has loaded');
+  }
 });

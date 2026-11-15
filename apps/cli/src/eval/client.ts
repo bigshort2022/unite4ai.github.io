@@ -19,6 +19,26 @@ export async function listModels(baseUrl: string): Promise<string[]> {
   return (body.data ?? []).map((model) => model?.id).filter((id): id is string => typeof id === 'string' && id !== '');
 }
 
+/**
+ * What an omp-managed server reports at `/_omp/status`: the one model it has loaded and how
+ * many requests it is serving. Null from every other server (plain mlx-lm and Ollama have no
+ * such route) and whenever the answer is not that shape.
+ */
+export async function serverStatus(baseUrl: string): Promise<{ model: string; activeRequests: number } | null> {
+  try {
+    const response = await fetch(new URL('/_omp/status', baseUrl), { signal: AbortSignal.timeout(2_000) });
+    if (response.status !== 200) return null;
+    const body: unknown = await response.json();
+    if (typeof body !== 'object' || body === null) return null;
+    if (!('version' in body) || body.version !== 1) return null;
+    if (!('model' in body) || typeof body.model !== 'string') return null;
+    if (!('active_requests' in body) || typeof body.active_requests !== 'number') return null;
+    return { model: body.model, activeRequests: body.active_requests };
+  } catch {
+    return null;
+  }
+}
+
 /** Yields the payload of every `data:` line in a server-sent event stream. */
 async function* dataPayloads(body: ReadableStream<Uint8Array>): AsyncGenerator<string> {
   const decoder = new TextDecoder();

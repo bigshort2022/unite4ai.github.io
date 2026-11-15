@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { benchmarkSchema, evalResultSchema, type EvalResult } from '@unite4ai/schema';
-import { listModels, streamChat } from './client.ts';
+import { listModels, serverStatus, streamChat } from './client.ts';
 import { detectHardware, type Hardware } from './hardware.ts';
 import { SUITES } from './suites.ts';
 
@@ -118,12 +118,21 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
   const source = await loadSource(options, definition.source_url, definition.source_sha256);
   const items = suite.items(source, definition.items);
 
+  // A listed id is a weak guard: mlx-lm and Ollama also list models they have not loaded, and
+  // posting one of those makes them swap models. An omp-managed server says what is loaded.
   const listed = await listModels(options.baseUrl);
   if (!listed.includes(options.servedModel)) {
     throw new Error(
       `served model "${options.servedModel}" is not listed by the server (${listed.join(', ') || 'none'}); `
       + 'posting it would make the server load it',
     );
+  }
+  const status = await serverStatus(options.baseUrl);
+  if (status && status.model !== options.servedModel) {
+    throw new Error(`the server has "${status.model}" loaded; --served-model must name it`);
+  }
+  if (status && status.activeRequests > 0) {
+    throw new Error(`the server is busy with ${status.activeRequests} request(s); try again when it is idle`);
   }
 
   // Transcript: a header that identifies the configuration, then one line per finished item.
