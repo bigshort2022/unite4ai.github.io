@@ -1,20 +1,16 @@
 import { getCollection } from 'astro:content';
-import { groupEvals, type EvalGroup, type EvalRun } from '@unite4ai/core';
+import { byCodeUnit, groupEvals, type EvalGroup, type EvalRun } from '@unite4ai/core';
+import { EVAL_CATEGORIES } from '@unite4ai/schema';
 
 export const REPO = 'https://github.com/bigshort2022/unite4ai.github.io';
 export const SUBMIT_GUIDE = `${REPO}/blob/main/CONTRIBUTING.md#submitting-an-evaluation-result`;
 
-export const CATEGORIES = ['quality', 'security', 'efficiency'] as const;
+export const CATEGORIES = EVAL_CATEGORIES;
 export const CATEGORY_LABELS: Record<(typeof CATEGORIES)[number], string> = {
   quality: 'Quality',
   security: 'Security',
   efficiency: 'Efficiency',
 };
-
-/** Orders strings by UTF-16 code units, so the build output is the same in every locale. */
-export function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
 
 /**
  * Everything the evaluation pages need, loaded once per page. Throws, failing the build, when

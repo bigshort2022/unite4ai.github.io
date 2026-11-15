@@ -3,8 +3,8 @@ import Base from '../../../layouts/Base.astro';
 import OpennessMeter from '../../../components/OpennessMeter.astro';
 import StackVerifyPanel from '../../../components/StackVerifyPanel.astro';
 import { getCollection, render } from 'astro:content';
-import { localSetups, opennessScore, reproductionLabel } from '@unite4ai/core';
-import { REPO, byCodeUnit, formatNumber, loadEvals, scoreRange } from '../../../lib/evals';
+import { byCodeUnit, localSetups, opennessScore, reproductionLabel } from '@unite4ai/core';
+import { REPO, formatNumber, loadEvals, scoreRange } from '../../../lib/evals';
 
 export async function getStaticPaths() {
   const models = await getCollection('models');

@@ -1,6 +1,14 @@
 import { defineCollection, z } from 'astro:content';
 import { glob } from 'astro/loaders';
-import { CONTENT_ID, OPEN_LICENSES } from '@unite4ai/schema';
+import {
+  CONTENT_ID,
+  EVAL_ACCELERATORS,
+  EVAL_CATEGORIES,
+  EVAL_FORMATS,
+  EVAL_RUNTIMES,
+  EVAL_SCORING,
+  OPEN_LICENSES,
+} from '@unite4ai/schema';
 
 /**
  * THE DATA MODEL.
@@ -192,7 +200,7 @@ const benchmarks = defineCollection({
   schema: z.strictObject({
     name: z.string().min(1),
     summary: z.string().max(300),
-    category: z.enum(['quality', 'security', 'efficiency']),
+    category: z.enum(EVAL_CATEGORIES),
     version: line(50, 'must be a quoted string, e.g. version: "1"'),
     previous_versions: z.array(line(50)).default([]),
     metric: z.strictObject({
@@ -205,7 +213,7 @@ const benchmarks = defineCollection({
       path: ['min'],
       message: 'must not be greater than max',
     }),
-    scoring: z.enum(['exact-match', 'multiple-choice', 'canary', 'measured']),
+    scoring: z.enum(EVAL_SCORING),
     items: z.number().int().nonnegative(),
     source_url: httpsUrl,
     source_sha256: sha256Hex.optional(),
@@ -241,13 +249,13 @@ const evals = defineCollection({
       command: line(2000),
     }),
     setup: z.strictObject({
-      runtime: z.enum(['mlx-lm', 'ollama', 'llama.cpp', 'vllm', 'transformers', 'other']),
+      runtime: z.enum(EVAL_RUNTIMES),
       runtime_version: line(100),
-      format: z.enum(['mlx', 'gguf', 'safetensors', 'other']),
+      format: z.enum(EVAL_FORMATS),
       quantization: line(100),
       hardware: z.strictObject({
         device: line(200),
-        accelerator: z.enum(['apple-silicon', 'nvidia', 'amd', 'cpu', 'other']),
+        accelerator: z.enum(EVAL_ACCELERATORS),
         memory_gb: z.number().positive(),
       }),
     }),

@@ -9,11 +9,13 @@ import { fileURLToPath } from 'node:url';
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const out = mkdtempSync(join(tmpdir(), 'u4ai-evals-site-'));
 const danglingOut = mkdtempSync(join(tmpdir(), 'u4ai-evals-dangling-'));
+const unknownKeyOut = mkdtempSync(join(tmpdir(), 'u4ai-evals-unknown-key-'));
 // The fixture builds keep their content store in their own cacheDir (see astro.config.mjs), so
 // fixture rows cannot reach a normal build even if this run is killed; remove it when done.
 after(() => {
   rmSync(out, { recursive: true, force: true });
   rmSync(danglingOut, { recursive: true, force: true });
+  rmSync(unknownKeyOut, { recursive: true, force: true });
   rmSync(join(ROOT, 'node_modules/.astro-fixtures'), { recursive: true, force: true });
 });
 
@@ -52,6 +54,8 @@ test('leaderboard and benchmark page render fixture results', { timeout: 120_000
   assert.match(board, /reproduced by 1/);
   assert.match(board, /not yet reproduced/);
   assert.match(board, /self-reported/i);
+  // GSM8K has a fixed item count, so each row states how many items the run answered.
+  assert.match(board, /<small>n = 200<\/small>/);
   // The version "0" run (score 99) belongs to a previous version and stays off the leaderboard.
   assert.doesNotMatch(board, />99</);
 
@@ -67,6 +71,7 @@ test('leaderboard and benchmark page render fixture results', { timeout: 120_000
   assert.match(detail, /fixture-bot-2/);
   assert.match(detail, /--fixture-three/);
   assert.match(detail, /3{12}/);
+  assert.match(detail, /<small>n = 200<\/small>/);
   assert.match(detail, /<caption class="sr-only">Leaderboard for GSM8K \(first 200\)<\/caption>/);
   assert.match(detail, /<td class="rank num">1<\/td>/);
 
@@ -127,4 +132,11 @@ test('a result that references a missing model fails the build and names it', { 
   const output = `${build.stdout}${build.stderr}`;
   assert.notEqual(build.status, 0, output);
   assert.match(output, /ghost-model--gsm8k-200--fixture-bot--2026-11-01--55555555: model "ghost-model"/);
+});
+
+test('the content collection rejects a result with an unknown key, like the validator does', { timeout: 120_000 }, () => {
+  const build = buildWith('./test/fixtures/evals-unknown-key', unknownKeyOut);
+  const output = `${build.stdout}${build.stderr}`;
+  assert.notEqual(build.status, 0, output);
+  assert.match(output, /Unrecognized key: "notes"/);
 });

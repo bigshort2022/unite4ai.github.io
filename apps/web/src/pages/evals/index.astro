@@ -102,7 +102,7 @@ const hasRows = boards.some((b) => b.rows.length > 0);
                         <td class="num">
                           <span class="score">{formatNumber(row.score)}</span>{benchmark.data.metric.unit}
                           {scoreRange(row) && <small>range {scoreRange(row)}</small>}
-                          <small>n = {row.n}</small>
+                          {benchmark.data.items > 0 && <small>n = {row.n}</small>}
                         </td>
                         <td>
                           {row.format} · {row.quantization}
