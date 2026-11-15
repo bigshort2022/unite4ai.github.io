@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
@@ -441,4 +441,54 @@ test('the run is dated when it completes, and a finished configuration keeps tha
   assert.deepEqual(again, outcome);
   assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), [basename(outcome.resultPath)]);
   assert.deepEqual((await validateContent(workspace.contentRoot)).errors, []);
+});
+
+/** A workspace whose run stopped at the third item, and the path of its transcript: a header and two items. */
+async function interrupted() {
+  const workspace = makeWorkspace();
+  const stub = await stubServer({ ...GOOD, 'Q3?': 500 });
+  await assert.rejects(runEval(options(workspace, stub)), /item 3/);
+  stub.setReplies({ 'Q3?': 'I think 9' });
+  const [file] = readdirSync(workspace.workDir).filter((name) => name.endsWith('.jsonl'));
+  return { workspace, stub, path: join(workspace.workDir, file) };
+}
+
+test('a last line cut short by a killed run is dropped, and the run continues', async () => {
+  const { workspace, stub, path } = await interrupted();
+  appendFileSync(path, '{"type":"item","index":2,"prompt_sha');
+  const outcome = await runEval(options(workspace, stub));
+  assert.equal(stub.posts(), 4, 'only the item whose line was cut is requested again');
+  assert.equal(outcome.correct, 2);
+  // transcriptLines parses every line, so the fragment is gone from the evidence.
+  assert.deepEqual(transcriptItems(workspace), [0, 1, 2]);
+  assert.deepEqual((await validateContent(workspace.contentRoot)).errors, []);
+});
+
+test('a last line that lost only its newline is kept, and the next line starts on its own', async () => {
+  const { workspace, stub, path } = await interrupted();
+  writeFileSync(path, readFileSync(path, 'utf8').trimEnd());
+  await runEval(options(workspace, stub));
+  assert.equal(stub.posts(), 4);
+  assert.deepEqual(transcriptItems(workspace), [0, 1, 2]);
+});
+
+test('a transcript damaged anywhere but its last line is refused, naming the file', async () => {
+  const { workspace, stub, path } = await interrupted();
+  const [header, first, second] = readFileSync(path, 'utf8').trimEnd().split('\n');
+  const refuses = async (lines, problem) => {
+    writeFileSync(path, lines.map((line) => `${line}\n`).join(''));
+    await assert.rejects(runEval(options(workspace, stub)), (error) => {
+      assert.ok(error.message.includes(path), error.message);
+      assert.match(error.message, problem);
+      return true;
+    });
+  };
+  await refuses([header, '{"type":"item","index":0,"prom', second], /line 2 is not valid JSON/);
+  await refuses([header, second], /its item lines are not items 0, 1, 2, … in order/);
+  await refuses([header, first, first], /its item lines are not items 0, 1, 2, … in order/);
+  await refuses([header, first, second, second.replace('"index":1', '"index":2'), first.replace('"index":0', '"index":3')], /more items than the benchmark/);
+  await refuses([header, first, JSON.stringify({ type: 'complete', date: '2026-11-10' })], /marked complete with 1 of 3 items/);
+  await refuses([first, second], /does not start with this run's header/);
+  assert.equal(stub.posts(), 3, 'nothing is requested while the transcript is refused');
+  assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), []);
 });

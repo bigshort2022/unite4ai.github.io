@@ -127,22 +127,58 @@ async function checkServer(baseUrl: string, servedModel: string): Promise<void> 
   }
 }
 
+/** A transcript line that is the item at this position; the fields the runner wrote are trusted beyond that. */
+function isItemAt(line: unknown, index: number): line is TranscriptItem {
+  return typeof line === 'object' && line !== null
+    && 'type' in line && line.type === 'item'
+    && 'index' in line && line.index === index
+    && 'correct' in line && typeof line.correct === 'boolean';
+}
+
+/** The date on a transcript's completion line; null for any other line. */
+function completionDate(line: unknown): string | null {
+  if (typeof line !== 'object' || line === null) return null;
+  if (!('type' in line) || line.type !== 'complete') return null;
+  return 'date' in line && typeof line.date === 'string' ? line.date : null;
+}
+
 /**
  * Reads this configuration's transcript, creating it when there is none: the finished items,
- * and the completion date once every item has been answered.
+ * and the completion date once every item has been answered. A last line that a killed run
+ * left cut short is dropped; any other damage is refused, because the file is the evidence.
  */
-function readTranscript(path: string, header: string): { done: TranscriptItem[]; completedOn: string | null } {
-  if (!existsSync(path)) {
-    writeFileSync(path, `${header}\n`);
-    return { done: [], completedOn: null };
+function readTranscript(path: string, header: string, total: number): { done: TranscriptItem[]; completedOn: string | null } {
+  const damaged = (problem: string) => new Error(`${path}: ${problem}; move or delete the file to start over`);
+  const text = existsSync(path) ? readFileSync(path, 'utf8') : '';
+  const lines = text.split('\n');
+  if (lines.at(-1) === '') lines.pop();
+
+  const parsed: unknown[] = [];
+  for (const [index, line] of lines.entries()) {
+    try {
+      parsed.push(JSON.parse(line));
+    } catch {
+      // Lines are appended whole, so only the last one can be a fragment.
+      if (index < lines.length - 1) throw damaged(`line ${index + 1} is not valid JSON`);
+    }
   }
-  const [first, ...rest] = readFileSync(path, 'utf8').split('\n').filter((line) => line !== '');
-  if (first !== header) {
-    throw new Error(`the transcript at ${path} does not start with this run's header; move or delete it to start over`);
+  const kept = lines.slice(0, parsed.length);
+  if (kept.length > 0 && kept[0] !== header) throw damaged("it does not start with this run's header");
+
+  const records = parsed.slice(1);
+  const completedOn = completionDate(records.at(-1));
+  if (completedOn !== null) records.pop();
+  const done = records.filter((record, index): record is TranscriptItem => isItemAt(record, index));
+  if (done.length !== records.length) throw damaged('its item lines are not items 0, 1, 2, … in order');
+  if (done.length > total) throw damaged('it has more items than the benchmark');
+  if (completedOn !== null && done.length !== total) {
+    throw damaged(`it is marked complete with ${done.length} of ${total} items`);
   }
-  const lines = rest.map((line) => JSON.parse(line) as TranscriptItem | TranscriptEnd);
-  const end = lines.find((line): line is TranscriptEnd => line.type === 'complete');
-  return { done: lines.filter((line): line is TranscriptItem => line.type === 'item'), completedOn: end?.date ?? null };
+
+  // Rewritten without the fragment, and with the newline a kept last line may have lost.
+  const intact = [header, ...kept.slice(1)].map((line) => `${line}\n`).join('');
+  if (text !== intact) writeFileSync(path, intact);
+  return { done, completedOn };
 }
 
 /** Decode speed (tokens per second after the first token) and the median time to the first token. */
@@ -202,7 +238,7 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
   const name = `${options.model}--${options.benchmark}--${options.submitter}`;
   const transcriptPath = join(options.workDir, `${name}--${sha256(header).slice(0, 8)}.jsonl`);
   mkdirSync(options.workDir, { recursive: true });
-  const { done, completedOn } = readTranscript(transcriptPath, header);
+  const { done, completedOn } = readTranscript(transcriptPath, header, items.length);
   if (completedOn !== null) {
     log(`this configuration completed on ${completedOn}; move ${transcriptPath} away to run it again`);
   } else if (done.length > 0) {
