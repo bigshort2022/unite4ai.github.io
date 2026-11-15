@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { groupEvals, leaderboard, localSetups, median, reproductionLabel } from '../src/evals.ts';
+import { groupEvals, leaderboard, localSetups as setupsOfCurrent, median, reproductionLabel } from '../src/evals.ts';
 import { result, run } from './fixtures/evals.mjs';
 
 const setup = (overrides = {}) => ({ ...result().setup, ...overrides });
 const by = (submitter, date) => ({ ...result().run, submitter, date });
+/** Fixture runs are of version "1" unless a test says otherwise, and here that is each benchmark's current version. */
+const CURRENT = new Map([['bench-a', '1'], ['speed-a', '1']]);
+const localSetups = (runs) => setupsOfCurrent(runs, CURRENT);
 
 test('median handles odd and even counts without mutating its input', () => {
   const values = [9, 1, 5];
@@ -237,6 +240,45 @@ test('localSetups keeps the lowest time to first token when a later run is slowe
   assert.deepEqual(others, []);
   assert.equal(only.time_to_first_token_ms, 650.5);
   assert.equal(only.tokens_per_second, 60);
+});
+
+test('localSetups counts only runs of the current version of their benchmark', () => {
+  const otherBox = setup({ hardware: { ...result().setup.hardware, device: 'Other Box' } });
+  const runs = [
+    // Version 1 of bench-a was faster and quicker to start, on a workload nobody runs any more.
+    run('a-old', { benchmark_version: '1', perf: { tokens_per_second: 90, time_to_first_token_ms: 100 } }),
+    run('b-current', { benchmark_version: '2', perf: { tokens_per_second: 30, time_to_first_token_ms: 700 } }),
+    // A machine that only ever ran the old version.
+    run('c-old-box', { benchmark_version: '1', setup: otherBox, perf: { tokens_per_second: 50 } }),
+    // Another benchmark, still at its version 1, on the first machine.
+    run('d-speed', { benchmark: 'speed-a', benchmark_version: '1', perf: { tokens_per_second: 35, time_to_first_token_ms: 800 } }),
+  ];
+  const current = new Map([['bench-a', '2'], ['speed-a', '1']]);
+  const [only, ...others] = setupsOfCurrent(runs, current);
+  assert.deepEqual(others, [], 'the machine with only an old-version run is not listed');
+  assert.equal(only.device, 'MacBook Pro (M2 Max)');
+  assert.equal(only.tokens_per_second, 35, 'the best current speed, from whichever benchmark');
+  assert.equal(only.time_to_first_token_ms, 700);
+  assert.deepEqual(setupsOfCurrent([...runs].reverse(), current), [only]);
+
+  // The map decides, not the data: with version 1 current, the other three runs are the old ones.
+  const before = setupsOfCurrent(runs, new Map([['bench-a', '1'], ['speed-a', '2']]));
+  assert.deepEqual(before.map((s) => [s.device, s.tokens_per_second, s.time_to_first_token_ms]), [
+    ['MacBook Pro (M2 Max)', 90, 100],
+    ['Other Box', 50, null],
+  ]);
+});
+
+test('localSetups leaves out a run whose benchmark has no current version, and spells the device as its first current run does', () => {
+  assert.deepEqual(setupsOfCurrent([run('a')], new Map()), []);
+  assert.deepEqual(setupsOfCurrent([run('a')], new Map([['bench-b', '1']])), []);
+
+  const on = (device) => setup({ hardware: { ...result().setup.hardware, device } });
+  const setups = setupsOfCurrent(
+    [run('a', { benchmark_version: '1', setup: on('APPLE M5 (MAC17,2)') }), run('b', { benchmark_version: '2', setup: on('Apple M5 (Mac17,2)') })],
+    new Map([['bench-a', '2']]),
+  );
+  assert.deepEqual(setups.map((s) => s.device), ['Apple M5 (Mac17,2)']);
 });
 
 const measured = (runs) => groupEvals(runs, { byHardware: new Set(['speed-a']) });

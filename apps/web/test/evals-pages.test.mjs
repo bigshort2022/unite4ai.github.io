@@ -226,7 +226,11 @@ test('model page lists its evaluations and local setups; the feed publishes the 
   assert.match(model, /Runs locally on/);
   // The local-run matrix: each setup's best speed and its shortest time to the first token.
   const [evaluations, matrix] = model.split('Runs locally on');
-  assert.match(matrix, /Best measured speed and lowest time to first token per setup; the two can come from different runs\./);
+  assert.match(matrix, /Best measured speed and lowest time to first token per setup, across runs of current benchmark versions; the two can come from different runs and different benchmarks\./);
+  // The rig has two setups, 64 GB in a version 2 run and 32 GB in a version 1 run (0.123 tok/s):
+  // only the first is a current workload, so only it has a row.
+  assert.match(matrix, /Fixture &lt;b&gt;Rig&lt;\/b&gt; &amp; [^<]*<small>apple-silicon · 64 GB<\/small><\/td>\s*<td class="num">50 tok\/s<\/td>/);
+  assert.doesNotMatch(matrix, /0\.123 tok\/s|apple-silicon · 32 GB<\/small><\/td>\s*<td class="num">0/);
   assert.match(matrix, /<th scope="col">First token<\/th>/);
   assert.match(matrix, /Fixture Tower<small>nvidia · 24 GB<\/small><\/td>\s*<td class="num">140\.25 tok\/s<\/td>\s*<td class="num">95 ms<\/td>/);
   assert.match(matrix, /Fixture Laptop<small>apple-silicon · 32 GB<\/small><\/td>\s*<td class="num">61\.5 tok\/s<\/td>\s*<td class="num">480 ms<\/td>/);
@@ -295,9 +299,8 @@ test('model page lists its evaluations and local setups; the feed publishes the 
 
 test('a model page names the benchmarks it has results for only in an earlier version, and links to them', () => {
   // This model's only fixture run is of GSM8K-200 version 1, with the speed measured on it.
-  const [evaluations, matrix] = page('registry/models/qwen3-6-35b-a3b/index.html')
-    .split('<h2>Evaluations</h2>')[1]
-    .split('Runs locally on');
+  const model = page('registry/models/qwen3-6-35b-a3b/index.html');
+  const evaluations = model.split('<h2>Evaluations</h2>')[1];
   const text = evaluations.replace(/\s+/g, ' ');
   assert.ok(
     text.includes(
@@ -310,8 +313,8 @@ test('a model page names the benchmarks it has results for only in an earlier ve
   assert.doesNotMatch(evaluations, /<table/);
   assert.match(text, /No results for the current benchmark versions yet\./);
   assert.doesNotMatch(text, /No evaluation results yet/);
-  // The setups it ran on are listed whatever the benchmark version.
-  assert.match(matrix, /Fixture Laptop<small>apple-silicon · 32 GB<\/small><\/td>\s*<td class="num">12\.5 tok\/s<\/td>/);
+  // The local-run matrix is built from runs of current versions, so this model has none.
+  assert.doesNotMatch(model, /Runs locally on|12\.5 tok\/s/);
 
   // A benchmark with a result of its current version is in the table, not in that line.
   const [current] = page('registry/models/darsy-xray-analysis/index.html').split('<h2>Evaluations</h2>')[1].split('Runs locally on');

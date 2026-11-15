@@ -16,7 +16,7 @@
     "runtime_version": "0.0.0",
     "format": "mlx",
     "quantization": "4bit",
-    "hardware": { "device": "Fixture Laptop", "accelerator": "apple-silicon", "memory_gb": 32 }
+    "hardware": { "device": "Fixture <b>Rig</b> & \"Co\"", "accelerator": "apple-silicon", "memory_gb": 64 }
   },
   "perf": { "tokens_per_second": 50 },
   "evidence": { "sha256": "1111111111111111111111111111111111111111111111111111111111111111" }

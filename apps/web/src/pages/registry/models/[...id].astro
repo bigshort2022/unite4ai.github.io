@@ -37,7 +37,10 @@ const earlier = [...new Set(ownGroups.map((g) => g.benchmark))]
     name: benchmarkById.get(id)!.data.name,
     versions: [...new Set(ownGroups.filter((g) => g.benchmark === id).map((g) => g.benchmark_version))].sort(byCodeUnit),
   }));
-const setups = localSetups(evalData.runs.filter((run) => run.model === entry.id));
+const setups = localSetups(
+  evalData.runs.filter((run) => run.model === entry.id),
+  new Map(evalData.benchmarks.map((b) => [b.id, b.data.version])),
+);
 ---
 <Base title={d.name} description={d.summary}>
   <article class="wrap section" data-pagefind-body data-pagefind-meta={`openness:${score}`} data-pagefind-filter={`license:${d.license}`}>
@@ -115,7 +118,7 @@ const setups = localSetups(evalData.runs.filter((run) => run.model === entry.id)
       {setups.length > 0 && (
         <>
           <h3 style="margin-top:2rem">Runs locally on</h3>
-          <p style="color:var(--u-text-dim)">Best measured speed and lowest time to first token per setup; the two can come from different runs.</p>
+          <p style="color:var(--u-text-dim)">Best measured speed and lowest time to first token per setup, across runs of current benchmark versions; the two can come from different runs and different benchmarks.</p>
           <div class="eval-scroll" tabindex="0" role="region" aria-label={`Setups ${d.name} has been run on`}>
             <table class="eval-table">
               <caption class="sr-only">Setups {d.name} has been run on</caption>
