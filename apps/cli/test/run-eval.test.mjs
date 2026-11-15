@@ -1,0 +1,225 @@
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import test, { after } from 'node:test';
+import { evalResultSchema } from '@unite4ai/schema';
+import { validateContent } from '@unite4ai/core/validate';
+import { runEval } from '../src/eval/run.ts';
+
+const sha256 = (data) => createHash('sha256').update(data).digest('hex');
+const SOURCE = [
+  { question: 'Q1?', answer: 'w\n#### 18' },
+  { question: 'Q2?', answer: 'w\n#### 2,125' },
+  { question: 'Q3?', answer: 'w\n#### 7' },
+].map((row) => JSON.stringify(row)).join('\n') + '\n';
+
+const MODEL_CARD = `---
+name: Model A
+summary: Fixture model used only in tests.
+maintainers: ["tester"]
+license: mit
+openness:
+  weights: open
+  training_data: open
+  training_code: open
+  evaluation: open
+updated: 2026-11-01
+---
+
+## Notes
+
+Fixture.
+`;
+
+const temps = [];
+const servers = [];
+after(() => {
+  servers.forEach((server) => server.close());
+  temps.forEach((dir) => rmSync(dir, { recursive: true, force: true }));
+});
+
+function makeWorkspace({ sourceSha = sha256(SOURCE) } = {}) {
+  const root = mkdtempSync(join(tmpdir(), 'u4ai-eval-'));
+  temps.push(root);
+  const contentRoot = join(root, 'content');
+  for (const dir of ['models', 'benchmarks', 'evals']) mkdirSync(join(contentRoot, dir), { recursive: true });
+  writeFileSync(join(contentRoot, 'models/model-a.md'), MODEL_CARD);
+  const definition = {
+    name: 'GSM8K fixture',
+    summary: 'Three items for tests.',
+    category: 'quality',
+    version: '1',
+    metric: { name: 'accuracy', unit: '%', higher_is_better: true, min: 0, max: 100 },
+    scoring: 'exact-match',
+    items: 3,
+    source_url: 'https://example.org/test.jsonl',
+    source_sha256: sourceSha,
+    license: 'mit',
+    updated: '2026-11-14',
+  };
+  writeFileSync(join(contentRoot, 'benchmarks/gsm8k-200.md'), `---\n${JSON.stringify(definition, null, 2)}\n---\n\n## Method\n\nFixture.\n`);
+  const sourceFile = join(root, 'test.jsonl');
+  writeFileSync(sourceFile, SOURCE);
+  return { root, contentRoot, workDir: join(root, 'work'), sourceFile };
+}
+
+/** OpenAI-compatible stub. `replies` maps a question's first line to the reply, or to a status code. */
+function stubServer(replies, models = ['stub-model']) {
+  const requests = [];
+  let active = 0;
+  let maxActive = 0;
+  return new Promise((done) => {
+    const server = createServer((req, res) => {
+      let body = '';
+      req.on('data', (chunk) => { body += chunk; });
+      req.on('end', () => {
+        requests.push(`${req.method} ${req.url}`);
+        if (req.url === '/v1/models') {
+          res.setHeader('content-type', 'application/json');
+          return res.end(JSON.stringify({ data: models.map((id) => ({ id })) }));
+        }
+        active += 1;
+        maxActive = Math.max(maxActive, active);
+        const parsed = JSON.parse(body);
+        const question = parsed.messages.at(-1).content.split('\n')[0];
+        const reply = replies[question];
+        const finish = () => { active -= 1; };
+        if (typeof reply === 'number') {
+          res.statusCode = reply;
+          finish();
+          return res.end('stub failure');
+        }
+        res.setHeader('content-type', 'text/event-stream');
+        const half = Math.ceil(reply.length / 2);
+        res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: reply.slice(0, half) } }] })}\n\n`);
+        setTimeout(() => {
+          res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: reply.slice(half) } }] })}\n\n`);
+          res.write(`data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 } })}\n\n`);
+          res.write('data: [DONE]\n\n');
+          finish();
+          res.end();
+        }, 15);
+      });
+    });
+    servers.push(server);
+    server.listen(0, '127.0.0.1', () => done({
+      baseUrl: `http://127.0.0.1:${server.address().port}/v1`,
+      requests,
+      posts: () => requests.filter((r) => r.startsWith('POST')).length,
+      maxActive: () => maxActive,
+      setReplies: (next) => { Object.assign(replies, next); },
+    }));
+  });
+}
+
+const options = (workspace, stub, overrides = {}) => ({
+  benchmark: 'gsm8k-200',
+  model: 'model-a',
+  servedModel: 'stub-model',
+  submitter: 'alice',
+  runtime: 'mlx-lm',
+  runtimeVersion: '0.32.2',
+  format: 'mlx',
+  quantization: '4bit',
+  baseUrl: stub.baseUrl,
+  contentRoot: workspace.contentRoot,
+  workDir: workspace.workDir,
+  sourceFile: workspace.sourceFile,
+  command: 'bun run eval -- --benchmark gsm8k-200 --model model-a',
+  hardware: { device: 'Test Box', accelerator: 'cpu', memory_gb: 16 },
+  today: '2026-11-10',
+  ...overrides,
+});
+
+const GOOD = { 'Q1?': 'It is 18', 'Q2?': 'Total 2,125', 'Q3?': 'I think 9' };
+
+test('a complete run writes a result the content gate accepts, with evidence for its transcript', async () => {
+  const workspace = makeWorkspace();
+  const stub = await stubServer({ ...GOOD });
+  const outcome = await runEval(options(workspace, stub));
+
+  assert.equal(outcome.n, 3);
+  assert.equal(outcome.correct, 2);
+  assert.equal(outcome.score, 66.67);
+  const prefix = sha256(readFileSync(outcome.transcriptPath)).slice(0, 8);
+  assert.equal(outcome.resultPath, join(workspace.contentRoot, `evals/model-a--gsm8k-200--alice--2026-11-10--${prefix}.json`));
+
+  const result = JSON.parse(readFileSync(outcome.resultPath, 'utf8'));
+  assert.equal(evalResultSchema.safeParse(result).success, true);
+  assert.equal(result.score, 66.67);
+  assert.equal(result.run.command, 'bun run eval -- --benchmark gsm8k-200 --model model-a');
+  assert.deepEqual(result.setup.hardware, { device: 'Test Box', accelerator: 'cpu', memory_gb: 16 });
+  const transcript = readFileSync(outcome.transcriptPath);
+  assert.equal(result.evidence.sha256, sha256(transcript));
+  assert.equal(result.evidence.bytes, transcript.length);
+  assert.ok(result.perf.tokens_per_second > 0);
+  assert.ok(result.perf.time_to_first_token_ms > 0);
+
+  assert.equal(stub.posts(), 3);
+  assert.equal(stub.maxActive(), 1, 'requests must be sequential');
+  assert.deepEqual((await validateContent(workspace.contentRoot)).errors, []);
+});
+
+test('a served model the server does not list is refused before any completion', async () => {
+  const workspace = makeWorkspace();
+  const stub = await stubServer({ ...GOOD }, ['loaded-model', 'other-model']);
+  await assert.rejects(runEval(options(workspace, stub)), /"stub-model" is not listed by the server \(loaded-model, other-model\)/);
+  assert.equal(stub.posts(), 0);
+  assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), []);
+});
+
+test('a source that does not match the pinned hash is refused before any request', async () => {
+  const workspace = makeWorkspace({ sourceSha: 'f'.repeat(64) });
+  const stub = await stubServer({ ...GOOD });
+  await assert.rejects(runEval(options(workspace, stub)), /source hash mismatch/);
+  assert.deepEqual(stub.requests, []);
+});
+
+test('a missing model card or an unsupported benchmark stops the run before any request', async () => {
+  const workspace = makeWorkspace();
+  const stub = await stubServer({ ...GOOD });
+  await assert.rejects(runEval(options(workspace, stub, { model: 'ghost' })), /model "ghost" has no card/);
+  await assert.rejects(runEval(options(workspace, stub, { benchmark: 'nope' })), /benchmark "nope"/);
+  assert.deepEqual(stub.requests, []);
+});
+
+test('a failed request writes no result, and the next run resumes after the completed items', async () => {
+  const workspace = makeWorkspace();
+  const stub = await stubServer({ ...GOOD, 'Q2?': 500 });
+  await assert.rejects(runEval(options(workspace, stub)), /item 2.*500/s);
+  assert.equal(stub.posts(), 2);
+  assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), []);
+
+  stub.setReplies({ 'Q2?': 'Total 2,125' });
+  const outcome = await runEval(options(workspace, stub));
+  assert.equal(stub.posts(), 4, 'only items 2 and 3 are requested again');
+  assert.equal(outcome.correct, 2);
+  assert.ok(existsSync(outcome.resultPath));
+});
+
+test('a different configuration gets its own transcript instead of reusing another one', async () => {
+  const workspace = makeWorkspace();
+  const stub = await stubServer({ ...GOOD, 'Q3?': 500 });
+  await assert.rejects(runEval(options(workspace, stub)), /item 3/);
+  assert.equal(stub.posts(), 3);
+
+  stub.setReplies({ 'Q3?': 'I think 9' });
+  const other = await runEval(options(workspace, stub, { quantization: '8bit' }));
+  assert.equal(stub.posts(), 6, 'the 8bit run answers all three items itself');
+  assert.equal(JSON.parse(readFileSync(other.resultPath, 'utf8')).setup.quantization, '8bit');
+
+  const resumed = await runEval(options(workspace, stub));
+  assert.equal(stub.posts(), 7, 'the 4bit run resumes with only its third item');
+  assert.notEqual(resumed.transcriptPath, other.transcriptPath);
+  assert.deepEqual((await validateContent(workspace.contentRoot)).errors, []);
+});
+
+test('the run stops at its time limit without writing a result', async () => {
+  const workspace = makeWorkspace();
+  const stub = await stubServer({ ...GOOD });
+  await assert.rejects(runEval(options(workspace, stub, { maxSeconds: 0 })), /time limit/);
+  assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), []);
+});
