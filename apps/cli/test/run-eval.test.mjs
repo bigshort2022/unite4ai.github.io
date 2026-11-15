@@ -508,3 +508,36 @@ test('a value the result file could not carry is refused, naming its flag, befor
   assert.deepEqual(stub.requests, []);
   assert.equal(existsSync(workspace.workDir), false, 'no transcript is started');
 });
+
+test('a configuration that a live run holds is refused, and a lock left by a dead run is taken over', async () => {
+  const { workspace, stub, path } = await interrupted();
+  const lock = `${path}.lock`;
+  assert.equal(existsSync(lock), false, 'a failed run releases its lock');
+
+  writeFileSync(lock, String(process.pid));
+  await assert.rejects(
+    runEval(options(workspace, stub)),
+    new RegExp(`another run of this configuration is active \\(pid ${process.pid}\\)`),
+  );
+  assert.equal(stub.posts(), 3);
+  assert.equal(readFileSync(lock, 'utf8'), String(process.pid), 'the holder keeps its lock');
+
+  // No process has this id, so whatever wrote it is gone.
+  writeFileSync(lock, '2147483646');
+  const outcome = await runEval(options(workspace, stub));
+  assert.equal(stub.posts(), 4);
+  assert.equal(outcome.n, 3);
+  assert.equal(existsSync(lock), false, 'a finished run releases its lock');
+});
+
+test('of two runs of one configuration at the same time, one answers the items and the other is refused', async () => {
+  const workspace = makeWorkspace();
+  const stub = await stubServer({ ...GOOD });
+  const runs = await Promise.allSettled([runEval(options(workspace, stub)), runEval(options(workspace, stub))]);
+  assert.deepEqual(runs.map((run) => run.status).sort(), ['fulfilled', 'rejected']);
+  assert.match(runs.find((run) => run.status === 'rejected').reason.message, /another run of this configuration is active/);
+  assert.equal(stub.posts(), 3);
+  assert.equal(stub.maxActive(), 1);
+  assert.deepEqual(transcriptItems(workspace), [0, 1, 2]);
+  assert.deepEqual(readdirSync(workspace.workDir).filter((name) => name.endsWith('.lock')), []);
+});

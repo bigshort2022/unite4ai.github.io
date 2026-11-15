@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { benchmarkSchema, evalResultSchema, type EvalResult } from '@unite4ai/schema';
 import { listModels, serverStatus, streamChat } from './client.ts';
@@ -197,6 +197,34 @@ function measure(done: TranscriptItem[]): NonNullable<EvalResult['perf']> {
   return perf;
 }
 
+/** Whether a process with this id exists; one that belongs to another user counts. */
+function isRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error instanceof Error && 'code' in error && error.code === 'EPERM';
+  }
+}
+
+/**
+ * Takes the lock that keeps two runs from appending to one transcript, and returns the function
+ * that releases it. The lock names its holder, so one left behind by a killed run is taken over.
+ */
+function lockTranscript(path: string): () => void {
+  try {
+    writeFileSync(path, String(process.pid), { flag: 'wx' });
+  } catch (error) {
+    if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error;
+    const holder = Number(readFileSync(path, 'utf8'));
+    if (Number.isInteger(holder) && holder > 0 && isRunning(holder)) {
+      throw new Error(`another run of this configuration is active (pid ${holder})`);
+    }
+    writeFileSync(path, String(process.pid));
+  }
+  return () => rmSync(path, { force: true });
+}
+
 /** The flag behind each result field a contributor sets, so a schema complaint can name it. */
 const FLAG_OF: Record<string, string> = {
   model: '--model',
@@ -294,72 +322,77 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
   const name = `${options.model}--${options.benchmark}--${options.submitter}`;
   const transcriptPath = join(options.workDir, `${name}--${sha256(header).slice(0, 8)}.jsonl`);
   mkdirSync(options.workDir, { recursive: true });
-  const { done, completedOn } = readTranscript(transcriptPath, header, items.length);
-  if (completedOn !== null) {
-    log(`this configuration completed on ${completedOn}; move ${transcriptPath} away to run it again`);
-  } else if (done.length > 0) {
-    log(`resuming after ${done.length} of ${items.length} items`);
-  }
-
-  if (done.length < items.length) await checkServer(options.baseUrl, options.servedModel);
-  const started = Date.now();
-  for (const item of items.slice(done.length)) {
-    if ((Date.now() - started) / 1000 >= maxSeconds) {
-      throw new Error(`time limit of ${maxSeconds}s reached after ${done.length} of ${items.length} items; rerun to resume`);
+  const unlock = lockTranscript(`${transcriptPath}.lock`);
+  try {
+    const { done, completedOn } = readTranscript(transcriptPath, header, items.length);
+    if (completedOn !== null) {
+      log(`this configuration completed on ${completedOn}; move ${transcriptPath} away to run it again`);
+    } else if (done.length > 0) {
+      log(`resuming after ${done.length} of ${items.length} items`);
     }
-    let completion;
-    try {
-      completion = await streamChat({
-        baseUrl: options.baseUrl,
-        model: options.servedModel,
-        messages: item.messages,
-        maxTokens,
-        timeoutMs: options.requestTimeoutMs ?? 120_000,
-      });
-    } catch (error) {
-      throw new Error(`item ${item.index + 1} failed: ${(error as Error).message}; rerun to resume`);
+
+    if (done.length < items.length) await checkServer(options.baseUrl, options.servedModel);
+    const started = Date.now();
+    for (const item of items.slice(done.length)) {
+      if ((Date.now() - started) / 1000 >= maxSeconds) {
+        throw new Error(`time limit of ${maxSeconds}s reached after ${done.length} of ${items.length} items; rerun to resume`);
+      }
+      let completion;
+      try {
+        completion = await streamChat({
+          baseUrl: options.baseUrl,
+          model: options.servedModel,
+          messages: item.messages,
+          maxTokens,
+          timeoutMs: options.requestTimeoutMs ?? 120_000,
+        });
+      } catch (error) {
+        throw new Error(`item ${item.index + 1} failed: ${(error as Error).message}; rerun to resume`);
+      }
+      const verdict = item.judge(completion.text);
+      const line: TranscriptItem = {
+        type: 'item',
+        index: item.index,
+        prompt_sha256: sha256(JSON.stringify(item.messages)),
+        reply: completion.text,
+        finish_reason: completion.finishReason,
+        extracted: verdict.extracted,
+        expected: item.expected,
+        correct: verdict.correct,
+        ttft_ms: completion.ttftMs === null ? null : Number(completion.ttftMs.toFixed(1)),
+        seconds: Number(completion.seconds.toFixed(3)),
+        completion_tokens: completion.completionTokens,
+      };
+      appendFileSync(transcriptPath, `${JSON.stringify(line)}\n`);
+      done.push(line);
+      log(`${done.length}/${items.length} ${verdict.correct ? 'correct' : 'wrong'}`);
     }
-    const verdict = item.judge(completion.text);
-    const line: TranscriptItem = {
-      type: 'item',
-      index: item.index,
-      prompt_sha256: sha256(JSON.stringify(item.messages)),
-      reply: completion.text,
-      finish_reason: completion.finishReason,
-      extracted: verdict.extracted,
-      expected: item.expected,
-      correct: verdict.correct,
-      ttft_ms: completion.ttftMs === null ? null : Number(completion.ttftMs.toFixed(1)),
-      seconds: Number(completion.seconds.toFixed(3)),
-      completion_tokens: completion.completionTokens,
-    };
-    appendFileSync(transcriptPath, `${JSON.stringify(line)}\n`);
-    done.push(line);
-    log(`${done.length}/${items.length} ${verdict.correct ? 'correct' : 'wrong'}`);
+
+    // The run is dated when its last item is answered, and the transcript records that date:
+    // running a finished configuration again rewrites the same result instead of a newer copy.
+    const date = completedOn ?? options.today ?? new Date().toISOString().slice(0, 10);
+    if (completedOn === null) {
+      const end: TranscriptEnd = { type: 'complete', date };
+      appendFileSync(transcriptPath, `${JSON.stringify(end)}\n`);
+    }
+
+    const correct = done.filter((line) => line.correct).length;
+    const score = Number(((100 * correct) / done.length).toFixed(2));
+    const transcript = readFileSync(transcriptPath);
+    const result = evalResultSchema.parse(resultWith({
+      score,
+      n: done.length,
+      date,
+      perf: measure(done),
+      evidence: { sha256: sha256(transcript), bytes: transcript.length },
+    }));
+
+    // The filename carries the evidence prefix, as the content gate requires.
+    const resultPath = join(options.contentRoot, 'evals', `${name}--${date}--${result.evidence.sha256.slice(0, 8)}.json`);
+    mkdirSync(join(options.contentRoot, 'evals'), { recursive: true });
+    writeFileSync(resultPath, `${JSON.stringify(result, null, 2)}\n`);
+    return { resultPath, transcriptPath, score, correct, n: done.length };
+  } finally {
+    unlock();
   }
-
-  // The run is dated when its last item is answered, and the transcript records that date:
-  // running a finished configuration again rewrites the same result instead of a newer copy.
-  const date = completedOn ?? options.today ?? new Date().toISOString().slice(0, 10);
-  if (completedOn === null) {
-    const end: TranscriptEnd = { type: 'complete', date };
-    appendFileSync(transcriptPath, `${JSON.stringify(end)}\n`);
-  }
-
-  const correct = done.filter((line) => line.correct).length;
-  const score = Number(((100 * correct) / done.length).toFixed(2));
-  const transcript = readFileSync(transcriptPath);
-  const result = evalResultSchema.parse(resultWith({
-    score,
-    n: done.length,
-    date,
-    perf: measure(done),
-    evidence: { sha256: sha256(transcript), bytes: transcript.length },
-  }));
-
-  // The filename carries the evidence prefix, as the content gate requires.
-  const resultPath = join(options.contentRoot, 'evals', `${name}--${date}--${result.evidence.sha256.slice(0, 8)}.json`);
-  mkdirSync(join(options.contentRoot, 'evals'), { recursive: true });
-  writeFileSync(resultPath, `${JSON.stringify(result, null, 2)}\n`);
-  return { resultPath, transcriptPath, score, correct, n: done.length };
 }
