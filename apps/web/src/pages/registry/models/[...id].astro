@@ -4,7 +4,7 @@ import OpennessMeter from '../../../components/OpennessMeter.astro';
 import StackVerifyPanel from '../../../components/StackVerifyPanel.astro';
 import { getCollection, render } from 'astro:content';
 import { localSetups, opennessScore, reproductionLabel } from '@unite4ai/core';
-import { REPO, formatNumber, loadEvals, scoreRange } from '../../../lib/evals';
+import { REPO, byCodeUnit, formatNumber, loadEvals, scoreRange } from '../../../lib/evals';
 
 export async function getStaticPaths() {
   const models = await getCollection('models');
@@ -24,7 +24,7 @@ const evalData = await loadEvals();
 const benchmarkById = new Map(evalData.benchmarks.map((b) => [b.id, b]));
 const modelGroups = evalData.groups
   .filter((g) => g.model === entry.id && benchmarkById.get(g.benchmark)?.data.version === g.benchmark_version)
-  .sort((a, b) => a.benchmark.localeCompare(b.benchmark) || a.key.localeCompare(b.key));
+  .sort((a, b) => byCodeUnit(a.benchmark, b.benchmark) || byCodeUnit(a.key, b.key));
 const setups = localSetups(evalData.runs.filter((run) => run.model === entry.id));
 ---
 <Base title={d.name} description={d.summary}>
@@ -62,8 +62,9 @@ const setups = localSetups(evalData.runs.filter((run) => run.model === entry.id)
           No evaluation results yet. <a href={href('/evals')}>See the benchmarks and how results are submitted.</a>
         </p>
       ) : (
-        <div class="eval-scroll">
+        <div class="eval-scroll" tabindex="0" role="region" aria-label={`Evaluation results for ${d.name}`}>
           <table class="eval-table">
+            <caption class="sr-only">Evaluation results for {d.name}</caption>
             <thead>
               <tr><th scope="col">Benchmark</th><th scope="col">Score</th><th scope="col">Setup</th><th scope="col">Speed</th><th scope="col">Runs</th></tr>
             </thead>
@@ -92,8 +93,9 @@ const setups = localSetups(evalData.runs.filter((run) => run.model === entry.id)
         <>
           <h3 style="margin-top:2rem">Runs locally on</h3>
           <p style="color:var(--u-text-dim)">Setups contributors have reported results from, with the best measured speed.</p>
-          <div class="eval-scroll">
+          <div class="eval-scroll" tabindex="0" role="region" aria-label={`Setups ${d.name} has been run on`}>
             <table class="eval-table">
+              <caption class="sr-only">Setups {d.name} has been run on</caption>
               <thead>
                 <tr><th scope="col">Runtime</th><th scope="col">Format</th><th scope="col">Hardware</th><th scope="col">Speed</th></tr>
               </thead>

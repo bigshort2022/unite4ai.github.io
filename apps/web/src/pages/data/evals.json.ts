@@ -10,7 +10,7 @@ export const GET: APIRoute = async () => {
   const { benchmarks, groups, runs } = await loadEvals();
   const body = {
     schema_version: 1,
-    notice: 'Results are self-reported by contributors. See each run for its reproduce command and evidence hash.',
+    notice: 'Results are self-reported by contributors. Each benchmark page lists every run with its reproduce command and evidence hash.',
     benchmarks: benchmarks.map((b) => ({
       id: b.id,
       name: b.data.name,

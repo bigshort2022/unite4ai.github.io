@@ -2,7 +2,7 @@
 import Base from '../../layouts/Base.astro';
 import { getCollection, render } from 'astro:content';
 import { leaderboard, reproductionLabel } from '@unite4ai/core';
-import { CATEGORY_LABELS, SUBMIT_GUIDE, formatNumber, loadEvals, scoreRange } from '../../lib/evals';
+import { CATEGORY_LABELS, SUBMIT_GUIDE, byCodeUnit, formatNumber, loadEvals, scoreRange } from '../../lib/evals';
 
 export async function getStaticPaths() {
   const benchmarks = await getCollection('benchmarks');
@@ -17,13 +17,22 @@ const href = (p: string) => `${base}${p}` || '/';
 
 const { groups, runs, modelNames } = await loadEvals();
 const rows = leaderboard(groups, { id: entry.id, version: d.version, higher_is_better: d.metric.higher_is_better });
-const ownRuns = runs.filter((run) => run.benchmark === entry.id);
-const currentRuns = ownRuns
-  .filter((run) => run.benchmark_version === d.version)
-  .sort((a, b) => b.run.date.localeCompare(a.run.date) || a.id.localeCompare(b.id));
-const previousRuns = ownRuns
-  .filter((run) => run.benchmark_version !== d.version)
-  .sort((a, b) => b.run.date.localeCompare(a.run.date) || a.id.localeCompare(b.id));
+// Newest first; runs on the same date order by id. The two lists below keep this order.
+const ownRuns = runs
+  .filter((run) => run.benchmark === entry.id)
+  .sort((a, b) => byCodeUnit(b.run.date, a.run.date) || byCodeUnit(a.id, b.id));
+const runTables = [
+  {
+    title: 'Every run',
+    caption: `Every run of ${d.name}, version ${d.version}`,
+    list: ownRuns.filter((run) => run.benchmark_version === d.version),
+  },
+  {
+    title: 'Previous versions',
+    caption: `Runs of previous versions of ${d.name}`,
+    list: ownRuns.filter((run) => run.benchmark_version !== d.version),
+  },
+];
 const modelName = (id: string) => modelNames.get(id) ?? id;
 ---
 <Base title={d.name} description={d.summary}>
@@ -46,15 +55,16 @@ const modelName = (id: string) => modelNames.get(id) ?? id;
         No results for version {d.version} yet. <a href={SUBMIT_GUIDE}>How to submit one.</a>
       </div>
     ) : (
-      <div class="eval-scroll">
+      <div class="eval-scroll" tabindex="0" role="region" aria-label={`Leaderboard for ${d.name}`}>
         <table class="eval-table">
+          <caption class="sr-only">Leaderboard for {d.name}</caption>
           <thead>
-            <tr><th scope="col">#</th><th scope="col">Model</th><th scope="col">{d.metric.name}</th><th scope="col">Setup</th><th scope="col">Speed</th><th scope="col">Runs</th></tr>
+            <tr><th scope="col"><span class="sr-only">Rank</span><span aria-hidden="true">#</span></th><th scope="col">Model</th><th scope="col">{d.metric.name}</th><th scope="col">Setup</th><th scope="col">Speed</th><th scope="col">Runs</th></tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {rows.map((row, index) => (
               <tr>
-                <td class="rank num"></td>
+                <td class="rank num">{index + 1}</td>
                 <td><a href={href(`/registry/models/${row.model}`)}>{modelName(row.model)}</a></td>
                 <td class="num">
                   <span class="score">{formatNumber(row.score)}</span>{d.metric.unit}
@@ -78,12 +88,13 @@ const modelName = (id: string) => modelNames.get(id) ?? id;
       · Updated {d.updated.toISOString().slice(0, 10)}
     </p>
 
-    {[{ title: 'Every run', list: currentRuns }, { title: 'Previous versions', list: previousRuns }].map(({ title, list }) => list.length > 0 && (
-      <section style="margin-top:2.5rem">
+    {runTables.map(({ title, caption, list }) => list.length > 0 && (
+      <section style="margin-top:2.5rem" data-pagefind-ignore>
         <h2>{title}</h2>
         <p style="color:var(--u-text-dim)">Self-reported. Each row carries the command that produced it and the hash of its raw output.</p>
-        <div class="eval-scroll">
+        <div class="eval-scroll" tabindex="0" role="region" aria-label={caption}>
           <table class="eval-table">
+            <caption class="sr-only">{caption}</caption>
             <thead>
               <tr><th scope="col">Date</th><th scope="col">Model</th><th scope="col">Score</th><th scope="col">Setup</th><th scope="col">Submitter</th><th scope="col">Reproduce and verify</th></tr>
             </thead>
@@ -99,11 +110,11 @@ const modelName = (id: string) => modelNames.get(id) ?? id;
                     <small>{run.setup.hardware.device} · {run.setup.hardware.accelerator} · {run.setup.hardware.memory_gb} GB</small>
                     {run.perf?.tokens_per_second && <small>{formatNumber(run.perf.tokens_per_second)} tok/s</small>}
                   </td>
-                  <td><a href={`https://github.com/${run.run.submitter}`}>{run.run.submitter}</a><small>{run.run.harness.name} {run.run.harness.version}</small></td>
+                  <td><a href={`https://github.com/${run.run.submitter}`} rel="nofollow ugc noopener">{run.run.submitter}</a><small>{run.run.harness.name} {run.run.harness.version}</small></td>
                   <td>
                     <code>{run.run.command}</code>
                     <small>sha256 <code>{run.evidence.sha256}</code></small>
-                    {run.evidence.url && <small><a href={run.evidence.url}>raw output</a></small>}
+                    {run.evidence.url && <small><a href={run.evidence.url} rel="nofollow ugc noopener">raw output</a></small>}
                   </td>
                 </tr>
               ))}

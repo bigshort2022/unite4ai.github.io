@@ -30,9 +30,14 @@ test('production build targets the unite4ai.com custom domain', { timeout: 120_0
   assert.match(evalsHtml, /GSM8K \(first 200\)/);
   const feedJson = await readFile(new URL('dist/data/evals.json', ROOT), 'utf8');
   assert.equal(JSON.parse(feedJson).schema_version, 1);
-  const fixtureMarkers = /fixture-bot|Fixture Laptop|Q4_K_M/;
+  // The rig fixture's device contains markup, so it appears escaped (or raw, if escaping broke).
+  const fixtureMarkers = /fixture-bot|Fixture Laptop|Fixture (?:&lt;b&gt;|<b>)?Rig|Q4_K_M|ghost-model/;
   assert.doesNotMatch(evalsHtml, fixtureMarkers);
   assert.doesNotMatch(feedJson, fixtureMarkers);
+  // Submitters and devices are only printed on the benchmark and model pages.
+  for (const path of ['dist/evals/gsm8k-200/index.html', 'dist/registry/models/darsy-xray-analysis/index.html']) {
+    assert.doesNotMatch(await readFile(new URL(path, ROOT), 'utf8'), fixtureMarkers, path);
+  }
 
   // Cost guard: GitHub Pages serves at most 1 GB; fail long before that.
   const bytes = await directorySize(new URL('dist/', ROOT));

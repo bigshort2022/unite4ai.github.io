@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "model": "ghost-model",
+  "benchmark": "gsm8k-200",
+  "benchmark_version": "1",
+  "score": 60,
+  "n": 200,
+  "run": {
+    "date": "2026-11-01",
+    "submitter": "fixture-bot",
+    "harness": { "name": "unite4ai-eval", "version": "0.0.0-fixture" },
+    "command": "bun run eval -- --benchmark gsm8k-200 --model ghost-model --fixture-dangling"
+  },
+  "setup": {
+    "runtime": "mlx-lm",
+    "runtime_version": "0.0.0",
+    "format": "mlx",
+    "quantization": "4bit",
+    "hardware": { "device": "Fixture Laptop", "accelerator": "apple-silicon", "memory_gb": 32 }
+  },
+  "evidence": { "sha256": "5555555555555555555555555555555555555555555555555555555555555555" }
+}
