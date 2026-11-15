@@ -154,3 +154,76 @@ export const postSchema = z.object({
   tags: z.array(z.string()).default([]),
 });
 export type PostData = z.infer<typeof postSchema>;
+
+// ─── Evaluations ─────────────────────────────────────────────────────────────
+
+const httpsUrl = z.string().url().refine((value) => value.startsWith('https://'), { message: 'must be an https URL' });
+const sha256Hex = z.string().regex(/^[a-f0-9]{64}$/, 'must be a 64-character lowercase hex sha256');
+
+export const EVAL_CATEGORIES = ['quality', 'security', 'efficiency'] as const;
+/** Deterministic scoring only: a hosted LLM judge would be a per-run API bill. */
+export const EVAL_SCORING = ['exact-match', 'multiple-choice', 'canary', 'measured'] as const;
+export const EVAL_RUNTIMES = ['mlx-lm', 'ollama', 'llama.cpp', 'vllm', 'transformers', 'other'] as const;
+export const EVAL_FORMATS = ['mlx', 'gguf', 'safetensors', 'other'] as const;
+export const EVAL_ACCELERATORS = ['apple-silicon', 'nvidia', 'amd', 'cpu', 'other'] as const;
+/** Result files above this size are rejected: raw output is referenced by hash, never stored in git. */
+export const EVAL_RESULT_MAX_BYTES = 16 * 1024;
+
+export const benchmarkSchema = z.object({
+  name: z.string().min(1),
+  summary: z.string().max(300),
+  category: z.enum(EVAL_CATEGORIES),
+  version: z.string().min(1),
+  metric: z.object({
+    name: z.string().min(1),
+    unit: z.string(),
+    higher_is_better: z.boolean(),
+    min: z.number().optional(),
+    max: z.number().optional(),
+  }),
+  scoring: z.enum(EVAL_SCORING),
+  items: z.number().int().nonnegative(),
+  source_url: httpsUrl,
+  source_sha256: sha256Hex.optional(),
+  license: openLicenseEnum,
+  updated: z.coerce.date(),
+});
+export type BenchmarkData = z.infer<typeof benchmarkSchema>;
+
+export const evalResultSchema = z.object({
+  schema_version: z.literal(1),
+  model: z.string().min(1),
+  benchmark: z.string().min(1),
+  benchmark_version: z.string().min(1),
+  score: z.number(),
+  n: z.number().int().positive(),
+  run: z.object({
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD'),
+    submitter: z.string().regex(/^[A-Za-z0-9-]+$/, 'must be a GitHub handle'),
+    harness: z.object({ name: z.string().min(1), version: z.string().min(1) }),
+    command: z.string().min(1),
+  }),
+  setup: z.object({
+    runtime: z.enum(EVAL_RUNTIMES),
+    runtime_version: z.string().min(1),
+    format: z.enum(EVAL_FORMATS),
+    quantization: z.string().min(1),
+    hardware: z.object({
+      device: z.string().min(1),
+      accelerator: z.enum(EVAL_ACCELERATORS),
+      memory_gb: z.number().positive(),
+    }),
+  }),
+  perf: z.object({
+    tokens_per_second: z.number().positive().optional(),
+    time_to_first_token_ms: z.number().positive().optional(),
+    peak_memory_gb: z.number().positive().optional(),
+    energy_wh_per_1k_tokens: z.number().positive().optional(),
+  }).optional(),
+  evidence: z.object({
+    sha256: sha256Hex,
+    url: httpsUrl.optional(),
+    bytes: z.number().int().positive().optional(),
+  }),
+});
+export type EvalResult = z.infer<typeof evalResultSchema>;
