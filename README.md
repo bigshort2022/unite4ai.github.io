@@ -23,6 +23,7 @@ bun run validate     # content gate (CI)
 bun run build        # static site + Pagefind
 bun test             # all tests
 bun run sync:d1      # refresh registry JSON from markdown
+bun run eval -- --help   # run a benchmark against a local model
 ```
 
 ## Coding agents

@@ -64,6 +64,27 @@ Evaluation results are data in this repository. One run is one JSON file directl
 - Reproducing someone else's result is as valuable as a new one: submit your own file for the
   same model, benchmark, format and quantization.
 
+The runner does the bookkeeping for you. Point it at any OpenAI-compatible local server
+(mlx-lm, Ollama, llama.cpp, vLLM):
+
+```bash
+bun run eval -- --benchmark gsm8k-200 --model <model-card-id> \
+  --served-model <the id your server lists for the model it has loaded> \
+  --submitter <your-github-handle> \
+  --runtime mlx-lm --runtime-version 0.32.2 --format mlx --quantization 4bit \
+  --base-url http://127.0.0.1:18082/v1
+```
+
+Always pass `--served-model` the id of the model the server has loaded: posting any other id
+makes mlx-lm and Ollama swap models. The runner refuses an id the server does not list, but
+that is a weak guard on mlx-lm and Ollama, because they also list models that are not loaded.
+It sends one request at a time at temperature 0 and keeps a transcript in `.agent/evals/` so
+an interrupted run resumes, on the same day or a later one. When every item is answered it
+writes the result file into `apps/web/src/content/evals/` with the transcript's hash, dated
+the day the run completed. Keep the transcript: it is your evidence. Running a finished
+configuration again rewrites the same result; move its transcript away to start a new run. If
+the model can think before it answers, say with `--notes` whether thinking was enabled.
+
 `bun run validate` checks the file the same way CI does.
 
 Adding a benchmark is a pull request with one markdown file in `apps/web/src/content/benchmarks/`.
