@@ -454,7 +454,7 @@ test('a request the server never answers fails the item at the request timeout',
 
 test('a reply slower than the request timeout fails the item, and a run with the default limit resumes', async () => {
   const workspace = makeWorkspace();
-  const stub = await stubServer({ ...GOOD }, { delayMs: 400 });
+  const stub = await stubServer({ ...GOOD }, { delayMs: 250 });
   await assert.rejects(runEval(options(workspace, stub, { requestTimeoutMs: 100 })), /item 1 failed: request timed out after 100 ms; rerun to resume/);
   assert.equal(stub.posts(), 1);
   assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), []);
