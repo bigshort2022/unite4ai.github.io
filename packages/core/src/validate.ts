@@ -129,7 +129,7 @@ export async function validateContent(contentRoot: string): Promise<ValidateResu
     }
   });
 
-  await validateEvals(contentRoot, errors);
+  await validateEvals(contentRoot, errors, warnings);
 
   return { errors, warnings };
 }
