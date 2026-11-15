@@ -1,5 +1,6 @@
 ---
 import Base from '../layouts/Base.astro';
+import { REPO } from '../lib/site';
 ---
 <Base title="Privacy">
   <section class="wrap section">
@@ -34,7 +35,7 @@ import Base from '../layouts/Base.astro';
 
     <p style="margin-top:2rem">
       Verify all of this yourself: open your browser's network tab, or read
-      <a href="https://github.com/bigshort2022/unite4ai.github.io">the source</a>. That is the point of building it this way.
+      <a href={REPO}>the source</a>. That is the point of building it this way.
     </p>
   </section>
 </Base>

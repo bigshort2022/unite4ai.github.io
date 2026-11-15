@@ -1,3 +1,5 @@
+import { REPO_SLUG } from './site';
+
 /**
  * Giscus (GitHub Discussions) powers live blog comments.
  * CSP already allows giscus.app + api.github.com in Base.astro.
@@ -8,7 +10,7 @@
  * 3. Install https://giscus.app on the repo and paste categoryId below
  */
 export const giscusConfig = {
-  repo: 'bigshort2022/unite4ai.github.io',
+  repo: REPO_SLUG,
   repoId: 'R_kgDOT4AJMQ',
   category: 'Blog Comments',
   /** Empty until Discussions + giscus are configured; Comments.astro hides the embed. */

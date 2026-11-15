@@ -1,6 +1,7 @@
 ---
 import Base from '../../../layouts/Base.astro';
 import { getCollection, render } from 'astro:content';
+import { REPO } from '../../../lib/site';
 
 export async function getStaticPaths() {
   const items = await getCollection('compute');
@@ -43,7 +44,7 @@ const PROTOCOL_LABEL: Record<string, string> = {
 
     <p style="margin-top:3rem;font-size:.88rem;color:var(--u-text-faint)">
       Maintained by {d.maintainers.join(', ')} · Updated {d.updated.toISOString().slice(0, 10)} ·
-      <a href={`https://github.com/unite4ai/unite4ai.github.io/edit/main/src/content/compute/${entry.id}.md`}>Suggest an edit</a>
+      <a href={`${REPO}/edit/main/apps/web/src/content/compute/${entry.id}.md`}>Suggest an edit</a>
     </p>
   </article>
 </Base>

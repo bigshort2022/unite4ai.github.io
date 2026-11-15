@@ -1,8 +1,10 @@
 import { getCollection } from 'astro:content';
 import { byCodeUnit, groupEvals, leaderboard, type EvalGroup, type EvalRun } from '@unite4ai/core';
 import { EVAL_CATEGORIES } from '@unite4ai/schema';
+import { REPO } from './site';
 
-export const REPO = 'https://github.com/bigshort2022/unite4ai.github.io';
+// The model page still imports it from here.
+export { REPO };
 export const SUBMIT_GUIDE = `${REPO}/blob/main/CONTRIBUTING.md#submitting-an-evaluation-result`;
 /** The no-git route: the issue form a maintainer turns into a pull request. */
 export const RESULT_ISSUE_FORM = `${REPO}/issues/new?template=submit-eval-result.yml`;

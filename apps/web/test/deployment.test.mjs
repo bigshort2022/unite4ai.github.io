@@ -138,3 +138,59 @@ test('the submit page points to the runner guide and to an issue form that exist
   assert.ok((await stat(new URL(`../../.github/ISSUE_TEMPLATE/${template}`, ROOT))).isFile());
   assert.ok(block.includes(`href="${repo}/blob/main/CONTRIBUTING.md#submitting-an-evaluation-result"`));
 });
+
+/** Every file with one of the extensions under a directory, as URLs. */
+async function filesUnder(dir, extensions) {
+  const found = [];
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) found.push(...await filesUnder(new URL(`${entry.name}/`, dir), extensions));
+    else if (extensions.some((extension) => entry.name.endsWith(extension))) found.push(new URL(entry.name, dir));
+  }
+  return found;
+}
+
+test('every link to the repository comes from one constant, and none points at the old, missing repository', async () => {
+  const { REPO, REPO_SLUG } = await import('../src/lib/site.ts');
+  assert.equal(REPO, `https://github.com/${REPO_SLUG}`);
+  assert.doesNotMatch(REPO_SLUG, /^unite4ai\//);
+
+  // No page, layout, component or helper spells the repository out again.
+  const sources = (await Promise.all(
+    ['pages/', 'layouts/', 'components/', 'lib/'].map((dir) => filesUnder(new URL(`src/${dir}`, ROOT), ['.astro', '.ts', '.mjs'])),
+  )).flat();
+  const copies = [];
+  for (const source of sources) {
+    if (source.pathname.endsWith('/src/lib/site.ts')) continue;
+    if (/unite4ai\.github\.io|github\.com\/(?:repos\/)?unite4ai\b/.test(await readFile(source, 'utf8'))) copies.push(source.pathname);
+  }
+  assert.deepEqual(copies, []);
+
+  // A model or dataset card's own links (demo, code, mirror) are its maintainers' claims, not
+  // the site's: a URL that appears verbatim in a card's frontmatter is not checked here.
+  const cardUrls = new Set();
+  for (const collection of ['models/', 'datasets/']) {
+    for (const card of await filesUnder(new URL(`src/content/${collection}`, ROOT), ['.md', '.mdx'])) {
+      const frontmatter = (await readFile(card, 'utf8')).match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? '';
+      for (const url of frontmatter.match(/https?:\/\/[^\s"']+/g) ?? []) cardUrls.add(url);
+    }
+  }
+  const pages = await filesUnder(new URL('dist/', ROOT), ['.html']);
+  assert.ok(pages.length > 20, `only ${pages.length} built pages were found`);
+  const dead = [];
+  for (const page of pages) {
+    const html = await readFile(page, 'utf8');
+    for (const [url] of html.matchAll(/https:\/\/(?:api\.)?github\.com\/(?:repos\/)?unite4ai\/[^\s"'`<>)]*/g)) {
+      if (!cardUrls.has(url)) dead.push(`${page.pathname.split('/dist/')[1]}: ${url}`);
+    }
+  }
+  assert.deepEqual(dead, []);
+
+  const home = await readFile(new URL('dist/index.html', ROOT), 'utf8');
+  assert.ok(home.includes(`<a href="${REPO}">Source on GitHub</a>`));
+
+  // The registry form opens an issue on the repository, and so does the evaluation result form.
+  const submit = await readFile(new URL('dist/submit/index.html', ROOT), 'utf8');
+  assert.equal(submit.match(/const REPO = "([^"]+)";/)?.[1], REPO);
+  assert.ok(submit.includes('`${REPO}/issues/new?title='));
+  assert.match(submit, new RegExp(`href="${REPO.replaceAll('.', '\\.')}/issues/new\\?template=submit-eval-result\\.yml"`));
+});

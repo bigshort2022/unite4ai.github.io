@@ -46,5 +46,6 @@ test('Comments component and giscus config are wired for NYT-style tray', async 
   assert.match(blog, /Comments/);
   assert.match(blog, /#comments/);
   assert.match(giscus, /R_kgDOT4AJMQ/);
-  assert.match(giscus, /bigshort2022\/unite4ai\.github\.io/);
+  // The discussions live in the site's own repository: the one constant, not a second copy.
+  assert.match(giscus, /repo: REPO_SLUG,/);
 });
