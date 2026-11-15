@@ -29,7 +29,7 @@ GitHub Pages serves one custom domain per repository, so this app cannot share t
    contents of this directory to its root:
    ```bash
    # from a fresh clone of the new, empty repo
-   cp -r /path/to/unite4ai.github.io/sites/ai-sustainability/. .
+   cp -r /path/to/unite4ai.github.io/sites/sustainability/. .
    git add -A && git commit -m "Import AI Sustainability site" && git push
    ```
 2. **Enable Pages**: repo Settings → Pages → Build and deployment → Source =

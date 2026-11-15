@@ -393,7 +393,7 @@ test('request renders the read-only task and the sustainability loop', () => {
   assert.deepEqual(inspect.capabilities, ['read', 'glob', 'grep']);
   assert.equal(inspect.checks, undefined);
   const sustain = render('sustain-loop', 'Fix the footer year.').request;
-  assert.deepEqual(sustain.context_files, ['AGENTS.md', 'sites/ai-sustainability/AGENTS.md']);
+  assert.deepEqual(sustain.context_files, ['AGENTS.md', 'sites/sustainability/AGENTS.md']);
   assert.equal(sustain.checks[0].cwd, ROOT);
   assert.deepEqual(sustain.checks[0].argv, ['node', 'scripts/agent/verify.mjs', '--only', 'sustain']);
 });
