@@ -30,6 +30,7 @@ const TAIL_CHARS = 4096;
 const STEP_SETS = {
   hub: [
     { name: 'hub-validate', cwd: ROOT, cmd: 'bun run validate' },
+    { name: 'hub-typecheck', cwd: ROOT, cmd: 'bun run typecheck' },
     { name: 'hub-build', cwd: ROOT, cmd: 'bun run build' },
     { name: 'hub-test', cwd: ROOT, cmd: 'bun test' },
   ],

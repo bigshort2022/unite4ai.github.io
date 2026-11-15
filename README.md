@@ -20,6 +20,7 @@ Requires [Bun](https://bun.sh) 1.1+.
 bun install
 bun run dev          # Astro dev server
 bun run validate     # content gate (CI)
+bun run typecheck    # tsc over packages/ and the CLI (CI)
 bun run build        # static site + Pagefind
 bun test             # all tests
 bun run sync:d1      # refresh registry JSON from markdown
@@ -28,7 +29,7 @@ bun run eval -- --help   # run a benchmark against a local model
 
 ## Coding agents
 
-`bun run agent:setup` prepares the host (Node 24, Bun, both sites' dependencies). `bun run agent:verify` is the acceptance gate: CI's validate/build/test commands for the hub, plus the sustainability site's `npm test`, `astro check` and build, which CI does not run. `AGENTS.md` is the repo card models receive. For agents on a locally hosted LLM see [docs/agents/local-llm.md](docs/agents/local-llm.md).
+`bun run agent:setup` prepares the host (Node 24, Bun, both sites' dependencies). `bun run agent:verify` is the acceptance gate: CI's validate/typecheck/build/test commands for the hub, plus the sustainability site's `npm test`, `astro check` and build, which CI does not run. `AGENTS.md` is the repo card models receive. For agents on a locally hosted LLM see [docs/agents/local-llm.md](docs/agents/local-llm.md).
 
 ## API worker
 

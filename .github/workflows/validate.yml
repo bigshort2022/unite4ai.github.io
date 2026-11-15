@@ -25,6 +25,9 @@ jobs:
       - name: Validate content
         run: bun run validate
 
+      - name: Typecheck packages and CLI
+        run: bun run typecheck
+
       - name: Build
         run: bun run build
 

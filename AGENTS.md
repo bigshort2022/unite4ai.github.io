@@ -16,8 +16,9 @@ Bun 1.4 workspace + Node 24. `bun install --frozen-lockfile`. Never edit `bun.lo
 - `bun run validate` content gate (schemas, licence allowlist)
 - `bun run build` site + Pagefind index → `apps/web/dist`
 - `bun test` all tests (`*.test.mjs` use `node:test`; `apps/api/test/*.test.ts` use `bun:test`)
-- `bun run check` `astro check`
-- `node scripts/agent/verify.mjs [--only hub|sustain]` the acceptance gate (hub: same validate/build/test as CI); last line is JSON
+- `bun run check` `astro check` (covers `apps/web` only)
+- `bun run typecheck` `tsc` over `packages/schema`, `packages/core` and `apps/cli`
+- `node scripts/agent/verify.mjs [--only hub|sustain]` the acceptance gate (hub: same validate/typecheck/build/test as CI); last line is JSON
 - `bun run eval -- --help` evaluation runner; **never run it against a live model server unless asked**
 
 ## Rules

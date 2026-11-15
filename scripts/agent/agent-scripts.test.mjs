@@ -52,14 +52,14 @@ async function readPid(pidFile, attempts = 100) {
 test('verify --list names the hub steps in order', () => {
   const r = runVerify(['--list', '--only', 'hub']);
   assert.equal(r.status, 0, r.stderr);
-  assert.deepEqual(r.stdout.trim().split('\n'), ['hub-validate', 'hub-build', 'hub-test']);
+  assert.deepEqual(r.stdout.trim().split('\n'), ['hub-validate', 'hub-typecheck', 'hub-build', 'hub-test']);
 });
 
-test('verify --list without --only names all six steps in order', () => {
+test('verify --list without --only names all seven steps in order', () => {
   const r = runVerify(['--list']);
   assert.equal(r.status, 0, r.stderr);
   assert.deepEqual(r.stdout.trim().split('\n'), [
-    'hub-validate', 'hub-build', 'hub-test', 'sustain-test', 'sustain-check', 'sustain-build',
+    'hub-validate', 'hub-typecheck', 'hub-build', 'hub-test', 'sustain-test', 'sustain-check', 'sustain-build',
   ]);
 });
 
