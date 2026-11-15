@@ -13,7 +13,7 @@ body:
     id: model
     attributes:
       label: Model
-      description: The model card id on the site (the last part of the card's address). If the model has no card yet, give its name and URL.
+      description: "The model's card id on this site. The model must already have a card: if it does not, file \"Submit a model\" first."
       placeholder: darsy-xray-analysis
     validations: { required: true }
   - type: dropdown
@@ -29,7 +29,7 @@ body:
     id: result
     attributes:
       label: Result file
-      description: The JSON file the runner wrote, pasted unchanged. For gsm8k-200 paste BOTH files the run wrote, one after the other.
+      description: Paste the file the runner wrote, unchanged; if the run wrote two files (gsm8k-200 also writes a decode-speed file when speed was measured), paste both, one after the other.
       render: json
     validations: { required: true }
   - type: input
@@ -49,9 +49,9 @@ body:
       options:
         - label: I ran this myself with bun run eval and did not edit the result file.
           required: true
-        - label: I kept the transcript and will share it if a maintainer asks.
+        - label: run.submitter in the file is the GitHub handle I am filing this issue with.
           required: true
-        - label: The model's licence is on the allowlist, or I have said above that I am not sure.
+        - label: I kept the transcript and will share it if a maintainer asks.
           required: true
         - label: I agree to license this result under CC BY 4.0.
           required: true
