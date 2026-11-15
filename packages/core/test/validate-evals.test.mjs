@@ -268,6 +268,16 @@ for (const [dir, what, named] of [['evals', 'result', 'nested.json'], ['benchmar
     assert.deepEqual((await validateContent(root)).errors, [rejected(named), rejected('notes.txt'), rejected('sub')]);
   });
 
+  test(`${dir}/ ignores a .DS_Store file, which is git-ignored and cannot be committed`, async () => {
+    const root = makeRoot();
+    writeFileSync(join(root, dir, '.DS_Store'), 'finder metadata');
+    assert.deepEqual((await validateContent(root)).errors, []);
+
+    rmSync(join(root, dir, '.DS_Store'));
+    mkdirSync(join(root, dir, '.DS_Store'));
+    assert.deepEqual((await validateContent(root)).errors, [rejected('.DS_Store')]);
+  });
+
   test(`${dir}/ is flat: links are errors, whether they point at a folder, a file or nothing`, async (t) => {
     const root = makeRoot();
     const outside = mkdtempSync(join(tmpdir(), 'u4ai-outside-'));

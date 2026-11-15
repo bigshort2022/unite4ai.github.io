@@ -149,3 +149,9 @@ test('a separator character inside a field cannot merge two setups', () => {
   ]);
   assert.equal(setups.length, 2);
 });
+
+test('groups are ordered by code units, so the order is the same in every locale', () => {
+  // localeCompare would put "a-model" before "B-model"; code units put the capital first.
+  const groups = groupEvals([run('x', { model: 'a-model' }), run('y', { model: 'B-model' })]);
+  assert.deepEqual(groups.map((g) => g.model), ['B-model', 'a-model']);
+});

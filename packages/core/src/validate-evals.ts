@@ -30,10 +30,13 @@ async function list(dir: string, pattern: RegExp): Promise<string[]> {
   }
 }
 
+/** Regular files that may sit beside content: `.gitkeep` holds an empty directory, `.DS_Store` is git-ignored. */
+const IGNORED_FILES = new Set(['.gitkeep', '.DS_Store']);
+
 /**
  * Regular files with the given extension directly inside a content directory, in name order.
- * Astro's loaders would read subfolders and follow links, so anything else (bar `.gitkeep`) is
- * an error rather than content the validator never saw.
+ * Astro's loaders would read subfolders and follow links, so anything else (bar IGNORED_FILES)
+ * is an error rather than content the validator never saw.
  */
 async function listFlat(
   contentRoot: string,
@@ -52,7 +55,7 @@ async function listFlat(
   for (const entry of entries.sort((a, b) => (a.name < b.name ? -1 : 1))) {
     if (entry.isFile() && entry.name.endsWith(extension)) {
       files.push(entry.name);
-    } else if (!entry.isFile() || entry.name !== '.gitkeep') {
+    } else if (!entry.isFile() || !IGNORED_FILES.has(entry.name)) {
       errors.push(`${dir}/${entry.name}: only ${kind} files are allowed here; subfolders and links are not read`);
     }
   }

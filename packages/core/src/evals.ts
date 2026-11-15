@@ -112,7 +112,7 @@ export function groupEvals(runs: EvalRun[]): EvalGroup[] {
         run_ids: members.map((m) => m.id).sort(),
       };
     })
-    .sort((a, b) => a.key.localeCompare(b.key));
+    .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
 }
 
 /**
