@@ -72,23 +72,25 @@ function loadBenchmark(contentRoot: string, id: string) {
 async function loadSource(options: EvalOptions, url: string, pinned: string | undefined): Promise<string> {
   if (!pinned) throw new Error('the benchmark definition has no source_sha256; refusing to run against an unpinned source');
   const cached = join(options.workDir, 'cache', `${pinned}.txt`);
-  let text: string;
+  let bytes: Uint8Array;
   if (options.sourceFile) {
-    text = readFileSync(options.sourceFile, 'utf8');
+    bytes = readFileSync(options.sourceFile);
   } else if (existsSync(cached)) {
-    text = readFileSync(cached, 'utf8');
+    bytes = readFileSync(cached);
   } else {
     const response = await fetch(url, { signal: AbortSignal.timeout(60_000) });
     if (!response.ok) throw new Error(`could not fetch the benchmark source: ${response.status} ${url}`);
-    text = await response.text();
+    bytes = new Uint8Array(await response.arrayBuffer());
   }
-  const actual = sha256(text);
+  // The pin covers the file's bytes as published, so they are hashed before any decoding.
+  const actual = sha256(bytes);
   if (actual !== pinned) throw new Error(`source hash mismatch: expected ${pinned}, got ${actual}`);
   if (!options.sourceFile && !existsSync(cached)) {
     mkdirSync(join(options.workDir, 'cache'), { recursive: true });
-    writeFileSync(cached, text);
+    writeFileSync(cached, bytes);
   }
-  return text;
+  // TextDecoder drops a leading byte-order mark, which JSON.parse would reject.
+  return new TextDecoder().decode(bytes);
 }
 
 /**

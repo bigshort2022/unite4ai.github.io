@@ -41,7 +41,7 @@ after(() => {
   temps.forEach((dir) => rmSync(dir, { recursive: true, force: true }));
 });
 
-function makeWorkspace({ sourceSha = sha256(SOURCE) } = {}) {
+function makeWorkspace({ source = SOURCE, sourceSha = sha256(source) } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'u4ai-eval-'));
   temps.push(root);
   const contentRoot = join(root, 'content');
@@ -62,7 +62,7 @@ function makeWorkspace({ sourceSha = sha256(SOURCE) } = {}) {
   };
   writeFileSync(join(contentRoot, 'benchmarks/gsm8k-200.md'), `---\n${JSON.stringify(definition, null, 2)}\n---\n\n## Method\n\nFixture.\n`);
   const sourceFile = join(root, 'test.jsonl');
-  writeFileSync(sourceFile, SOURCE);
+  writeFileSync(sourceFile, source);
   return { root, contentRoot, workDir: join(root, 'work'), sourceFile };
 }
 
@@ -195,6 +195,35 @@ test('a source that does not match the pinned hash is refused before any request
   const stub = await stubServer({ ...GOOD });
   await assert.rejects(runEval(options(workspace, stub)), /source hash mismatch/);
   assert.deepEqual(stub.requests, []);
+});
+
+test('the source is pinned by its bytes: a byte-order mark counts for the hash and is dropped before parsing', async () => {
+  const marked = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(SOURCE)]);
+  const stub = await stubServer({ ...GOOD });
+  const outcome = await runEval(options(makeWorkspace({ source: marked }), stub));
+  assert.equal(outcome.n, 3);
+  assert.equal(outcome.correct, 2);
+
+  // A byte that is not valid UTF-8 would change if the text were decoded before hashing.
+  const undecodable = Buffer.concat([Buffer.from(SOURCE), Buffer.from([0xff, 0x0a])]);
+  assert.equal((await runEval(options(makeWorkspace({ source: undecodable }), stub))).n, 3);
+
+  // The marked file's pin does not fit the unmarked text, nor the unmarked text's pin the marked file.
+  const posts = stub.posts();
+  await assert.rejects(runEval(options(makeWorkspace({ sourceSha: sha256(marked) }), stub)), /source hash mismatch/);
+  await assert.rejects(runEval(options(makeWorkspace({ source: marked, sourceSha: sha256(SOURCE) }), stub)), /source hash mismatch/);
+  assert.equal(stub.posts(), posts);
+});
+
+test('a cached copy of the source is checked and parsed the same way, without fetching', async () => {
+  const marked = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(SOURCE)]);
+  const workspace = makeWorkspace({ source: marked });
+  mkdirSync(join(workspace.workDir, 'cache'), { recursive: true });
+  writeFileSync(join(workspace.workDir, 'cache', `${sha256(marked)}.txt`), marked);
+  const stub = await stubServer({ ...GOOD });
+  const outcome = await runEval(options(workspace, stub, { sourceFile: undefined }));
+  assert.equal(outcome.n, 3);
+  assert.equal(outcome.correct, 2);
 });
 
 test('a missing model card or an unsupported benchmark stops the run before any request', async () => {
