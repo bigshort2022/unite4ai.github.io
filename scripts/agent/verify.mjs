@@ -20,7 +20,7 @@ if (!process.versions.bun && Number(process.versions.node.split('.')[0]) !== 24)
 }
 
 const ROOT = resolve(import.meta.dirname, '../..');
-const SUSTAIN = join(ROOT, 'sites/ai-sustainability');
+const SUSTAIN = join(ROOT, 'sites/sustainability');
 const USAGE = 'usage: verify.mjs [--only hub|sustain] [--list]  (env: AGENT_STEP_TIMEOUT=<seconds > 0>, AGENT_VERIFY_LOG_DIR=<dir>)';
 // Per stream, keep at most the last 32 Mi characters of output (the tail is what matters).
 const MAX_OUTPUT = 32 * 1024 * 1024;

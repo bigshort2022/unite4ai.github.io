@@ -15,7 +15,7 @@ export PATH="$HOME/.bun/bin:$PATH"
 echo "node $(node --version) · bun $(bun --version) · npm $(npm --version)"
 
 bun install --frozen-lockfile
-( cd sites/ai-sustainability && npm ci )
+( cd sites/sustainability && npm ci )
 
 mkdir -p .agent/logs .agent/requests
 [ -f .env.agent ] || cp .env.agent.example .env.agent
