@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./evals": "./src/evals.ts",
     "./validate": "./src/validate.ts"
   },
   "dependencies": {
