@@ -2,14 +2,14 @@
   "schema_version": 1,
   "model": "darsy-xray-analysis",
   "benchmark": "gsm8k-200",
-  "benchmark_version": "0",
+  "benchmark_version": "1",
   "score": 99,
   "n": 200,
   "run": {
     "date": "2026-10-01",
     "submitter": "fixture-bot",
     "harness": { "name": "unite4ai-eval", "version": "0.0.0-fixture" },
-    "command": "bun run eval -- --benchmark gsm8k-200 --model darsy-xray-analysis --fixture-zero"
+    "command": "bun run eval -- --benchmark gsm8k-200 --model darsy-xray-analysis --fixture-previous"
   },
   "setup": {
     "runtime": "mlx-lm",

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { after } from 'node:test';
@@ -48,18 +48,38 @@ const leaderboardOf = (detail) => detail.slice(detail.indexOf('<h2>Leaderboard</
 test('the fixture results pass the content gate, so the pages are tested with results that could be published', async () => {
   for (const dir of ['models', 'benchmarks']) cpSync(join(ROOT, 'src/content', dir), join(gateRoot, dir), { recursive: true });
   cpSync(join(ROOT, 'test/fixtures/evals'), join(gateRoot, 'evals'), { recursive: true });
-  // One fixture is a run of a version "0" that GSM8K-200 never had. Only in this copy is it a
-  // listed previous version; the real definition is not changed for a fixture.
-  const gsm8k = join(gateRoot, 'benchmarks/gsm8k-200.md');
-  const definition = readFileSync(gsm8k, 'utf8');
-  assert.match(definition, /^version: "1"$/m);
-  writeFileSync(gsm8k, definition.replace(/^version: "1"$/m, 'version: "1"\nprevious_versions: ["0"]'));
-
+  // Three fixtures are of GSM8K-200 version 1 and the speed measured on it, which the
+  // definitions list as a previous version: one model's older run, and the only run of another.
+  const previous = (file) => `evals/${file}: result is for benchmark version 1; the current version is 2, so it will not appear on the leaderboard`;
   const { errors, warnings } = await validateContent(gateRoot);
   assert.deepEqual(errors, []);
   assert.deepEqual(warnings.filter((warning) => warning.startsWith('evals/')), [
-    'evals/darsy-xray-analysis--gsm8k-200--fixture-bot--2026-10-01--44444444.json: result is for benchmark version 0; '
-    + 'the current version is 1, so it will not appear on the leaderboard',
+    previous('darsy-xray-analysis--gsm8k-200--fixture-bot--2026-10-01--44444444.json'),
+    previous('qwen3-6-35b-a3b--decode-speed-gsm8k-200--fixture-bot--2026-10-02--88888888.json'),
+    previous('qwen3-6-35b-a3b--gsm8k-200--fixture-bot--2026-10-02--88888888.json'),
+  ]);
+});
+
+test('the published results pass the content gate; the version 1 GSM8K run and its speed are kept as previous-version results', async () => {
+  const contentRoot = join(ROOT, 'src/content');
+  const run = 'bigshort2022--2026-11-15--eb8811e4.json';
+  const published = readdirSync(join(contentRoot, 'evals'));
+  for (const file of [
+    'qwen3-6-35b-a3b--canary-injection-v1--bigshort2022--2026-11-15--0182e626.json',
+    `qwen3-6-35b-a3b--decode-speed-gsm8k-200--${run}`,
+    `qwen3-6-35b-a3b--gsm8k-200--${run}`,
+  ]) {
+    assert.ok(published.includes(file), `${file} must stay in the repository`);
+  }
+
+  const { errors, warnings } = await validateContent(contentRoot);
+  assert.deepEqual(errors, []);
+  // Exactly these two: the canary result is for its benchmark's current version.
+  assert.deepEqual(warnings.filter((warning) => warning.startsWith('evals/')), [
+    `evals/qwen3-6-35b-a3b--decode-speed-gsm8k-200--${run}: result is for benchmark version 1; `
+    + 'the current version is 2, so it will not appear on the leaderboard',
+    `evals/qwen3-6-35b-a3b--gsm8k-200--${run}: result is for benchmark version 1; `
+    + 'the current version is 2, so it will not appear on the leaderboard',
   ]);
 });
 
@@ -89,7 +109,7 @@ test('leaderboard and benchmark page render fixture results', { timeout: 120_000
   );
   // GSM8K has a fixed item count, so each row states how many items the run answered.
   assert.match(board, /<small>n = 200<\/small>/);
-  // The version "0" run (score 99) belongs to a previous version and stays off the leaderboard.
+  // The version 1 run (score 99) belongs to a previous version and stays off the leaderboard.
   assert.doesNotMatch(board, />99%</);
 
   assert.match(board, /<caption class="sr-only">Leaderboard for GSM8K \(first 200\)<\/caption>/);
@@ -115,7 +135,12 @@ test('leaderboard and benchmark page render fixture results', { timeout: 120_000
   assert.doesNotMatch(detail.slice(0, previous), />99%</);
   const previousRuns = detail.slice(previous);
   assert.match(previousRuns, />99%</);
-  assert.match(previousRuns, /--fixture-zero/);
+  assert.match(previousRuns, /--fixture-previous/);
+  // Each run is marked with its benchmark version: the previous one here, the current one above.
+  assert.match(previousRuns, /<td class="num">2026-10-01<small>v1<\/small><\/td>/);
+  assert.doesNotMatch(previousRuns, /<small>v2<\/small>/);
+  assert.match(detail.slice(0, previous), /<td class="num">2026-11-05<small>v2<\/small><\/td>/);
+  assert.doesNotMatch(detail.slice(0, previous), /<small>v1<\/small>/);
   assert.match(previousRuns, /0\.123 tok\/s/);
 
   // A run's setup note is printed with its setup, on that run only.
@@ -201,7 +226,11 @@ test('model page lists its evaluations and local setups; the feed publishes the 
   assert.match(model, /Runs locally on/);
   // The local-run matrix: each setup's best speed and its shortest time to the first token.
   const [evaluations, matrix] = model.split('Runs locally on');
-  assert.match(matrix, /Best measured speed and lowest time to first token per setup; the two can come from different runs\./);
+  assert.match(matrix, /Best measured speed and lowest time to first token per setup, across runs of current benchmark versions; the two can come from different runs and different benchmarks\./);
+  // The rig has two setups, 64 GB in a version 2 run and 32 GB in a version 1 run (0.123 tok/s):
+  // only the first is a current workload, so only it has a row.
+  assert.match(matrix, /Fixture &lt;b&gt;Rig&lt;\/b&gt; &amp; [^<]*<small>apple-silicon · 64 GB<\/small><\/td>\s*<td class="num">50 tok\/s<\/td>/);
+  assert.doesNotMatch(matrix, /0\.123 tok\/s|apple-silicon · 32 GB<\/small><\/td>\s*<td class="num">0/);
   assert.match(matrix, /<th scope="col">First token<\/th>/);
   assert.match(matrix, /Fixture Tower<small>nvidia · 24 GB<\/small><\/td>\s*<td class="num">140\.25 tok\/s<\/td>\s*<td class="num">95 ms<\/td>/);
   assert.match(matrix, /Fixture Laptop<small>apple-silicon · 32 GB<\/small><\/td>\s*<td class="num">61\.5 tok\/s<\/td>\s*<td class="num">480 ms<\/td>/);
@@ -229,17 +258,29 @@ test('model page lists its evaluations and local setups; the feed publishes the 
     feed.notice,
     'Results are self-reported by contributors. Each benchmark page lists every run with its reproduce command and evidence hash.',
   );
-  assert.deepEqual(feed.benchmarks.map((b) => b.id), ['gsm8k-200', 'canary-injection-v1', 'decode-speed-gsm8k-200']);
+  assert.equal(
+    feed.note,
+    'Groups include runs of previous benchmark versions; compare only groups whose benchmark_version equals the benchmark\'s version.',
+  );
+  assert.deepEqual(feed.benchmarks.map((b) => [b.id, b.version, b.previous_versions]), [
+    ['gsm8k-200', '2', ['1']],
+    ['canary-injection-v1', '1', []],
+    ['decode-speed-gsm8k-200', '2', ['1']],
+  ]);
   assert.equal(feed.benchmarks[0].higher_is_better, true);
   // Groups of a measured benchmark carry their runtime and machine; quality groups do not.
-  assert.equal(feed.groups.length, 5);
+  assert.equal(feed.groups.length, 7);
   const quality = feed.groups.filter((g) => g.benchmark === 'gsm8k-200');
-  assert.deepEqual(quality.map((g) => [g.runtime, g.device, g.memory_gb]), [[null, null, null], [null, null, null], [null, null, null]]);
+  assert.deepEqual(quality.map((g) => [g.runtime, g.device, g.memory_gb]), Array(4).fill([null, null, null]));
   assert.deepEqual(
     feed.groups
       .filter((g) => g.benchmark === 'decode-speed-gsm8k-200')
-      .map((g) => [g.runtime, g.runtime_versions, g.device, g.memory_gb, g.score]),
-    [['llama.cpp', ['0.0.0'], 'Fixture Laptop', 32, 61.5], ['llama.cpp', ['0.0.0'], 'Fixture Tower', 24, 140.25]],
+      .map((g) => [g.benchmark_version, g.runtime, g.runtime_versions, g.device, g.memory_gb, g.score]),
+    [
+      ['2', 'llama.cpp', ['0.0.0'], 'Fixture Laptop', 32, 61.5],
+      ['2', 'llama.cpp', ['0.0.0'], 'Fixture Tower', 24, 140.25],
+      ['1', 'mlx-lm', ['0.0.0'], 'Fixture Laptop', 32, 12.5],
+    ],
   );
   const current = quality.filter((g) => g.benchmark_version === feed.benchmarks[0].version);
   assert.equal(current.length, 2);
@@ -256,12 +297,45 @@ test('model page lists its evaluations and local setups; the feed publishes the 
   assert.equal(gguf.runs, 2);
   assert.deepEqual(gguf.accelerators, ['apple-silicon', 'nvidia']);
   assert.equal(gguf.tokens_per_second, 100.875);
-  // Seven files, five runs: each speed result shares its run, and so its transcript, with a GSM8K result.
-  assert.equal(feed.runs, 5);
+  // Nine files, six runs: each speed result shares its run, and so its transcript, with a GSM8K result.
+  assert.equal(feed.runs, 6);
 
   const home = page('index.html');
   assert.match(home, /href="\/evals"/);
-  assert.match(home, /<b>5<\/b>\s*<span>Evaluation runs<\/span>/);
+  assert.match(home, /<b>6<\/b>\s*<span>Evaluation runs<\/span>/);
+});
+
+test('a model page names the benchmarks it has results for only in an earlier version, and links to them', () => {
+  // This model's only fixture run is of GSM8K-200 version 1, with the speed measured on it.
+  const model = page('registry/models/qwen3-6-35b-a3b/index.html');
+  const evaluations = model.split('<h2>Evaluations</h2>')[1];
+  const text = evaluations.replace(/\s+/g, ' ');
+  assert.ok(
+    text.includes(
+      'Results for earlier versions: <a href="/evals/decode-speed-gsm8k-200">Decode speed on GSM8K-200</a> (v1), '
+      + '<a href="/evals/gsm8k-200">GSM8K (first 200)</a> (v1)',
+    ),
+    text,
+  );
+  // Nothing of the current versions to tabulate, and the page does not claim there are no results at all.
+  assert.doesNotMatch(evaluations, /<table/);
+  assert.match(text, /No results for the current benchmark versions yet\./);
+  assert.doesNotMatch(text, /No evaluation results yet/);
+  // The local-run matrix is built from runs of current versions, so this model has none.
+  assert.doesNotMatch(model, /Runs locally on|12\.5 tok\/s/);
+
+  // A benchmark with a result of its current version is in the table, not in that line.
+  const [current] = page('registry/models/darsy-xray-analysis/index.html').split('<h2>Evaluations</h2>')[1].split('Runs locally on');
+  assert.match(current, /<table/);
+  assert.doesNotMatch(current, /Results for earlier versions|>99%</);
+
+  // The earlier runs themselves are on the benchmark pages, under "Previous versions".
+  for (const id of ['gsm8k-200', 'decode-speed-gsm8k-200']) {
+    const detail = page(`evals/${id}/index.html`);
+    const earlier = detail.slice(detail.indexOf('<h2>Previous versions</h2>'));
+    assert.match(earlier, /<td class="num">2026-10-02<small>v1<\/small><\/td>\s*<td><a href="\/registry\/models\/qwen3-6-35b-a3b">/, id);
+    assert.doesNotMatch(leaderboardOf(detail), /qwen3-6-35b-a3b/, id);
+  }
 });
 
 test('a result that references a missing model fails the build and names it', { timeout: 120_000 }, () => {

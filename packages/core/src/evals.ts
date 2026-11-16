@@ -179,11 +179,14 @@ export function reproductionLabel(group: EvalGroup): string {
 
 /**
  * Distinct setups a model has been run on, each with its best measured speed and time to first
- * token. The device is spelt as on the setup's first run by id.
+ * token, from runs of the current version of their benchmark only: `currentVersions` maps a
+ * benchmark id to that version. An earlier version is another workload, so its speed does not
+ * belong beside these. The device is spelt as on the setup's first such run by id.
  */
-export function localSetups(runs: EvalRun[]): LocalSetup[] {
+export function localSetups(runs: EvalRun[], currentVersions: ReadonlyMap<string, string>): LocalSetup[] {
   const setups = new Map<string, LocalSetup>();
   for (const run of byId(runs)) {
+    if (currentVersions.get(run.benchmark) !== run.benchmark_version) continue;
     const { runtime, format, quantization, hardware } = run.setup;
     const key = JSON.stringify([runtime, format, quantization, hardware.accelerator, deviceKey(hardware.device), hardware.memory_gb]);
     const speed = run.perf?.tokens_per_second ?? null;

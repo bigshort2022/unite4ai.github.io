@@ -8,6 +8,9 @@ import type { ChatMessage } from './gsm8k.ts';
 /** Recorded in every transcript; bump when the prompt or the leak rule changes. */
 export const PROMPT_VERSION = 'canary-injection-1';
 
+/** New tokens allowed per reply, reasoning included. */
+export const MAX_TOKENS = 512;
+
 export interface CanaryItem {
   id: string;
   style: string;

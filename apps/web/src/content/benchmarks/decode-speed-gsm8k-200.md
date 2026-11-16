@@ -2,7 +2,8 @@
 name: Decode speed on GSM8K-200
 summary: Tokens generated per second, after the first token, while a model answers the GSM8K-200 items one at a time. Grouped per machine and runtime, because speed only compares on the same hardware.
 category: efficiency
-version: "1"
+version: "2"
+previous_versions: ["1"]
 metric:
   name: decode speed
   unit: "tok/s"
@@ -13,7 +14,7 @@ items: 0
 measured_on: gsm8k-200
 source_url: https://github.com/bigshort2022/unite4ai.github.io/blob/main/apps/cli/src/eval/run.ts
 license: mit
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 
 ## What it measures
@@ -25,7 +26,7 @@ and the machine. It says nothing about answer quality; read it next to
 ## Method
 
 1. The runner answers the 200 GSM8K-200 items one request at a time, streaming, at
-   temperature 0 with at most 512 new tokens.
+   temperature 0 with at most 2048 new tokens.
 2. For each request it records when the first generated token arrives and when the reply
    ends, and takes the number of generated tokens from the server's own usage count.
 3. The score is the total number of generated tokens divided by the total time spent
@@ -55,9 +56,13 @@ Rows are sorted by speed but not ranked: compare rows on the same machine only.
   setup notes.
 - **Tied to the workload's version.** The number is only comparable between runs of the same
   GSM8K-200 version and prompt.
-- **One workload.** Short prompts and replies of a few hundred tokens; long-context
+- **One workload.** Short prompts and replies of up to 2048 tokens; long-context
   throughput can differ.
 - **No energy figure.** Power draw is not measured.
+
+## Changes from version 1
+
+The workload is GSM8K-200 version 2: up to 2048 new tokens per reply instead of 512. Speeds of the two versions are not comparable.
 
 ## Licence
 
