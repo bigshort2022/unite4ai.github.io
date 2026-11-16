@@ -1,17 +1,19 @@
 ---
 import Base from '../../layouts/Base.astro';
+import { PAGE_SIZE } from '../../lib/repo-metrics';
 ---
 <Base title="Governance metrics">
   <section class="wrap section">
     <p class="eyebrow">Governance</p>
     <h1>Operational transparency</h1>
     <p class="lede">
-      Standing commitment #4: we publish our real median PR review time, including when it's embarrassing.
-      These metrics are updated from public GitHub data — no user tracking required.
+      Standing commitment #4 is to publish our real median PR review time, including when it's embarrassing.
+      What this page can compute from public GitHub data is the time from opening a pull request to
+      merging it, so that is the figure below. No user tracking required.
     </p>
 
     <div class="stats" style="margin-top:2rem">
-      <div class="stat"><b data-metric="median-review">—</b><span>Median PR review (days)</span></div>
+      <div class="stat"><b data-metric="time-to-merge">—</b><span>Median time to merge</span></div>
       <div class="stat"><b data-metric="open-prs">—</b><span>Open pull requests</span></div>
       <div class="stat"><b data-metric="merged-month">—</b><span>Merged this month</span></div>
       <div class="stat"><b data-metric="contributors">—</b><span>Contributors (all time)</span></div>
@@ -20,9 +22,12 @@ import Base from '../../layouts/Base.astro';
     <div class="card" style="margin-top:2rem">
       <p class="eyebrow" style="margin-bottom:.5rem">How this is calculated</p>
       <ul style="margin:0;padding-left:1.2rem;line-height:1.8">
-        <li>Median review time: hours from first PR open to first maintainer review comment, last 30 closed PRs.</li>
-        <li>Data source: GitHub REST API, fetched client-side on page load.</li>
-        <li>No cookies, no server-side logging — your visit is not recorded.</li>
+        <li>Median time to merge: the median time from opening a pull request to merging it, over the merged ones among the {PAGE_SIZE} most recently updated pull requests. Shown in hours with one decimal, or in minutes when under one hour. It is not a review time: the data used does not say when a review happened.</li>
+        <li>Open pull requests and Merged this month: counted among the same {PAGE_SIZE} pull requests. The month is the current calendar month in your browser's time zone. A + after either number means that page of {PAGE_SIZE} was full, so there may be more.</li>
+        <li>Contributors: the accounts of type User in the repository's contributor list, leaving out logins that end in [bot]. One page of up to {PAGE_SIZE} contributors is read; a + after the number means the page was full, so the list may be longer.</li>
+        <li>N/A means the request for that figure failed (GitHub limits requests that are not signed in) or, for the median, that none of those pull requests was merged.</li>
+        <li>Data source: the GitHub REST API, in two requests your browser sends when this page loads.</li>
+        <li>This page's script sets no cookies and sends nothing to a server of ours. GitHub receives those two requests.</li>
       </ul>
     </div>
 
@@ -31,37 +36,34 @@ import Base from '../../layouts/Base.astro';
     </p>
   </section>
 
-  <script is:inline>
-    async function loadMetrics() {
-      const set = (key, value) => {
-        const el = document.querySelector('[data-metric="' + key + '"]');
-        if (el) el.textContent = value;
-      };
+  <script>
+    import { REPO_SLUG } from '../../lib/site';
+    import { PAGE_SIZE, countLabel, formatDuration, medianTimeToMerge, mergedInMonth, openPulls, peopleCount } from '../../lib/repo-metrics';
 
-      try {
-        const response = await fetch('https://api.github.com/repos/unite4ai/unite4ai.github.io/pulls?state=all&per_page=30&sort=updated');
-        if (!response.ok) throw new Error('GitHub API unavailable');
-        const pulls = await response.json();
+    const set = (key: string, value: string) => {
+      const tile = document.querySelector(`[data-metric="${key}"]`);
+      if (tile) tile.textContent = value;
+    };
 
-        const open = pulls.filter((p) => p.state === 'open').length;
-        const now = new Date();
-        const mergedThisMonth = pulls.filter((p) => {
-          if (!p.merged_at) return false;
-          const merged = new Date(p.merged_at);
-          return merged.getMonth() === now.getMonth() && merged.getFullYear() === now.getFullYear();
-        }).length;
-
-        set('open-prs', String(open));
-        set('merged-month', String(mergedThisMonth));
-        set('median-review', '2.4');
-        set('contributors', '12+');
-      } catch {
-        set('median-review', 'N/A');
-        set('open-prs', 'N/A');
-        set('merged-month', 'N/A');
-        set('contributors', 'N/A');
-      }
+    /** One page of a list from the repository's REST API; rejects when GitHub does not answer with it. */
+    async function list(path: string, query = '') {
+      const response = await fetch(`https://api.github.com/repos/${REPO_SLUG}/${path}?${query}per_page=${PAGE_SIZE}`);
+      if (!response.ok) throw new Error(`GitHub answered ${response.status}`);
+      return response.json();
     }
-    loadMetrics();
+
+    // Each list fills its own tiles, so one failed request leaves the other's figures standing.
+    list('pulls', 'state=all&sort=updated&direction=desc&')
+      .then((pulls) => {
+        const median = medianTimeToMerge(pulls);
+        set('time-to-merge', median === null ? 'N/A' : formatDuration(median));
+        set('open-prs', countLabel(openPulls(pulls), pulls.length, PAGE_SIZE));
+        set('merged-month', countLabel(mergedInMonth(pulls, new Date()), pulls.length, PAGE_SIZE));
+      })
+      .catch(() => ['time-to-merge', 'open-prs', 'merged-month'].forEach((key) => set(key, 'N/A')));
+
+    list('contributors')
+      .then((contributors) => set('contributors', peopleCount(contributors, PAGE_SIZE)))
+      .catch(() => set('contributors', 'N/A'));
   </script>
 </Base>

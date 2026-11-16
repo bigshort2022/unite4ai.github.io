@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import { REPO } from '../lib/site';
 
 interface Props {
   title: string;
@@ -82,7 +83,7 @@ const nav = [
           </div>
           <div>
             <strong>Open</strong>
-            <a href="https://github.com/bigshort2022/unite4ai.github.io">Source on GitHub</a>
+            <a href={REPO}>Source on GitHub</a>
             <a href={href('/governance')}>Governance</a>
             <a href={href('/governance/metrics')}>Metrics</a>
             <a href={href('/privacy')}>Privacy</a>

@@ -2,6 +2,7 @@
 import Base from '../../layouts/Base.astro';
 import GiscusComments from '../../components/GiscusComments.astro';
 import { getCollection, render } from 'astro:content';
+import { REPO } from '../../lib/site';
 
 export async function getStaticPaths() {
   const courses = await getCollection('courses');
@@ -49,7 +50,7 @@ const href = (p: string) => `${base}${p}` || '/';
     <div class="card" style="margin-top:3rem;text-align:center;align-items:center">
       <h3>Finished this course?</h3>
       <p>Tell us how it went — 60-second feedback, it directly shapes what we build next.</p>
-      <a class="btn btn-primary" href="https://github.com/unite4ai/unite4ai.github.io/issues/new?template=course-feedback.yml">Leave feedback</a>
+      <a class="btn btn-primary" href={`${REPO}/issues/new?template=course-feedback.yml`}>Leave feedback</a>
     </div>
 
     <p style="margin-top:2rem;font-size:.88rem;color:var(--u-text-faint)">

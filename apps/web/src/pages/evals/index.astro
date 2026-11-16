@@ -1,22 +1,13 @@
 ---
 import Base from '../../layouts/Base.astro';
-import { leaderboard, reproductionLabel } from '@unite4ai/core';
-import { CATEGORIES, CATEGORY_LABELS, SUBMIT_GUIDE, formatNumber, loadEvals, runtimeLabel, scoreRange, withUnit } from '../../lib/evals';
+import NoResults from '../../components/NoResults.astro';
+import { reproductionLabel } from '@unite4ai/core';
+import { CATEGORIES, CATEGORY_LABELS, SUBMIT_GUIDE, deviceLine, formatNumber, loadEvals, runtimeLabel, scoreRange, withUnit } from '../../lib/evals';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const href = (p: string) => `${base}${p}` || '/';
 
-const { benchmarks, groups, modelNames } = await loadEvals();
-const boards = benchmarks.map((benchmark) => ({
-  benchmark,
-  // A speed on one machine does not outrank a speed on another: measured boards are sorted, not ranked.
-  measured: benchmark.data.scoring === 'measured',
-  rows: leaderboard(groups, {
-    id: benchmark.id,
-    version: benchmark.data.version,
-    higher_is_better: benchmark.data.metric.higher_is_better,
-  }),
-}));
+const { boards, modelNames } = await loadEvals();
 const categories = CATEGORIES.filter((category) => boards.some((b) => b.benchmark.data.category === category));
 const runtimes = [...new Set(boards.flatMap((b) => b.rows.flatMap((row) => row.runtimes)))].sort();
 const accelerators = [...new Set(boards.flatMap((b) => b.rows.flatMap((row) => row.accelerators)))].sort();
@@ -77,15 +68,21 @@ const hasRows = boards.some((b) => b.rows.length > 0);
     {categories.map((category) => (
       <section style="margin-top:3rem" aria-labelledby={`category-${category}`} data-category={category}>
         <h2 id={`category-${category}`}>{CATEGORY_LABELS[category]}</h2>
-        {boards.filter((b) => b.benchmark.data.category === category).map(({ benchmark, measured, rows }) => (
+        {boards.filter((b) => b.benchmark.data.category === category).map(({ benchmark, measured, rows, earlierRuns }) => (
           <div style="margin-top:1.5rem" data-eval-board>
             <h3><a href={href(`/evals/${benchmark.id}`)}>{benchmark.data.name}</a></h3>
             <p style="color:var(--u-text-dim);max-width:70ch">{benchmark.data.summary}</p>
             {rows.length === 0 ? (
-              <div class="empty" style="margin-top:1rem">
-                No results yet. Results arrive by pull request from people who ran this benchmark
-                on their own hardware. <a href={SUBMIT_GUIDE}>How to submit one.</a>
-              </div>
+              earlierRuns.length === 0 ? (
+                <NoResults />
+              ) : (
+                <div class="empty" style="margin-top:1rem">
+                  No results for version {benchmark.data.version} yet.{' '}
+                  {earlierRuns.length === 1 ? '1 result of an earlier version is' : `${earlierRuns.length} results of earlier versions are`} listed on the{' '}
+                  <a href={href(`/evals/${benchmark.id}`)} aria-label={`${benchmark.data.name} benchmark page`}>benchmark page</a>.{' '}
+                  <a href={SUBMIT_GUIDE}>How to submit one.</a>
+                </div>
+              )
             ) : (
               <>
               {measured && (
@@ -117,7 +114,7 @@ const hasRows = boards.some((b) => b.rows.length > 0);
                         <td>
                           {row.format} · {row.quantization}
                           <small>{runtimeLabel(row)} · {row.accelerators.join(', ')}</small>
-                          {row.device !== null && <small>{row.device} · {row.memory_gb} GB</small>}
+                          {deviceLine(row) && <small>{deviceLine(row)}</small>}
                         </td>
                         {!measured && (
                           <td class="num">{row.tokens_per_second === null ? '—' : `${formatNumber(row.tokens_per_second)} tok/s`}</td>

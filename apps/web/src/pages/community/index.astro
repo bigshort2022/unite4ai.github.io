@@ -1,6 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
 import { getCollection } from 'astro:content';
+import { REPO } from '../../lib/site';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const href = (p: string) => `${base}${p}` || '/';
@@ -19,7 +20,7 @@ const posts = (await getCollection('posts')).sort((a, b) => b.data.published.val
       public and searchable. Membership here is earned by contribution, not by filling in a form.
     </p>
     <div class="hero-actions">
-      <a class="btn btn-primary" href="https://github.com/bigshort2022/unite4ai.github.io/discussions">Join the discussion</a>
+      <a class="btn btn-primary" href={`${REPO}/discussions`}>Join the discussion</a>
       <a class="btn btn-ghost" href={href('/contribute')}>Contribute</a>
     </div>
 

@@ -15,7 +15,7 @@
     "runtime": "llama.cpp",
     "runtime_version": "0.0.0",
     "format": "gguf",
-    "quantization": "Q4_K_M",
+    "quantization": "FIXTURE_Q",
     "hardware": { "device": "Fixture Tower", "accelerator": "nvidia", "memory_gb": 24 }
   },
   "perf": { "tokens_per_second": 140.25, "time_to_first_token_ms": 95 },

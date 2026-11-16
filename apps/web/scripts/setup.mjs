@@ -4,8 +4,8 @@
  *
  *   node scripts/setup.mjs <github-username> [repo-name] [custom-domain]
  *
- * Replaces every placeholder across the project and rewrites astro.config.mjs
- * with the correct `site` and `base` for your chosen hosting shape:
+ * Replaces every placeholder across the project, names the repository in src/lib/site.ts,
+ * and rewrites astro.config.mjs with the correct `site` and `base` for your chosen hosting shape:
  *
  *   node scripts/setup.mjs beejal                     → https://beejal.github.io/unite4ai
  *   node scripts/setup.mjs beejal beejal.github.io    → https://beejal.github.io
@@ -68,6 +68,13 @@ cfg = cfg
   .replace(/const SITE = '[^']*';/, `const SITE = '${site}';`)
   .replace(/const BASE = '[^']*';/, `const BASE = '${base}';`);
 await writeFile(cfgPath, cfg);
+
+// The repository is named once: every link to it derives from REPO_SLUG in src/lib/site.ts.
+const sitePath = 'src/lib/site.ts';
+const slug = /const REPO_SLUG = '[^']*';/;
+const siteSource = await readFile(sitePath, 'utf8');
+if (!slug.test(siteSource)) throw new Error(`${sitePath}: no REPO_SLUG constant to rewrite`);
+await writeFile(sitePath, siteSource.replace(slug, `const REPO_SLUG = '${user}/${repo}';`));
 
 // A custom domain needs a CNAME file in the published output.
 if (domain) {

@@ -145,6 +145,8 @@ p  { margin: 0 0 1.1em; }
 .grid { display: grid; gap: 1.1rem; }
 .grid-3 { grid-template-columns: repeat(auto-fill, minmax(285px, 1fr)); }
 .grid-2 { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+/* grid-2 fits a third column on the widest screens; this caps it at two, so four cards make two rows of two. */
+.grid-2.grid-pairs { grid-template-columns: repeat(auto-fill, minmax(max(340px, 34%), 1fr)); }
 
 .card {
   position: relative; display: flex; flex-direction: column; gap: .6rem;
@@ -463,6 +465,7 @@ p  { margin: 0 0 1.1em; }
 .eval-table th,
 .eval-table td { padding: .65rem .8rem; text-align: left; border-bottom: 1px solid var(--u-border); vertical-align: top; }
 .eval-table thead th { font-size: .74rem; letter-spacing: .05em; text-transform: uppercase; color: var(--u-text-faint); background: var(--u-bg-elev); }
+.eval-table tbody tr:last-child th,
 .eval-table tbody tr:last-child td { border-bottom: 0; }
 .eval-table .rank { color: var(--u-text-faint); }
 .eval-table .num { font-variant-numeric: tabular-nums; white-space: nowrap; }

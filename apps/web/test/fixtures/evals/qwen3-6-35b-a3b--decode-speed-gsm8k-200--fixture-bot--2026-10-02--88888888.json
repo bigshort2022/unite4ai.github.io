@@ -15,7 +15,7 @@
     "runtime": "mlx-lm",
     "runtime_version": "0.0.0",
     "format": "mlx",
-    "quantization": "8bit",
+    "quantization": "FIXTURE_Q8",
     "hardware": { "device": "Fixture Laptop", "accelerator": "apple-silicon", "memory_gb": 32 }
   },
   "perf": { "tokens_per_second": 12.5 },

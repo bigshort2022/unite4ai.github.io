@@ -54,6 +54,10 @@ Evaluation results are data in this repository. One result is one JSON file dire
 `<model>--<benchmark>--<your-github-handle>--<YYYY-MM-DD>--<first 8 characters of evidence.sha256>.json`
 (handle in lowercase).
 
+People who do not use git can paste the result file the runner writes (see below) into the
+[Submit an evaluation result](../../issues/new?template=submit-eval-result.yml) issue form,
+and a maintainer turns it into a pull request.
+
 - The model must already have a card in `apps/web/src/content/models/`, and the benchmark a
   definition in `apps/web/src/content/benchmarks/`.
 - Run it on your own hardware and report the setup honestly: runtime, format, quantization, device.

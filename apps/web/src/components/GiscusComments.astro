@@ -1,4 +1,6 @@
 ---
+import { REPO_SLUG } from '../lib/site';
+
 /**
  * Giscus comments — requires repo configuration at https://giscus.app
  * Set PUBLIC_GISCUS_REPO and PUBLIC_GISCUS_REPO_ID in build env to enable.
@@ -9,7 +11,7 @@ interface Props {
 }
 
 const { term = Astro.url.pathname, category = 'Announcements' } = Astro.props;
-const repo = import.meta.env.PUBLIC_GISCUS_REPO ?? 'unite4ai/unite4ai.github.io';
+const repo = import.meta.env.PUBLIC_GISCUS_REPO ?? REPO_SLUG;
 const repoId = import.meta.env.PUBLIC_GISCUS_REPO_ID ?? '';
 const categoryId = import.meta.env.PUBLIC_GISCUS_CATEGORY_ID ?? '';
 const enabled = Boolean(repoId && categoryId);

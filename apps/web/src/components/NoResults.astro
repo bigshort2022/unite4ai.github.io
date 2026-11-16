@@ -1,0 +1,14 @@
+---
+// The explained empty state of a leaderboard: why it is empty and how a result gets here.
+import { SUBMIT_GUIDE } from '../lib/evals';
+
+interface Props {
+  /** What nobody has run yet: "this benchmark" on its own leaderboard, "a benchmark" where none is in view. */
+  subject?: string;
+}
+const { subject = 'this benchmark' } = Astro.props;
+---
+<div class="empty" style="margin-top:1rem">
+  No results yet. Results arrive by pull request from people who
+  ran {subject} on their own hardware. <a href={SUBMIT_GUIDE}>How to submit one.</a>
+</div>

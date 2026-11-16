@@ -1,8 +1,8 @@
 ---
 import Base from '../../layouts/Base.astro';
 import { getCollection, render } from 'astro:content';
-import { byCodeUnit, leaderboard, reproductionLabel } from '@unite4ai/core';
-import { CATEGORY_LABELS, SUBMIT_GUIDE, formatNumber, loadEvals, runtimeLabel, scoreRange, withUnit } from '../../lib/evals';
+import { reproductionLabel } from '@unite4ai/core';
+import { CATEGORY_LABELS, SUBMIT_GUIDE, deviceLine, formatNumber, loadEvals, runtimeLabel, scoreRange, withUnit, type Board } from '../../lib/evals';
 
 export async function getStaticPaths() {
   const benchmarks = await getCollection('benchmarks');
@@ -15,27 +15,14 @@ const d = entry.data;
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const href = (p: string) => `${base}${p}` || '/';
 
-const { groups, runs, modelNames } = await loadEvals();
-const rows = leaderboard(groups, { id: entry.id, version: d.version, higher_is_better: d.metric.higher_is_better });
-// Newest first; runs on the same date order by id. The two lists below keep this order.
-const ownRuns = runs
-  .filter((run) => run.benchmark === entry.id)
-  .sort((a, b) => byCodeUnit(b.run.date, a.run.date) || byCodeUnit(a.id, b.id));
+const { boards, modelNames } = await loadEvals();
+// There is one board for every benchmark in the collection, so this one's is among them.
+const { rows, runs, earlierRuns, measured } = boards.find((board) => board.benchmark.id === entry.id) as Board;
 const runTables = [
-  {
-    title: 'Every run',
-    caption: `Every run of ${d.name}, version ${d.version}`,
-    list: ownRuns.filter((run) => run.benchmark_version === d.version),
-  },
-  {
-    title: 'Previous versions',
-    caption: `Runs of previous versions of ${d.name}`,
-    list: ownRuns.filter((run) => run.benchmark_version !== d.version),
-  },
+  { id: 'every-run', title: 'Every run', caption: `Every run of ${d.name}, version ${d.version}`, list: runs },
+  { id: 'previous-versions', title: 'Previous versions', caption: `Runs of previous versions of ${d.name}`, list: earlierRuns },
 ];
 const modelName = (id: string) => modelNames.get(id) ?? id;
-// A speed on one machine does not outrank a speed on another: a measured board is sorted, not ranked.
-const measured = d.scoring === 'measured';
 ---
 <Base title={d.name} description={d.summary}>
   <article class="wrap section" data-pagefind-body>
@@ -54,7 +41,11 @@ const measured = d.scoring === 'measured';
     <h2>Leaderboard</h2>
     {rows.length === 0 ? (
       <div class="empty" style="margin-top:1rem">
-        No results for version {d.version} yet. <a href={SUBMIT_GUIDE}>How to submit one.</a>
+        No results for version {d.version} yet.{' '}
+        {earlierRuns.length > 0 && (
+          <>{earlierRuns.length === 1 ? 'An earlier-version run is' : 'Earlier-version runs are'} <a href="#previous-versions">listed below</a>.{' '}</>
+        )}
+        <a href={SUBMIT_GUIDE}>How to submit one.</a>
       </div>
     ) : (
       <>
@@ -79,7 +70,7 @@ const measured = d.scoring === 'measured';
                 <td>
                   {row.format} · {row.quantization}
                   <small>{runtimeLabel(row)} · {row.accelerators.join(', ')}</small>
-                  {row.device !== null && <small>{row.device} · {row.memory_gb} GB</small>}
+                  {deviceLine(row) && <small>{deviceLine(row)}</small>}
                 </td>
                 {!measured && (
                   <td class="num">{row.tokens_per_second === null ? '—' : `${formatNumber(row.tokens_per_second)} tok/s`}</td>
@@ -101,8 +92,8 @@ const measured = d.scoring === 'measured';
       · Updated {d.updated.toISOString().slice(0, 10)}
     </p>
 
-    {runTables.map(({ title, caption, list }) => list.length > 0 && (
-      <section style="margin-top:2.5rem" data-pagefind-ignore>
+    {runTables.map(({ id, title, caption, list }) => list.length > 0 && (
+      <section id={id} style="margin-top:2.5rem" data-pagefind-ignore>
         <h2>{title}</h2>
         <p style="color:var(--u-text-dim)">Self-reported. Each row carries the command that produced it and the hash of its raw output.</p>
         <div class="eval-scroll" tabindex="0" role="region" aria-label={caption}>
