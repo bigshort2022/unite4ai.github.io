@@ -3,8 +3,6 @@ import { byCodeUnit, groupEvals, leaderboard, type EvalGroup, type EvalRun } fro
 import { EVAL_CATEGORIES } from '@unite4ai/schema';
 import { REPO } from './site';
 
-// The model page still imports it from here.
-export { REPO };
 export const SUBMIT_GUIDE = `${REPO}/blob/main/CONTRIBUTING.md#submitting-an-evaluation-result`;
 /** The no-git route: the issue form a maintainer turns into a pull request. */
 export const RESULT_ISSUE_FORM = `${REPO}/issues/new?template=submit-eval-result.yml`;

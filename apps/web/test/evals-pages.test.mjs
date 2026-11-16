@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { after } from 'node:test';
@@ -469,8 +469,8 @@ test('the home page lists, under the hero, one leading result for each benchmark
   assert.match(quality, /gguf · FIXTURE_Q/);
   assert.match(quality, /<span class="tag">not yet reproduced<\/span>/);
   assert.doesNotMatch(quality, /Most recent|tied with|range|Fixture|llama\.cpp|4bit/);
-  // The version "0" run (score 99) is not a current result.
-  assert.doesNotMatch(leading, />99%</);
+  // Neither earlier-version run is a current result: this model's 99, or the other model's 41.
+  assert.doesNotMatch(leading, />99%<|>41%<|qwen3-6-35b-a3b/);
 
   // A measured benchmark has no winner: the row is its most recent result, with the runtime and
   // machine it ran on.

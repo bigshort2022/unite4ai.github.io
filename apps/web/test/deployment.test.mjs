@@ -250,3 +250,38 @@ test('the governance metrics page computes its figures and prints no number of i
   // It needs a median and a few filters, not the schema library the content gate uses.
   assert.ok(script.length < 4000, `the metrics script is ${script.length} bytes`);
 });
+
+// Derived from the published files, so it holds whatever results and versions are current.
+test('the home page and the leaderboards agree with the published results about which benchmarks have a current result', async () => {
+  const versions = new Map();
+  for (const file of await filesUnder(new URL('src/content/benchmarks/', ROOT), ['.md'])) {
+    const id = file.pathname.split('/').pop().replace(/\.md$/, '');
+    versions.set(id, (await readFile(file, 'utf8')).match(/^version: "?([^"\n]+)"?$/m)?.[1]);
+  }
+  const current = new Set();
+  const earlier = new Map();
+  for (const file of await filesUnder(new URL('src/content/evals/', ROOT), ['.json'])) {
+    const { benchmark, benchmark_version: version } = JSON.parse(await readFile(file, 'utf8'));
+    if (version === versions.get(benchmark)) current.add(benchmark);
+    else earlier.set(benchmark, (earlier.get(benchmark) ?? 0) + 1);
+  }
+
+  const page = async (path) => (await readFile(new URL(`dist/${path}`, ROOT), 'utf8')).replace(/\s+/g, ' ');
+  const home = await page('index.html');
+  const leading = home.slice(home.indexOf('<h2 id="leading-results-title"'));
+  const rows = (leading.slice(0, leading.indexOf('</section>')).split('<tbody>')[1] ?? '').split('<tr').slice(1);
+  assert.deepEqual(rows.map((row) => row.match(/href="\/evals\/([^"]+)"/)?.[1]).sort(), [...current].sort());
+
+  // A benchmark whose only results are of an earlier version says so, with their number, and
+  // its own page points down to them.
+  const board = await page('evals/index.html');
+  for (const [id, count] of earlier) {
+    if (current.has(id)) continue;
+    const said = `No results for version ${versions.get(id)} yet. `
+      + `${count === 1 ? '1 run of an earlier version is' : `${count} runs of earlier versions are`} listed on the <a href="/evals/${id}"`;
+    assert.ok(board.includes(said), said);
+    const detail = await page(`evals/${id}/index.html`);
+    assert.match(detail, /<a href="#previous-versions">listed below<\/a>/, id);
+    assert.match(detail, /<section id="previous-versions"/, id);
+  }
+});

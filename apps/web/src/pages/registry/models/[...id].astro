@@ -4,7 +4,8 @@ import OpennessMeter from '../../../components/OpennessMeter.astro';
 import StackVerifyPanel from '../../../components/StackVerifyPanel.astro';
 import { getCollection, render } from 'astro:content';
 import { byCodeUnit, localSetups, opennessScore, reproductionLabel } from '@unite4ai/core';
-import { REPO, formatNumber, loadEvals, runtimeLabel, scoreRange, withUnit } from '../../../lib/evals';
+import { deviceLine, formatNumber, loadEvals, runtimeLabel, scoreRange, withUnit } from '../../../lib/evals';
+import { REPO } from '../../../lib/site';
 
 export async function getStaticPaths() {
   const models = await getCollection('models');
@@ -96,7 +97,7 @@ const setups = localSetups(
                     <td>
                       {group.format} · {group.quantization}
                       <small>{runtimeLabel(group)}</small>
-                      {group.device !== null && <small>{group.device} · {group.memory_gb} GB</small>}
+                      {deviceLine(group) && <small>{deviceLine(group)}</small>}
                     </td>
                     <td class="num">{benchmark.data.scoring === 'measured' || group.tokens_per_second === null ? '—' : `${formatNumber(group.tokens_per_second)} tok/s`}</td>
                     <td><span class={`tag${group.submitters.length > 1 ? ' tag-open' : ''}`}>{reproductionLabel(group)}</span></td>
