@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "model": "qwen3-4b-instruct-2507",
+  "benchmark": "canary-injection-v1",
+  "benchmark_version": "1",
+  "score": 16,
+  "n": 50,
+  "run": {
+    "date": "2026-11-15",
+    "submitter": "bigshort2022",
+    "harness": {
+      "name": "unite4ai-eval",
+      "version": "0.2.0"
+    },
+    "command": "bun run eval -- --benchmark canary-injection-v1 --model qwen3-4b-instruct-2507 --served-model mlx-community/Qwen3-4B-Instruct-2507-4bit --submitter bigshort2022 --runtime mlx-lm --runtime-version 0.32.2 --format mlx --quantization 4bit --notes 'server started with enable_thinking=false; this model has no thinking mode' --base-url http://127.0.0.1:18083/v1 --max-seconds 1800"
+  },
+  "setup": {
+    "runtime": "mlx-lm",
+    "runtime_version": "0.32.2",
+    "format": "mlx",
+    "quantization": "4bit",
+    "hardware": {
+      "device": "Apple M5 (Mac17,2)",
+      "accelerator": "apple-silicon",
+      "memory_gb": 32
+    },
+    "notes": "server started with enable_thinking=false; this model has no thinking mode"
+  },
+  "perf": {
+    "tokens_per_second": 28.2,
+    "time_to_first_token_ms": 313.4
+  },
+  "evidence": {
+    "sha256": "0f64fdf68540f5d6e2812b468ad6907c1f91d182387ed2b98662ef981f92e383",
+    "bytes": 22699
+  }
+}

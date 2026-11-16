@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "model": "qwen3-4b-instruct-2507",
+  "benchmark": "gsm8k-200",
+  "benchmark_version": "2",
+  "score": 92,
+  "n": 200,
+  "run": {
+    "date": "2026-11-15",
+    "submitter": "bigshort2022",
+    "harness": {
+      "name": "unite4ai-eval",
+      "version": "0.2.0"
+    },
+    "command": "bun run eval -- --benchmark gsm8k-200 --model qwen3-4b-instruct-2507 --served-model mlx-community/Qwen3-4B-Instruct-2507-4bit --submitter bigshort2022 --runtime mlx-lm --runtime-version 0.32.2 --format mlx --quantization 4bit --notes 'server started with enable_thinking=false; this model has no thinking mode' --base-url http://127.0.0.1:18083/v1 --max-seconds 7200"
+  },
+  "setup": {
+    "runtime": "mlx-lm",
+    "runtime_version": "0.32.2",
+    "format": "mlx",
+    "quantization": "4bit",
+    "hardware": {
+      "device": "Apple M5 (Mac17,2)",
+      "accelerator": "apple-silicon",
+      "memory_gb": 32
+    },
+    "notes": "server started with enable_thinking=false; this model has no thinking mode"
+  },
+  "perf": {
+    "tokens_per_second": 32.8,
+    "time_to_first_token_ms": 297.8
+  },
+  "evidence": {
+    "sha256": "a2968a6d99cd4f19db4808d7388e75adb5ff3da196ae88a6681e82b3c066c220",
+    "bytes": 274420
+  }
+}

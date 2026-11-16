@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "model": "qwen3-6-35b-a3b",
+  "benchmark": "decode-speed-gsm8k-200",
+  "benchmark_version": "2",
+  "score": 25.9,
+  "n": 200,
+  "run": {
+    "date": "2026-11-16",
+    "submitter": "bigshort2022",
+    "harness": {
+      "name": "unite4ai-eval",
+      "version": "0.2.0"
+    },
+    "command": "bun run eval -- --benchmark gsm8k-200 --model qwen3-6-35b-a3b --served-model mlx-community/Qwen3.6-35B-A3B-4bit-DWQ --submitter bigshort2022 --runtime mlx-lm --runtime-version 0.32.2 --format mlx --quantization 4bit-DWQ --notes 'thinking disabled (enable_thinking=false)' --base-url http://127.0.0.1:18082/v1 --max-seconds 10800"
+  },
+  "setup": {
+    "runtime": "mlx-lm",
+    "runtime_version": "0.32.2",
+    "format": "mlx",
+    "quantization": "4bit-DWQ",
+    "hardware": {
+      "device": "Apple M5 (Mac17,2)",
+      "accelerator": "apple-silicon",
+      "memory_gb": 32
+    },
+    "notes": "thinking disabled (enable_thinking=false)"
+  },
+  "perf": {
+    "tokens_per_second": 25.9,
+    "time_to_first_token_ms": 503.3
+  },
+  "evidence": {
+    "sha256": "9008aeda6d2ddbba0b40934b381fd089dc9b588eff756a45f2823fd9dfd5417a",
+    "bytes": 281738
+  }
+}

@@ -58,6 +58,10 @@ The results on this site were produced with the model's thinking mode switched o
 model spends part of each reply's token limit on reasoning, so scores are not comparable
 across the two modes. Each result states its mode in the setup notes.
 
+None of the runs here was made on an idle machine: the laptop was doing other work each
+time, and some runs were short of memory. Read their tokens per second as a floor for that
+hardware. The scores do not depend on speed.
+
 ## Limitations
 
 Read the upstream model card before use. Nothing here is a safety or fitness assessment.
