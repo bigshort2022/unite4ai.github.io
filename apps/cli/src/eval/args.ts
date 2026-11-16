@@ -2,17 +2,20 @@ import { basename, join } from 'node:path';
 import { EVAL_ACCELERATORS, EVAL_FORMATS, EVAL_RUNTIMES, evalResultSchema } from '@unite4ai/schema';
 import { withoutCredentials } from './client.ts';
 import type { Hardware } from './hardware.ts';
-import type { EvalOptions } from './run.ts';
+import { DEFAULT_MAX_SECONDS, DEFAULT_REQUEST_TIMEOUT_SECONDS, type EvalOptions } from './run.ts';
 
 const REQUIRED = ['benchmark', 'model', 'served-model', 'submitter', 'runtime', 'runtime-version', 'format', 'quantization'];
-const OPTIONAL = ['notes', 'base-url', 'max-seconds', 'source-file', 'device', 'accelerator', 'memory-gb'];
+const OPTIONAL = ['notes', 'base-url', 'max-seconds', 'request-timeout', 'source-file', 'device', 'accelerator', 'memory-gb'];
 
 export const EVAL_USAGE = `usage: bun run eval -- --benchmark <id> --model <model-card-id> --served-model <id of the model the server has loaded>
   --submitter <github-handle> --runtime <${EVAL_RUNTIMES.join('|')}> --runtime-version <version>
   --format <${EVAL_FORMATS.join('|')}> --quantization <text, e.g. 4bit or Q4_K_M or none>
   [--notes <one line about the setup, e.g. "thinking disabled">]
   [--base-url <url>] [--source-file <path>]
-  [--max-seconds 3600] (per invocation: a resumed run gets a fresh limit)
+  [--max-seconds ${DEFAULT_MAX_SECONDS}] (per invocation: a resumed run gets a fresh limit)
+      a 2048-token benchmark can take hours on a slow machine; the limit is checked between replies,
+      so a run can overrun it by one reply timeout; re-running the same command resumes
+  [--request-timeout ${DEFAULT_REQUEST_TIMEOUT_SECONDS}] (seconds allowed for one reply, at least 1; a slower reply fails its item)
   [--device <text>] [--accelerator <${EVAL_ACCELERATORS.join('|')}>] [--memory-gb <number>]`;
 
 const quote = (arg: string) => (/^[\w./:@=,+-]+$/.test(arg) ? arg : `'${arg.replace(/'/g, `'\\''`)}'`);
@@ -24,6 +27,13 @@ function oneOf(flag: string, value: string, allowed: readonly string[]): void {
 function positive(flag: string, value: string): number {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) throw new Error(`--${flag} must be a positive number`);
+  return parsed;
+}
+
+/** Below a second no reply could finish, and a value that rounds to no time at all would fail every item. */
+function requestTimeoutSeconds(value: string): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 1) throw new Error('--request-timeout must be a number of seconds, at least 1');
   return parsed;
 }
 
@@ -83,7 +93,10 @@ export function parseEvalArgs(
     contentRoot: join(context.root, 'apps/web/src/content'),
     workDir: join(context.root, '.agent/evals'),
     command: `bun run eval -- ${published.map(quote).join(' ')}`,
-    maxSeconds: flags.has('max-seconds') ? positive('max-seconds', get('max-seconds')) : 3600,
+    maxSeconds: flags.has('max-seconds') ? positive('max-seconds', get('max-seconds')) : DEFAULT_MAX_SECONDS,
+    requestTimeoutMs: Math.round(
+      (flags.has('request-timeout') ? requestTimeoutSeconds(get('request-timeout')) : DEFAULT_REQUEST_TIMEOUT_SECONDS) * 1000,
+    ),
     ...(flags.has('notes') ? { notes: get('notes') } : {}),
     ...(flags.has('source-file') ? { sourceFile: get('source-file') } : {}),
     hardware,

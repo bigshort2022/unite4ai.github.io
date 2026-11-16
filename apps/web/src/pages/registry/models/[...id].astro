@@ -22,10 +22,25 @@ const localGuide = d.inference?.run_local_guide?.startsWith('/')
   : d.inference?.run_local_guide;
 const evalData = await loadEvals();
 const benchmarkById = new Map(evalData.benchmarks.map((b) => [b.id, b]));
-const modelGroups = evalData.groups
-  .filter((g) => g.model === entry.id && benchmarkById.get(g.benchmark)?.data.version === g.benchmark_version)
+const ownGroups = evalData.groups.filter((g) => g.model === entry.id);
+const modelGroups = ownGroups
+  .filter((g) => benchmarkById.get(g.benchmark)?.data.version === g.benchmark_version)
   .sort((a, b) => byCodeUnit(a.benchmark, b.benchmark) || byCodeUnit(a.key, b.key));
-const setups = localSetups(evalData.runs.filter((run) => run.model === entry.id));
+// Benchmarks this model has results for only in versions before the current one: the table has
+// no row for them, and their runs are listed on the benchmark's page.
+const inTable = new Set(modelGroups.map((g) => g.benchmark));
+const earlier = [...new Set(ownGroups.map((g) => g.benchmark))]
+  .filter((id) => !inTable.has(id))
+  .sort(byCodeUnit)
+  .map((id) => ({
+    id,
+    name: benchmarkById.get(id)!.data.name,
+    versions: [...new Set(ownGroups.filter((g) => g.benchmark === id).map((g) => g.benchmark_version))].sort(byCodeUnit),
+  }));
+const setups = localSetups(
+  evalData.runs.filter((run) => run.model === entry.id),
+  new Map(evalData.benchmarks.map((b) => [b.id, b.data.version])),
+);
 ---
 <Base title={d.name} description={d.summary}>
   <article class="wrap section" data-pagefind-body data-pagefind-meta={`openness:${score}`} data-pagefind-filter={`license:${d.license}`}>
@@ -59,7 +74,7 @@ const setups = localSetups(evalData.runs.filter((run) => run.model === entry.id)
       <h2>Evaluations</h2>
       {modelGroups.length === 0 ? (
         <p style="color:var(--u-text-dim)">
-          No evaluation results yet. <a href={href('/evals')}>See the benchmarks and how results are submitted.</a>
+          {earlier.length === 0 ? 'No evaluation results yet.' : 'No results for the current benchmark versions yet.'} <a href={href('/evals')}>See the benchmarks and how results are submitted.</a>
         </p>
       ) : (
         <div class="eval-scroll" tabindex="0" role="region" aria-label={`Evaluation results for ${d.name}`}>
@@ -92,11 +107,18 @@ const setups = localSetups(evalData.runs.filter((run) => run.model === entry.id)
           </table>
         </div>
       )}
+      {earlier.length > 0 && (
+        <p style="margin-top:1rem;color:var(--u-text-dim)">
+          Results for earlier versions: {earlier.map((benchmark, index) => (
+            <>{index > 0 && ', '}<a href={href(`/evals/${benchmark.id}`)}>{benchmark.name}</a> ({benchmark.versions.map((version) => `v${version}`).join(', ')})</>
+          ))}
+        </p>
+      )}
 
       {setups.length > 0 && (
         <>
           <h3 style="margin-top:2rem">Runs locally on</h3>
-          <p style="color:var(--u-text-dim)">Best measured speed and lowest time to first token per setup; the two can come from different runs.</p>
+          <p style="color:var(--u-text-dim)">Best measured speed and lowest time to first token per setup, across runs of current benchmark versions; the two can come from different runs and different benchmarks.</p>
           <div class="eval-scroll" tabindex="0" role="region" aria-label={`Setups ${d.name} has been run on`}>
             <table class="eval-table">
               <caption class="sr-only">Setups {d.name} has been run on</caption>

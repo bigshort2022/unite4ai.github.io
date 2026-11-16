@@ -11,11 +11,13 @@ export const GET: APIRoute = async () => {
   const body = {
     schema_version: 1,
     notice: 'Results are self-reported by contributors. Each benchmark page lists every run with its reproduce command and evidence hash.',
+    note: "Groups include runs of previous benchmark versions; compare only groups whose benchmark_version equals the benchmark's version.",
     benchmarks: benchmarks.map((b) => ({
       id: b.id,
       name: b.data.name,
       category: b.data.category,
       version: b.data.version,
+      previous_versions: b.data.previous_versions,
       metric: b.data.metric.name,
       unit: b.data.metric.unit,
       higher_is_better: b.data.metric.higher_is_better,

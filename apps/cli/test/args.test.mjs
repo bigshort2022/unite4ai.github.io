@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { EVAL_USAGE, parseEvalArgs } from '../src/eval/args.ts';
+import { DEFAULT_MAX_SECONDS, DEFAULT_REQUEST_TIMEOUT_SECONDS } from '../src/eval/run.ts';
 
 const REQUIRED = [
   '--benchmark', 'gsm8k-200', '--model', 'model-a', '--served-model', 'org/model-a-4bit',
@@ -17,7 +18,12 @@ test('required flags map onto options, with defaults for the rest', () => {
   assert.equal(options.baseUrl, 'http://127.0.0.1:18082/v1');
   assert.equal(options.contentRoot, '/repo/apps/web/src/content');
   assert.equal(options.workDir, '/repo/.agent/evals');
-  assert.equal(options.maxSeconds, 3600);
+  // Four hours for the run and ten minutes for one reply: the runner's own defaults.
+  assert.equal(DEFAULT_MAX_SECONDS, 14_400);
+  assert.equal(DEFAULT_REQUEST_TIMEOUT_SECONDS, 600);
+  assert.equal(options.maxSeconds, 14_400);
+  assert.equal(options.requestTimeoutMs, 600_000);
+  // Only what was typed is recorded: a default is not written into the command.
   assert.equal(options.command, `bun run eval -- ${REQUIRED.join(' ')} --base-url http://127.0.0.1:18082/v1`);
   assert.deepEqual(options.hardware, {});
   assert.equal('notes' in options, false);
@@ -33,6 +39,24 @@ test('optional flags and the environment override defaults', () => {
   assert.deepEqual(options.hardware, { device: 'My Box', accelerator: 'nvidia', memory_gb: 24 });
   assert.equal(options.sourceFile, '/tmp/x.jsonl');
   assert.match(options.command, /--device 'My Box'/);
+});
+
+test('--request-timeout is seconds per reply, at least one, and is recorded in the command only when given', () => {
+  const options = parseEvalArgs([...REQUIRED, '--request-timeout', '900'], { root: '/repo', env });
+  assert.equal(options.requestTimeoutMs, 900_000);
+  assert.equal(options.command, `bun run eval -- ${REQUIRED.join(' ')} --request-timeout 900 --base-url http://127.0.0.1:18082/v1`);
+  assert.equal(parseEvalArgs([...REQUIRED, '--request-timeout', '1'], { root: '/repo', env }).requestTimeoutMs, 1000);
+  assert.equal(parseEvalArgs([...REQUIRED, '--request-timeout', '1.5'], { root: '/repo', env }).requestTimeoutMs, 1500);
+
+  // Below a second no reply could finish, and a value that rounds to nothing would fail every item.
+  for (const value of ['0.999', '0.5', '0.0001', '0', '-5', 'soon', '', 'Infinity', '10s']) {
+    assert.throws(
+      () => parseEvalArgs([...REQUIRED, '--request-timeout', value], { root: '/repo', env }),
+      /--request-timeout must be a number of seconds, at least 1/,
+      JSON.stringify(value),
+    );
+  }
+  assert.throws(() => parseEvalArgs([...REQUIRED, '--request-timeout'], { root: '/repo', env }), /--request-timeout needs a value/);
 });
 
 test('--notes carries one line about the setup into the options and the recorded command', () => {
@@ -62,9 +86,14 @@ test('the recorded command carries no local path and no credentials, and always 
   assert.throws(() => parseEvalArgs(REQUIRED, { root: '/repo', env: { AGENT_MODEL_BASE_URL: 'localhost' } }), /--base-url must be a URL/);
 });
 
-test('the usage text names --notes and says the time limit is per invocation', () => {
+test('the usage text names --notes and --request-timeout, and says how the time limit works', () => {
   assert.match(EVAL_USAGE, /\[--notes <[^>]+>\]/);
-  assert.match(EVAL_USAGE, /--max-seconds 3600[^\n]*per invocation[^\n]*resumed run gets a fresh limit/);
+  assert.match(EVAL_USAGE, /--max-seconds 14400[^\n]*per invocation[^\n]*resumed run gets a fresh limit/);
+  const usage = EVAL_USAGE.replace(/\s+/g, ' ');
+  assert.match(usage, /a 2048-token benchmark can take hours on a slow machine/);
+  assert.match(usage, /checked between replies, so a run can overrun it by one reply timeout/);
+  assert.match(usage, /re-running the same command resumes/);
+  assert.match(EVAL_USAGE, /\[--request-timeout 600\][^\n]*seconds[^\n]*one reply[^\n]*at least 1/);
 });
 
 test('missing flags are all named at once', () => {

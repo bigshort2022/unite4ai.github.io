@@ -92,7 +92,22 @@ Keep the transcript: it is your evidence. Running a finished configuration again
 same files; move its transcript away to start a new run. If the model can think before it
 answers, say with `--notes` whether thinking was enabled.
 
-`bun run validate` checks the files the same way CI does.
+`gsm8k-200` is at version 2: a reply may use up to 2048 new tokens (`canary-injection-v1`
+allows 512), and a reply that is cut off at that limit counts as wrong. The runner knows a
+reply was cut off from the server's finish reason or its token count, so a server that reports
+neither cannot run `gsm8k-200`: the run stops at the first such reply. A transcript of
+version 1 is not continued: a version 2 run starts its own.
+
+A 2048-token benchmark can take hours on a slow machine. One invocation runs for at most
+14400 seconds (four hours); change that with `--max-seconds`. The limit is checked between
+replies, so a run can overrun it by one reply timeout. The runner waits up to 600 seconds for
+one reply; raise that with `--request-timeout <seconds>` (at least 1). A reply that does not
+finish in time fails its item and the run stops without a result. Whichever limit stopped
+the run, re-running the same command resumes it.
+
+`bun run validate` checks the files the same way CI does. Results of a previous benchmark
+version stay in the repository and are listed on the benchmark page, not on the leaderboard;
+the check passes them with a warning.
 
 Adding a benchmark is a pull request with one markdown file in `apps/web/src/content/benchmarks/`.
 Scoring must be deterministic (exact match, multiple choice, canary detection, or a measured
