@@ -233,6 +233,12 @@ test('the governance metrics page computes its figures and prints no number of i
   );
   assert.match(metrics, /the median time from opening a pull request to merging it/);
   assert.match(metrics, /It is not a review time/);
+  // The two pull-request counts are lower bounds when the page of pull requests came back full, and say so.
+  assert.match(metrics, /A \+ after either number means that page of 100 was full, so there may be more\./);
+  assert.ok(metrics.includes(
+    "This page's script sets no cookies and sends nothing to a server of ours. GitHub receives those two requests.",
+  ));
+  assert.doesNotMatch(metrics, /records nothing about your visit/);
   assert.doesNotMatch(metrics, /first maintainer review comment|Median PR review \(days\)/);
 
   // The script is a module built from lib/repo-metrics and lib/site: one copy of each calculation,

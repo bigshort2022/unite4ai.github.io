@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { formatDuration, medianTimeToMerge, mergedInMonth, openPulls, peopleCount } from '../src/lib/repo-metrics.ts';
+import { countLabel, formatDuration, medianTimeToMerge, mergedInMonth, openPulls, peopleCount } from '../src/lib/repo-metrics.ts';
 
 const HOUR = 3_600_000;
 /** A pull request opened at noon on 1 November 2026 (UTC) and merged the given hours later, or still open. */
@@ -64,4 +64,12 @@ test('a full page of contributors is marked as a lower bound', () => {
   const page = [{ login: 'ada', type: 'User' }, { login: 'dependabot[bot]', type: 'Bot' }];
   assert.equal(peopleCount(page, 2), '1+');
   assert.equal(peopleCount(page, 3), '1');
+});
+
+test('a count from a full page of any list is a lower bound, and exact otherwise', () => {
+  // 3 open pull requests among a page of 100 that came back full: there may be more further on.
+  assert.equal(countLabel(3, 100, 100), '3+');
+  assert.equal(countLabel(0, 100, 100), '0+');
+  assert.equal(countLabel(3, 99, 100), '3');
+  assert.equal(countLabel(0, 0, 100), '0');
 });

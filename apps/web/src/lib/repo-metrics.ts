@@ -52,10 +52,18 @@ export function formatDuration(milliseconds: number): string {
 }
 
 /**
+ * A count taken from one page of a list. A full page may not be the whole list, so its count is
+ * a lower bound ("97+").
+ */
+export function countLabel(count: number, entries: number, pageSize: number): string {
+  return entries >= pageSize ? `${count}+` : String(count);
+}
+
+/**
  * How many people are in a page of contributors: accounts of type User whose login does not end
- * in "[bot]". A full page may not be the whole list, so its count is a lower bound ("97+").
+ * in "[bot]".
  */
 export function peopleCount(contributors: Contributor[], pageSize: number): string {
   const people = contributors.filter((account) => account.type === 'User' && !account.login.endsWith('[bot]')).length;
-  return contributors.length >= pageSize ? `${people}+` : String(people);
+  return countLabel(people, contributors.length, pageSize);
 }

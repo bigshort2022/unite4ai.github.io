@@ -23,11 +23,11 @@ import { PAGE_SIZE } from '../../lib/repo-metrics';
       <p class="eyebrow" style="margin-bottom:.5rem">How this is calculated</p>
       <ul style="margin:0;padding-left:1.2rem;line-height:1.8">
         <li>Median time to merge: the median time from opening a pull request to merging it, over the merged ones among the {PAGE_SIZE} most recently updated pull requests. Shown in hours with one decimal, or in minutes when under one hour. It is not a review time: the data used does not say when a review happened.</li>
-        <li>Open pull requests and Merged this month: counted among the same {PAGE_SIZE} pull requests. The month is the current calendar month in your browser's time zone.</li>
+        <li>Open pull requests and Merged this month: counted among the same {PAGE_SIZE} pull requests. The month is the current calendar month in your browser's time zone. A + after either number means that page of {PAGE_SIZE} was full, so there may be more.</li>
         <li>Contributors: the accounts of type User in the repository's contributor list, leaving out logins that end in [bot]. One page of up to {PAGE_SIZE} contributors is read; a + after the number means the page was full, so the list may be longer.</li>
         <li>N/A means the request for that figure failed (GitHub limits requests that are not signed in) or, for the median, that none of those pull requests was merged.</li>
         <li>Data source: the GitHub REST API, in two requests your browser sends when this page loads.</li>
-        <li>No cookies and no server of ours: this site records nothing about your visit. GitHub receives those two requests.</li>
+        <li>This page's script sets no cookies and sends nothing to a server of ours. GitHub receives those two requests.</li>
       </ul>
     </div>
 
@@ -38,7 +38,7 @@ import { PAGE_SIZE } from '../../lib/repo-metrics';
 
   <script>
     import { REPO_SLUG } from '../../lib/site';
-    import { PAGE_SIZE, formatDuration, medianTimeToMerge, mergedInMonth, openPulls, peopleCount } from '../../lib/repo-metrics';
+    import { PAGE_SIZE, countLabel, formatDuration, medianTimeToMerge, mergedInMonth, openPulls, peopleCount } from '../../lib/repo-metrics';
 
     const set = (key: string, value: string) => {
       const tile = document.querySelector(`[data-metric="${key}"]`);
@@ -57,8 +57,8 @@ import { PAGE_SIZE } from '../../lib/repo-metrics';
       .then((pulls) => {
         const median = medianTimeToMerge(pulls);
         set('time-to-merge', median === null ? 'N/A' : formatDuration(median));
-        set('open-prs', String(openPulls(pulls)));
-        set('merged-month', String(mergedInMonth(pulls, new Date())));
+        set('open-prs', countLabel(openPulls(pulls), pulls.length, PAGE_SIZE));
+        set('merged-month', countLabel(mergedInMonth(pulls, new Date()), pulls.length, PAGE_SIZE));
       })
       .catch(() => ['time-to-merge', 'open-prs', 'merged-month'].forEach((key) => set(key, 'N/A')));
 
