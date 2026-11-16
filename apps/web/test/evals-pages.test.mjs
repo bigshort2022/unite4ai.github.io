@@ -476,7 +476,7 @@ test('the home page lists, under the hero, one leading result for each benchmark
   // machine it ran on.
   assert.match(speed, /<td>Efficiency<\/td>/);
   assert.match(speed, new RegExp(`<a href="/evals/decode-speed-gsm8k-200">${benchmarkName('decode-speed-gsm8k-200')}</a>`));
-  assert.match(speed, /<span class="score">140\.25 tok\/s<\/span>\s*<small>Most recent<\/small>/);
+  assert.match(speed, /<span class="score">140\.25 tok\/s<\/span>\s*<small>Most recent<\/small>\s*<small>2026-11-05<\/small>/);
   assert.match(speed, /gguf · FIXTURE_Q\s*<small>llama\.cpp 0\.0\.0<\/small>\s*<small>Fixture Tower · 24 GB<\/small>/);
   assert.doesNotMatch(speed, /Fixture Laptop|Best score|tied with/);
   assert.doesNotMatch(leading, /class="rank|>Rank<|Fastest/);
@@ -498,6 +498,8 @@ test('a home row shows a tie, a reproduced leader with its range, the lowest sco
     result({ benchmark: 'fixture-error-rate', version: '1', score: 12, date: '2026-11-04', hash: '1', quantization: 'FIXTURE_Q8' }),
     // Speed: the fastest run is the oldest; the two newest share a date, and the slower has the lower id.
     result({ benchmark: 'decode-speed-gsm8k-200', score: 200, date: '2026-11-01', hash: '2', format: 'gguf', device: 'Fixture Tower', memory: 48 }),
+    // The laptop has two runs of different speeds, by two people: its group's median is 58.25.
+    result({ benchmark: 'decode-speed-gsm8k-200', score: 55, date: '2026-11-02', hash: '6', format: 'gguf', submitter: 'fixture-bot-2' }),
     result({ benchmark: 'decode-speed-gsm8k-200', score: 61.5, date: '2026-11-06', hash: '3', format: 'gguf' }),
     result({ benchmark: 'decode-speed-gsm8k-200', score: 140.25, date: '2026-11-06', hash: '5', format: 'gguf', device: 'Fixture Tower', memory: 24 }),
   ], {
@@ -543,10 +545,13 @@ test('a home row shows a tie, a reproduced leader with its range, the lowest sco
   assert.match(gsm8k, /mlx · FIXTURE_Q ?</);
   assert.match(gsm8k, /<span class="tag tag-open">reproduced by 1<\/span>/);
 
-  // Neither the fastest run (200) nor the faster of the two newest (140.25): the most recent by date, then id.
-  assert.match(speed, /<span class="score">61\.5 tok\/s<\/span> ?<small>Most recent<\/small> ?<\/td>/);
+  // Neither the fastest run (200) nor the faster of the two newest (140.25): the most recent by
+  // date, then id. The number is that run's own, not the median of its group (58.25) or its
+  // range; the reproduction is the group's, which a second person also ran.
+  assert.match(speed, /<span class="score">61\.5 tok\/s<\/span> ?<small>Most recent<\/small> ?<small>2026-11-06<\/small> ?<\/td>/);
   assert.match(speed, /gguf · FIXTURE_Q ?<small>llama\.cpp 0\.0\.0<\/small> ?<small>Fixture Laptop · 32 GB<\/small>/);
-  assert.doesNotMatch(speed, /200 tok|140\.25|Fixture Tower|tied with|Best score/);
+  assert.match(speed, /<span class="tag tag-open">reproduced by 1<\/span>/);
+  assert.doesNotMatch(speed, /200 tok|140\.25|58\.25|55 tok|range|2026-11-02|Fixture Tower|tied with|Best score/);
 });
 
 let earlierOnly;
@@ -567,8 +572,8 @@ test('when every run is of an earlier version, the home page lists no benchmark 
   assert.doesNotMatch(leading, /<table|\/evals\/gsm8k-200|>99%</);
   // "No results yet" would be false: there are runs, of versions that are no longer current.
   assert.match(leading, new RegExp(
-    'No results for the current benchmark versions yet\\. Earlier runs are listed on the '
-    + `<a href="/evals">leaderboards</a>\\. ${GUIDE}`,
+    "No results for the current benchmark versions yet\\. Earlier runs are listed on each benchmark's page, "
+    + `linked from the <a href="/evals">leaderboards</a>\\. ${GUIDE}`,
   ));
   assert.doesNotMatch(leading, /No results yet/);
   assert.match(leading, /<a href="\/evals">All leaderboards<\/a>/);
@@ -579,13 +584,13 @@ test('a benchmark with runs of earlier versions only says which version has no r
   const noneFor = (id) => `No results for version ${inHtml(currentVersion(id))} yet\\.`;
   const quality = categorySection(board, 'quality');
   assert.match(quality, new RegExp(
-    `${noneFor('gsm8k-200')} 2 runs of earlier versions are listed on the `
+    `${noneFor('gsm8k-200')} 2 results of earlier versions are listed on the `
     + `<a href="/evals/gsm8k-200"[^>]*>benchmark page</a>\\. ${GUIDE}`,
   ));
   assert.doesNotMatch(quality, /No results yet/);
   const efficiency = categorySection(board, 'efficiency');
   assert.match(efficiency, new RegExp(
-    `${noneFor('decode-speed-gsm8k-200')} 1 run of an earlier version is listed on the `
+    `${noneFor('decode-speed-gsm8k-200')} 1 result of an earlier version is listed on the `
     + `<a href="/evals/decode-speed-gsm8k-200"[^>]*>benchmark page</a>\\. ${GUIDE}`,
   ));
   assert.doesNotMatch(efficiency, /No results yet/);

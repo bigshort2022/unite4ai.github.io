@@ -86,9 +86,14 @@ export async function loadEvals() {
   };
 }
 
-/** The one group that stands for a board where there is room for a single row. */
+/** The one result that stands for a board where there is room for a single row. */
 export interface Headline {
+  /** The group shown, or the group of the run shown: the row's model, format, quantization and reproduction. */
   row: EvalGroup;
+  /** The newest run on a measured board, whose own score, runtime, machine and date the row gives; null on a ranked board. */
+  run: EvalRun | null;
+  /** The group's median on a ranked board; the newest run's own score on a measured one. */
+  score: number;
   /** What makes it the one shown: "Best score" or "Most recent". */
   label: string;
   /** How many other groups share its score; always 0 on a measured board, which is not ranked. */
@@ -97,19 +102,19 @@ export interface Headline {
 
 /**
  * A board's headline, or null for an empty board. A ranked board gives its best group. A measured
- * board has no winner, because a speed only compares on one machine: it gives the group of its
- * most recent run.
+ * board has no winner, because a speed only compares on one machine: it gives its most recent run.
  */
 export function headline(board: Board): Headline | null {
   const [best] = board.rows;
   if (!best) return null;
   if (!board.measured) {
-    return { row: best, label: 'Best score', tiedWith: board.rows.filter((row) => row.score === best.score).length - 1 };
+    const tiedWith = board.rows.filter((row) => row.score === best.score).length - 1;
+    return { row: best, run: null, score: best.score, label: 'Best score', tiedWith };
   }
   const [latest] = board.runs;
   // Every run of the current version is in exactly one of the board's groups.
   const row = board.rows.find((group) => group.run_ids.includes(latest.id)) as EvalGroup;
-  return { row, label: 'Most recent', tiedWith: 0 };
+  return { row, run: latest, score: latest.score, label: 'Most recent', tiedWith: 0 };
 }
 
 /** Two decimals at most, without trailing zeros (62, 62.5, 62.25); three significant digits below 1 (0.123). */
@@ -130,9 +135,9 @@ export function runtimeLabel(group: EvalGroup): string {
     : `${group.runtime} ${(group.runtime_versions ?? []).join(', ')}`;
 }
 
-/** The machine behind a group grouped by hardware ("MacBook Pro · 32 GB"); null for a group that pools machines. */
-export function deviceLine(group: EvalGroup): string | null {
-  return group.device === null ? null : `${group.device} · ${group.memory_gb} GB`;
+/** A machine and its memory ("MacBook Pro · 32 GB"): a run's, or that of a group grouped by hardware; null for a group that pools machines. */
+export function deviceLine(machine: { device: string | null; memory_gb: number | null }): string | null {
+  return machine.device === null ? null : `${machine.device} · ${machine.memory_gb} GB`;
 }
 
 /** "60–64" when the group's runs disagree, null when they all scored the same. */

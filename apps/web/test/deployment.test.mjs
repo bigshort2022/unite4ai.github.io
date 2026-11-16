@@ -113,7 +113,8 @@ test('the home page leads with evaluations and carries no fixture text', async (
   assert.equal(text.slice(heroStart, leading).split('<section').length - 1, 2);
   const results = text.slice(leading, text.indexOf('</section>', leading));
   assert.ok(results.includes(
-    'One row per benchmark: the leading result, its format and quantization, and how many others have reproduced it.',
+    'One row per benchmark that has a result for its current version: the best score, or for a speed benchmark '
+    + 'the most recent result, with its format and quantization and how many others have reproduced it.',
   ));
   assert.ok(results.includes('<a href="/evals">All leaderboards</a>'));
   assert.doesNotMatch(text, /Latest results/);
@@ -136,8 +137,8 @@ test('the home page leads with evaluations and carries no fixture text', async (
   );
   assert.ok(different.includes(
     'Every result names its model, runtime, quantization and machine, the exact command, and the hash of its '
-    + 'transcript. A second submitter running the same model, format and quantization turns "not yet reproduced" '
-    + 'into "reproduced by 1".',
+    + 'transcript. A second submitter running the same model, format and quantization (for a speed result, also '
+    + 'the same machine and runtime) turns "not yet reproduced" into "reproduced by 1".',
   ));
   // The cards sit two by two through a class, not an inline rule.
   assert.match(different, /<div class="grid grid-2 grid-pairs" style="margin-top:1\.8rem">/);
@@ -278,7 +279,7 @@ test('the home page and the leaderboards agree with the published results about 
   for (const [id, count] of earlier) {
     if (current.has(id)) continue;
     const said = `No results for version ${versions.get(id)} yet. `
-      + `${count === 1 ? '1 run of an earlier version is' : `${count} runs of earlier versions are`} listed on the <a href="/evals/${id}"`;
+      + `${count === 1 ? '1 result of an earlier version is' : `${count} results of earlier versions are`} listed on the <a href="/evals/${id}"`;
     assert.ok(board.includes(said), said);
     const detail = await page(`evals/${id}/index.html`);
     assert.match(detail, /<a href="#previous-versions">listed below<\/a>/, id);

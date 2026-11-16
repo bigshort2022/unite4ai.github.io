@@ -3,7 +3,7 @@ import Base from '../layouts/Base.astro';
 import NoResults from '../components/NoResults.astro';
 import { getCollection } from 'astro:content';
 import { reproductionLabel } from '@unite4ai/core';
-import { CATEGORY_LABELS, SUBMIT_GUIDE, deviceLine, formatNumber, headline, loadEvals, runtimeLabel, scoreRange, withUnit } from '../lib/evals';
+import { CATEGORY_LABELS, SUBMIT_GUIDE, deviceLine, formatNumber, headline, loadEvals, scoreRange, withUnit } from '../lib/evals';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const href = (p: string) => `${base}${p}` || '/';
@@ -12,7 +12,7 @@ const { benchmarks, boards, runs, runCount, modelNames } = await loadEvals();
 // One row for each benchmark that has a result for its current version.
 const leading = boards.flatMap((board) => {
   const shown = headline(board);
-  return shown ? [{ benchmark: board.benchmark, measured: board.measured, ...shown }] : [];
+  return shown ? [{ benchmark: board.benchmark, ...shown }] : [];
 });
 // Names both the table and the region that scrolls it; the section is named by its heading.
 const leadingCaption = 'The leading result of each benchmark; for a measured benchmark, its most recent result';
@@ -46,7 +46,7 @@ const nextEvents = events.filter((e) => e.data.starts > new Date()).slice(0, 2);
 
   <section class="wrap section" style="padding-top:0" aria-labelledby="leading-results-title">
     <h2 id="leading-results-title">Leading results</h2>
-    <p class="lede">One row per benchmark: the leading result, its format and quantization, and how many others have reproduced it.</p>
+    <p class="lede">One row per benchmark that has a result for its current version: the best score, or for a speed benchmark the most recent result, with its format and quantization and how many others have reproduced it.</p>
     {leading.length > 0 ? (
       <div class="eval-scroll" tabindex="0" role="region" aria-label={leadingCaption}>
         <table class="eval-table">
@@ -62,21 +62,22 @@ const nextEvents = events.filter((e) => e.data.starts > new Date()).slice(0, 2);
             </tr>
           </thead>
           <tbody>
-            {leading.map(({ benchmark, measured, row, label, tiedWith }) => (
+            {leading.map(({ benchmark, row, run, score, label, tiedWith }) => (
               <tr>
                 <td>{CATEGORY_LABELS[benchmark.data.category]}</td>
                 <th scope="row"><a href={href(`/evals/${benchmark.id}`)}>{benchmark.data.name}</a></th>
                 <td><a href={href(`/registry/models/${row.model}`)}>{modelNames.get(row.model) ?? row.model}</a></td>
                 <td class="num">
-                  <span class="score">{withUnit(formatNumber(row.score), benchmark.data.metric.unit)}</span>
-                  {scoreRange(row) && <small>range {scoreRange(row)}</small>}
+                  <span class="score">{withUnit(formatNumber(score), benchmark.data.metric.unit)}</span>
+                  {run === null && scoreRange(row) && <small>range {scoreRange(row)}</small>}
                   <small>{label}</small>
+                  {run !== null && <small>{run.run.date}</small>}
                   {tiedWith > 0 && <small>tied with {tiedWith} {tiedWith === 1 ? 'other' : 'others'}</small>}
                 </td>
                 <td>
                   {row.format} · {row.quantization}
-                  {measured && <small>{runtimeLabel(row)}</small>}
-                  {measured && deviceLine(row) && <small>{deviceLine(row)}</small>}
+                  {run !== null && <small>{run.setup.runtime} {run.setup.runtime_version}</small>}
+                  {run !== null && <small>{deviceLine(run.setup.hardware)}</small>}
                 </td>
                 <td><span class={`tag${row.submitters.length > 1 ? ' tag-open' : ''}`}>{reproductionLabel(row)}</span></td>
               </tr>
@@ -86,8 +87,8 @@ const nextEvents = events.filter((e) => e.data.starts > new Date()).slice(0, 2);
       </div>
     ) : runs.length > 0 ? (
       <div class="empty" style="margin-top:1rem">
-        No results for the current benchmark versions yet. Earlier runs are listed on the{' '}
-        <a href={href('/evals')}>leaderboards</a>.{' '}
+        No results for the current benchmark versions yet. Earlier runs are listed on each
+        benchmark's page, linked from the <a href={href('/evals')}>leaderboards</a>.{' '}
         <a href={SUBMIT_GUIDE}>How to submit one.</a>
       </div>
     ) : (
@@ -133,7 +134,7 @@ const nextEvents = events.filter((e) => e.data.starts > new Date()).slice(0, 2);
     <div class="grid grid-2 grid-pairs" style="margin-top:1.8rem">
       <article class="card">
         <h3>Scores you can replay</h3>
-        <p>Every result names its model, runtime, quantization and machine, the exact command, and the hash of its transcript. A second submitter running the same model, format and quantization turns "not yet reproduced" into "reproduced by 1".</p>
+        <p>Every result names its model, runtime, quantization and machine, the exact command, and the hash of its transcript. A second submitter running the same model, format and quantization (for a speed result, also the same machine and runtime) turns "not yet reproduced" into "reproduced by 1".</p>
       </article>
       <article class="card">
         <h3>Openness is graded, not claimed</h3>
