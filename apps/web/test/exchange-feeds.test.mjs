@@ -112,6 +112,27 @@ date: 2026-11-10 23:00:00 -08:00
   });
 });
 
+// Astro would load this as a UTC-midnight Date, indistinguishable from a plain date; the exchange reader must not.
+test('build fails closed on a midnight YAML timestamp that the gate also rejects', { timeout: 120_000 }, () => {
+  withBuildFixture(({ paths, build }) => {
+    writeFileSync(paths.hypothesis, `---
+title: Fixture hypothesis
+claim: Fixture model reaches the threshold.
+benchmark: gsm8k-200
+models: [darsy-xray-analysis]
+prediction: Fixture score exceeds 70.
+author: fixture-author
+date: 2026-11-10T00:00:00Z
+---
+`);
+    const rejected = build();
+    assert.notEqual(rejected.status, 0, 'a timestamp must stop publication');
+    const output = `${rejected.stdout}${rejected.stderr}`;
+    assert.match(output, /Invalid exchange files/);
+    assert.match(output, /hypotheses\/fixture-hypothesis\.md[\s\S]*must be YYYY-MM-DD/);
+  });
+});
+
 // Invalid candidates fail at the real build interface, exercising the mirrored schemas.
 for (const [name, file, invalid, message] of [
   ['an over-long hypothesis title', 'hypothesis', markdown({ ...h, title: 'x'.repeat(201) }), /title/],

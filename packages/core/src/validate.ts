@@ -132,7 +132,7 @@ export async function validateContent(contentRoot: string): Promise<ValidateResu
   });
 
   const catalog = await validateEvals(contentRoot, errors, warnings);
-  const exchange = await readExchangeRecords(contentRoot, (frontmatter) => Bun.YAML.parse(frontmatter));
+  const exchange = await readExchangeRecords(contentRoot);
   errors.push(...exchange.errors, ...validateExchange(exchange.records, catalog));
 
   return { errors, warnings };

@@ -27,7 +27,7 @@ test('empty exchange and a real file-backed review pass; byte changes invalidate
   });
   try {
     assert.deepEqual((await validateContent(root)).errors, []);
-    const loaded = await readExchangeRecords(root, (frontmatter) => Bun.YAML.parse(frontmatter));
+    const loaded = await readExchangeRecords(root);
     assert.equal(loaded.records.findings[0].sha256, hash(findingBytes));
     // JSON meaning is unchanged. Reviews and grafts must still pin the exact original bytes.
     appendFileSync(join(root, 'findings/fixture-finding.json'), '\n');
@@ -83,7 +83,7 @@ date: 2026-11-10
 ` } });
   try {
     assert.deepEqual((await validateContent(root)).errors, []);
-    const loaded = await readExchangeRecords(root, (frontmatter) => Bun.YAML.parse(frontmatter));
+    const loaded = await readExchangeRecords(root);
     assert.equal(loaded.records.hypotheses[0].data.date, '2026-11-10');
   } finally { rmSync(root, { recursive: true, force: true }); }
 });

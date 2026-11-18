@@ -11,6 +11,7 @@
     "./validate": "./src/validate.ts"
   },
   "dependencies": {
-    "@unite4ai/schema": "workspace:*"
+    "@unite4ai/schema": "workspace:*",
+    "yaml": "^2.9.0"
   }
 }

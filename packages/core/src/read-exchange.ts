@@ -1,14 +1,12 @@
 import { createHash } from 'node:crypto';
 import { lstat, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { parse as parseYaml } from 'yaml';
 import { CONTENT_ID, EXCHANGE_RECORD_MAX_BYTES, hypothesisSchema, findingSchema, reviewSchema } from '@unite4ai/schema';
 import type { ExchangeRecords } from './exchange.ts';
 
-/** YAML parsing is supplied by the caller: Bun's parser in the gate, Astro's collection parser at build time. */
-export async function readExchangeRecords(
-  root: string,
-  parseHypothesis: (frontmatter: string, id: string) => unknown,
-): Promise<{ records: ExchangeRecords; errors: string[] }> {
+/** The gate and the build parse frontmatter with this one YAML 1.2 parser, so timestamps stay text and fail the date rule. */
+export async function readExchangeRecords(root: string): Promise<{ records: ExchangeRecords; errors: string[] }> {
   const records: ExchangeRecords = { hypotheses: [], findings: [], reviews: [] };
   const errors: string[] = [];
   for (const kind of ['hypotheses', 'findings', 'reviews'] as const) {
@@ -57,7 +55,7 @@ export async function readExchangeRecords(
             errors.push(`${file}: Markdown body must be empty; use bounded frontmatter text`);
             continue;
           }
-          data = parseHypothesis(match[1], id);
+          data = parseYaml(match[1]);
         } else data = JSON.parse(raw);
       } catch (error) {
         errors.push(`${file}: cannot parse record (${(error as Error).message})`);
