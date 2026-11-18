@@ -174,3 +174,31 @@ test('removed exception labels cannot authorize immutable edits', async t => {
   f.files.push({ filename: prefix + 'reviews/old.json', status: 'removed' }); f.pr.changed_files++;
   await assert.rejects(f.run(), /immutable/);
 });
+
+test('renames and copies into record directories get identity, format, mode and size checks, never auto-publish', async t => {
+  const into = (f, status) => { f.files[0].status = status; f.files[0].previous_filename = 'docs/fixture-notes.md'; };
+  for (const status of ['renamed', 'copied']) {
+    const maintainer = { permission: 'admin', events: [{ event: 'labeled', label: { name: 'exchange:allow-record-edit' }, actor: { login: 'fixture-maintainer' } }] };
+    for (const [additions, options] of [
+      [{ 'hypotheses/fixture-new.md': markdown(hypothesis({ author: 'impostor' })) }],
+      [{ 'findings/fixture-new.json': JSON.stringify(finding({ author: 'impostor' })) }, maintainer],
+      [{ [`evals/${RESULT_ID}.json`]: JSON.stringify(result()) }],
+    ]) {
+      const f = fixture(t, additions, options); into(f, status);
+      if (options) f.pr.labels = [{ name: 'exchange:allow-record-edit' }];
+      f.files.push({ filename: 'package.json', status: 'modified' }); f.pr.changed_files++;
+      await assert.rejects(f.run({ publish: true, enabled: 'true' }), /identity/, status);
+      assert.equal(f.calls.some(c => c.method !== 'GET'), false);
+    }
+    const mdx = fixture(t, { 'hypotheses/x.mdx': markdown(hypothesis()) }); into(mdx, status);
+    await assert.rejects(mdx.run(), /path|format/);
+    const exec = fixture(t, undefined, { entry: { mode: '100755' } }); into(exec, status);
+    await assert.rejects(exec.run(), /regular/);
+    const large = fixture(t, { 'hypotheses/large.md': 'x'.repeat(16385) }); into(large, status);
+    await assert.rejects(large.run(), /16384/);
+    const valid = fixture(t); into(valid, status);
+    const out = await valid.run({ publish: true, enabled: 'true' });
+    assert.deepEqual([out.eligible, out.merged], [false, false]);
+    assert.equal(valid.calls.some(c => c.method !== 'GET'), false);
+  }
+});
