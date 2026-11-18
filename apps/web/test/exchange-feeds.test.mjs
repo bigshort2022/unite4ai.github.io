@@ -93,6 +93,25 @@ date: 2026-11-10
   });
 });
 
+// Astro would load this as a Date at 07:00 UTC on 2026-11-11, a day the author never wrote.
+test('build fails closed on a hypothesis YAML timestamp instead of shifting its date', { timeout: 120_000 }, () => {
+  withBuildFixture(({ paths, build }) => {
+    writeFileSync(paths.hypothesis, `---
+title: Fixture hypothesis
+claim: Fixture model reaches the threshold.
+benchmark: gsm8k-200
+models: [darsy-xray-analysis]
+prediction: Fixture score exceeds 70.
+author: fixture-author
+date: 2026-11-10 23:00:00 -08:00
+---
+`);
+    const rejected = build();
+    assert.notEqual(rejected.status, 0, 'a timestamp must stop publication');
+    assert.match(`${rejected.stdout}${rejected.stderr}`, /date.*Expected type `"string"`, received `"object"`/);
+  });
+});
+
 // Invalid candidates fail at the real build interface, exercising the mirrored schemas.
 for (const [name, file, invalid, message] of [
   ['an over-long hypothesis title', 'hypothesis', markdown({ ...h, title: 'x'.repeat(201) }), /title/],

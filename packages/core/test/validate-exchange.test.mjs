@@ -87,3 +87,21 @@ date: 2026-11-10
     assert.equal(loaded.records.hypotheses[0].data.date, '2026-11-10');
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+test('the gate rejects YAML timestamps, with or without an offset or a midnight time', async () => {
+  const stamps = ['2026-11-10T05:00:00Z', '2026-11-10 23:00:00 -08:00', '2026-11-10T00:00:00Z'];
+  const root = makeExchangeRoot({ hypotheses: Object.fromEntries(stamps.map((stamp, i) => [`fixture-stamp-${i}`, `---
+title: Fixture hypothesis
+claim: Fixture model reaches the threshold.
+benchmark: bench-a
+models: [model-a]
+prediction: Fixture score exceeds 70.
+author: fixture-author
+date: ${stamp}
+---
+`])) });
+  try {
+    const errors = (await validateContent(root)).errors;
+    stamps.forEach((stamp, i) => assert.ok(errors.some((error) => error.includes(`fixture-stamp-${i}`) && error.includes('date')), `${stamp}\n${errors.join('\n')}`));
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});

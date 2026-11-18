@@ -53,6 +53,10 @@ test('record dates, identities, ids, references and mandatory arrays have strict
   // Oracle: YAML 1.1 parsers (Astro frontmatter) load an unquoted date as a UTC-midnight Date.
   assert.equal(hypothesisSchema.parse(hypothesis({ date: new Date(Date.UTC(2026, 10, 10)) })).date, '2026-11-10');
   assert.equal(hypothesisSchema.safeParse(hypothesis({ date: new Date(Number.NaN) })).success, false);
+  // A YAML timestamp carries a time of day; converting it would publish a day the author never wrote.
+  for (const timestamp of ['2026-11-10T05:00:00Z', '2026-11-10T23:00:00-08:00', '2026-11-10T00:00:00.001Z']) {
+    assert.equal(hypothesisSchema.safeParse(hypothesis({ date: new Date(timestamp) })).success, false, timestamp);
+  }
   for (const author of ['Upper', 'a--b', '-start', 'end-', 'x'.repeat(40), 'a/b']) {
     assert.equal(hypothesisSchema.safeParse(hypothesis({ author })).success, false);
     assert.equal(reviewSchema.safeParse(review('', { reviewer: author })).success, false);
