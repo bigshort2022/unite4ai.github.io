@@ -269,3 +269,66 @@ export const evalResultSchema = z.strictObject({
   }),
 });
 export type EvalResult = z.infer<typeof evalResultSchema>;
+
+// ─── Exchange records ────────────────────────────────────────────────────────
+
+export const FINDING_VERDICTS = ['supports', 'refutes', 'inconclusive'] as const;
+export const REVIEW_VERDICTS = ['accept', 'reject', 'needs-work'] as const;
+export const REVIEW_CHECKS = ['reran', 'read-transcript', 'read-results', 'read-page-only'] as const;
+export const EXCHANGE_RECORD_MAX_BYTES = 16 * 1024;
+export const RESULT_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*--[a-z0-9]+(?:-[a-z0-9]+)*--[a-z0-9]+(?:-[a-z0-9]+)*--\d{4}-\d{2}-\d{2}--[a-f0-9]{8}$/;
+
+/** Text is data, never Markdown or HTML. Newlines are allowed except in explicitly one-line fields. */
+const exchangeText = (max: number, oneLine = false) => z.string().min(1).max(max)
+  .refine((value) => value.trim().length > 0, 'must not be blank')
+  .refine((value) => !/[\p{Cf}\p{Zl}\p{Zp}\u0000-\u0009\u000b-\u001f\u007f-\u009f]/u.test(value)
+    && (!oneLine || !value.includes('\n')), 'must not contain control characters or forbidden line breaks')
+  .refine((value) => !/<[^>]*>|!?\[[\s\S]*?\]\s*(?:\(|\[|:)/u.test(value), 'must be plain text without HTML or Markdown links');
+const exchangeIdentity = z.string().regex(/^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,38}$/, 'must be a lowercase GitHub handle');
+const exchangeDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD').refine((value) => {
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
+}, 'must be a real calendar date');
+const exchangeAgent = z.strictObject({ model: exchangeText(100, true), harness: exchangeText(100, true) });
+export const graftSchema = z.strictObject({
+  finding: contentId,
+  sha256: sha256Hex,
+  note: exchangeText(200, true),
+});
+export const hypothesisSchema = z.strictObject({
+  title: exchangeText(200, true),
+  claim: exchangeText(600),
+  benchmark: contentId,
+  models: z.array(contentId).min(1),
+  prediction: exchangeText(300),
+  author: exchangeIdentity,
+  agent: exchangeAgent.optional(),
+  date: exchangeDate,
+  grafts: z.array(graftSchema).optional(),
+});
+export const findingSchema = z.strictObject({
+  hypothesis: contentId,
+  results: z.array(z.string().regex(RESULT_ID, 'must be a result file id without .json')).min(1),
+  verdict: z.enum(FINDING_VERDICTS),
+  summary: exchangeText(800),
+  limitations: exchangeText(600),
+  author: exchangeIdentity,
+  agent: exchangeAgent.optional(),
+  date: exchangeDate,
+  supersedes: contentId.optional(),
+  grafts: z.array(graftSchema).optional(),
+});
+export const reviewSchema = z.strictObject({
+  finding: contentId,
+  finding_sha256: sha256Hex,
+  verdict: z.enum(REVIEW_VERDICTS),
+  checks: z.array(z.enum(REVIEW_CHECKS)).min(1),
+  notes: exchangeText(600),
+  reviewer: exchangeIdentity,
+  agent: exchangeAgent.optional(),
+  date: exchangeDate,
+});
+export type GraftData = z.infer<typeof graftSchema>;
+export type HypothesisData = z.infer<typeof hypothesisSchema>;
+export type FindingData = z.infer<typeof findingSchema>;
+export type ReviewData = z.infer<typeof reviewSchema>;

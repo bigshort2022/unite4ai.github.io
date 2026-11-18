@@ -8,6 +8,10 @@ import {
   EVAL_RUNTIMES,
   EVAL_SCORING,
   OPEN_LICENSES,
+  FINDING_VERDICTS,
+  REVIEW_VERDICTS,
+  REVIEW_CHECKS,
+  RESULT_ID,
 } from '@unite4ai/schema';
 
 /**
@@ -284,4 +288,66 @@ const evals = defineCollection({
   }),
 });
 
-export const collections = { models, datasets, compute, courses, events, posts, comments, benchmarks, evals };
+// Mirrors the exchange schemas in @unite4ai/schema with Astro's own Zod instance.
+const exchangeText = (max: number, oneLine = false) => z.string().min(1).max(max)
+  .refine((value) => value.trim().length > 0, 'must not be blank')
+  .refine((value) => !/[\p{Cf}\p{Zl}\p{Zp}\u0000-\u0009\u000b-\u001f\u007f-\u009f]/u.test(value)
+    && (!oneLine || !value.includes('\n')), 'must not contain control characters or forbidden line breaks')
+  .refine((value) => !/<[^>]*>|!?\[[\s\S]*?\]\s*(?:\(|\[|:)/u.test(value), 'must be plain text without HTML or Markdown links');
+const exchangeIdentity = z.string().regex(/^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,38}$/, 'must be a lowercase GitHub handle');
+const exchangeDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD').refine((value) => {
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
+}, 'must be a real calendar date');
+const exchangeAgent = z.strictObject({ model: exchangeText(100, true), harness: exchangeText(100, true) });
+const graftSchema = z.strictObject({
+  finding: contentId,
+  sha256: sha256Hex,
+  note: exchangeText(200, true),
+});
+// Fixture roots and their cache are isolated from production; an empty override falls back.
+const exchangeRoot = process.env.U4AI_EXCHANGE_DIR || './src/content';
+const hypotheses = defineCollection({
+  loader: glob({ pattern: '*.md', base: `${exchangeRoot}/hypotheses` }),
+  schema: z.strictObject({
+    title: exchangeText(200, true),
+    claim: exchangeText(600),
+    benchmark: contentId,
+    models: z.array(contentId).min(1),
+    prediction: exchangeText(300),
+    author: exchangeIdentity,
+    agent: exchangeAgent.optional(),
+    date: exchangeDate,
+    grafts: z.array(graftSchema).optional(),
+  }),
+});
+const findings = defineCollection({
+  loader: glob({ pattern: '*.json', base: `${exchangeRoot}/findings` }),
+  schema: z.strictObject({
+    hypothesis: contentId,
+    results: z.array(z.string().regex(RESULT_ID, 'must be a result file id without .json')).min(1),
+    verdict: z.enum(FINDING_VERDICTS),
+    summary: exchangeText(800),
+    limitations: exchangeText(600),
+    author: exchangeIdentity,
+    agent: exchangeAgent.optional(),
+    date: exchangeDate,
+    supersedes: contentId.optional(),
+    grafts: z.array(graftSchema).optional(),
+  }),
+});
+const reviews = defineCollection({
+  loader: glob({ pattern: '*.json', base: `${exchangeRoot}/reviews` }),
+  schema: z.strictObject({
+    finding: contentId,
+    finding_sha256: sha256Hex,
+    verdict: z.enum(REVIEW_VERDICTS),
+    checks: z.array(z.enum(REVIEW_CHECKS)).min(1),
+    notes: exchangeText(600),
+    reviewer: exchangeIdentity,
+    agent: exchangeAgent.optional(),
+    date: exchangeDate,
+  }),
+});
+
+export const collections = { models, datasets, compute, courses, events, posts, comments, benchmarks, evals, hypotheses, findings, reviews };

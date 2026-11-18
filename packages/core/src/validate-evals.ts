@@ -87,7 +87,7 @@ export async function validateEvals(
   errors: string[],
   warnings: string[],
   today: string = new Date().toISOString().slice(0, 10),
-): Promise<void> {
+): Promise<{ models: Set<string>; benchmarks: Map<string, BenchmarkData>; results: Map<string, EvalResult> }> {
   /** Model id to its card file, for the cards directly in models/: the ones a result can reference. */
   const models = new Map<string, string>();
   for (const card of await listModelCards(join(contentRoot, 'models'))) {
@@ -291,4 +291,9 @@ export async function validateEvals(
       }
     }
   }
+  return {
+    models: new Set(models.keys()),
+    benchmarks,
+    results: new Map(results.map(({ file, result }) => [file.slice(0, -'.json'.length), result])),
+  };
 }
