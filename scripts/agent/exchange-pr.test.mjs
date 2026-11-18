@@ -202,3 +202,33 @@ test('renames and copies into record directories get identity, format, mode and 
     assert.equal(valid.calls.some(c => c.method !== 'GET'), false);
   }
 });
+
+test('same-kind moves of existing records are maintenance, cross-kind renames are new identity claims', async t => {
+  const label = [{ name: 'exchange:allow-record-edit' }];
+  const maintainer = { permission: 'maintain', events: [{ event: 'labeled', label: label[0], actor: { login: 'fixture-maintainer' } }] };
+  const move = (f, from) => { f.files[0].status = 'renamed'; f.files[0].previous_filename = prefix + from; };
+
+  const finding_ = fixture(t, { 'findings/fixture-renamed.json': JSON.stringify(finding({ author: 'another-fixture-account' })) }, maintainer);
+  move(finding_, 'findings/fixture-old.json'); finding_.pr.labels = label;
+  const out = await finding_.run({ publish: true, enabled: 'true' });
+  assert.deepEqual([out.eligible, out.merged], [false, false]);
+  assert.equal(finding_.calls.some(c => c.method !== 'GET'), false);
+
+  const unlabelled = fixture(t, { 'findings/fixture-renamed.json': JSON.stringify(finding()) });
+  move(unlabelled, 'findings/fixture-old.json');
+  await assert.rejects(unlabelled.run(), /immutable/);
+
+  const hyp = fixture(t, { 'hypotheses/fixture-renamed.md': markdown(hypothesis({ author: 'another-fixture-account' })) });
+  move(hyp, 'hypotheses/fixture-old.md');
+  assert.equal((await hyp.run({ publish: true, enabled: 'true' })).merged, false);
+  assert.equal(hyp.calls.some(c => c.method !== 'GET'), false);
+
+  const cross = fixture(t, { 'hypotheses/fixture-new.md': markdown(hypothesis({ author: 'impostor' })) });
+  move(cross, `evals/${RESULT_ID}.json`);
+  await assert.rejects(cross.run({ publish: true, enabled: 'true' }), /identity/);
+  assert.equal(cross.calls.some(c => c.method !== 'GET'), false);
+
+  const crossLabelled = fixture(t, { 'hypotheses/fixture-new.md': markdown(hypothesis({ author: 'impostor' })) }, maintainer);
+  move(crossLabelled, 'reviews/fixture-old.json'); crossLabelled.pr.labels = label;
+  await assert.rejects(crossLabelled.run(), /identity/);
+});

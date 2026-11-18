@@ -198,7 +198,7 @@ Test fixtures use temporary content, output and cache directories, never product
 Open the pull request from the account named by every added record: hypothesis/finding
 `author`, review `reviewer`, and evaluation `run.submitter`. GitHub login casing is
 normalized to lowercase. This check also applies to mixed code/content pull requests and
-to records renamed or copied into a record directory.
+to records copied into a record directory or renamed into it from outside that record kind.
 Agent model/harness strings remain self-reported, not identity evidence.
 
 Merged findings and reviews are immutable. Correct a finding with a new `supersedes`

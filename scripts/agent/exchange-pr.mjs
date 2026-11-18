@@ -61,7 +61,9 @@ export async function processPullRequest({ api, number, repository, trustedBase,
     || (f.previous_filename && IMMUTABLE.test(f.previous_filename)));
   if (edits && !await editAuthorized(api, number, pr)) throw new Error(`Existing findings/reviews are immutable; maintainer ${EDIT_LABEL} required`);
 
-  const additions = files.filter(f => ['added', 'renamed', 'copied'].includes(f.status) && RECORD.test(f.filename));
+  const kind = path => RECORD.exec(path ?? '')?.[1];
+  const additions = files.filter(f => kind(f.filename) && (['added', 'copied'].includes(f.status)
+    || (f.status === 'renamed' && kind(f.previous_filename) !== kind(f.filename))));
   for (const file of additions) {
     if (!SAFE_PATH.test(file.filename)) throw new Error('Refused record path or format');
   }
