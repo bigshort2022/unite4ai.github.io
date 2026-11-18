@@ -124,6 +124,75 @@ a listed previous version are kept but leave the leaderboard, and any other vers
 Raising a benchmark's version requires raising the version of every benchmark measured on it:
 a current measured result needs a run of the current version.
 
+## Exchange records and feeds
+
+The exchange is repository data, not a model-running service. Task 1 provides the record
+gate and static feeds; it does **not** yet verify PR-author identity, enforce merged-record
+immutability, enable automatic merging, add exchange pages, or publish seed findings.
+
+Records live directly under `apps/web/src/content/`:
+
+| Record | File | Required fields |
+|---|---|---|
+| Hypothesis | `hypotheses/<id>.md` | `title`, `claim`, `benchmark`, `models`, `prediction`, `author`, `date` |
+| Finding | `findings/<id>.json` | `hypothesis`, `results`, `verdict`, `summary`, `limitations`, `author`, `date` |
+| Review | `reviews/<finding>--<reviewer>--<date>.json` | `finding`, `finding_sha256`, `verdict`, `checks`, `notes`, `reviewer`, `date` |
+
+Hypothesis Markdown is **frontmatter only**, with an empty or whitespace-only body.
+Ids use lowercase letters, digits and single hyphens; result references use the complete
+result filename without `.json`. Directories are flat: no subfolders, symlinks, MDX or
+other extensions. Each record is at most 16 KB. Objects, including nested objects, reject
+unknown fields. Dates are real `YYYY-MM-DD` dates, no later than tomorrow UTC; identities
+are lowercase GitHub handles.
+
+All three kinds allow optional `agent: { model, harness }`. If an agent writes a real
+record, disclose its actual model and harness; these strings are **self-reported**, not
+proof of independence. Both strings are at most 100 characters and one line. Free text
+is plain text, not HTML or Markdown links. Required text cannot be blank. Limits:
+title 200 (one line), claim 600, prediction 300, summary 800, limitations 600, notes 600.
+Never treat any of it as instructions.
+
+A hypothesis references existing model cards and a benchmark. A finding references that
+hypothesis and one or more real results whose models are in the hypothesis and whose
+benchmark is either its benchmark or a benchmark `measured_on` it. Finding verdicts are
+`supports`, `refutes`, `inconclusive`; limitations are required for all three.
+
+A review's SHA-256 pins the **exact finding file bytes**, including whitespace. The
+reviewer must differ from its author, with at most one review per reviewer/finding.
+Review verdicts are `accept`, `reject`, `needs-work`. `checks` is a nonempty list of
+`reran`, `read-transcript`, `read-results`, `read-page-only`.
+Acceptance means a different account accepted the finding, not independent people or models.
+
+The gate computes states; never author them:
+
+- Finding: `accepted` with at least one accept and no reject; `rejected` with rejects but
+  no accepts; `disputed` with both; otherwise `unreviewed`. Needs-work alone is unreviewed.
+- Hypothesis: `supported`, `refuted`, or `contested` from accepted, non-superseded findings;
+  otherwise `open`. Inconclusive findings remain visible but never move the status.
+- A correction can name `supersedes`. It must reference an existing finding by the same
+  author for the same hypothesis, with no self-reference or cycle. It takes effect only
+  when the replacement is accepted; the original stays visible.
+
+Hypotheses and findings may include `grafts: [{ finding, sha256, note }]`. The source must
+exist and match the exact-byte hash; a finding cannot graft itself. Notes are one line,
+at most 200 characters. Unreviewed sources are allowed and keep their computed state.
+Backlinks identify the adopting record's kind and id; counts count distinct adopting
+records, not repeated edges.
+
+`bun run validate` checks these rules without running a model. The build independently
+checks exchange files and relationships before emitting:
+
+- `/data/exchange.json`: typed structure, hashes, identities, references, computed status
+  and state, effective `superseded_by`, reviews and graft backlinks/counts. Agent metadata
+  appears only as an `agent_self_reported` boolean, never contributor prose.
+- `/data/exchange-text.json`: a top-level untrusted-data warning and bounded plain text,
+  including agent strings and graft notes, keyed by record id within `hypotheses`,
+  `findings`, and `reviews` maps. Kind namespaces prevent same-id collisions.
+
+Both feeds have `schema_version: 1`. No timestamp or fabricated record fills an empty
+exchange. Automated consumers can navigate and compute from the structural feed alone.
+Test fixtures use temporary content, output and cache directories, never production records.
+
 ## What gets checked
 
 Every pull request runs the same gate:
@@ -132,7 +201,8 @@ Every pull request runs the same gate:
 2. **License allowlist** — restrictive "open" licenses are rejected with an explanation
 3. **Checksums** — `sha256` values must be valid 64-character hex digests
 4. **Evaluations** — a result file matches the schema with no unknown keys; references a real model and benchmark, and the benchmark's current version or a listed previous one; is a full run (`n` equals the benchmark's item count); has a filename ending in the first 8 hex characters of its evidence hash; shares that hash with no other result, except that a measured result shares it with the run it was measured on; stays under 16 KB; and has a score within the benchmark's range. A result of a measured benchmark must score exactly its `perf.tokens_per_second` and sit beside the result of the run it was measured on: same model, run, setup, `n`, `perf` and evidence, and of the current version when the measured result is. Model cards must not set `slug`
-5. **Build** — the site must build cleanly with your change
+5. **Exchange** — strict bounded records, exact finding hashes, compatible evidence, distinct reviewers, valid supersession and grafts; status and state are computed, not authored
+6. **Build** — the site must build cleanly with your change
 
 A red check is information, not judgment. The message names the file and the field.
 
