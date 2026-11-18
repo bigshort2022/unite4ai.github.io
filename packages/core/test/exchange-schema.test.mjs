@@ -50,6 +50,9 @@ test('record dates, identities, ids, references and mandatory arrays have strict
     schemas.forEach((schema, i) => assert.equal(schema.safeParse({ ...samples[i], date }).success, false));
   }
   assert.equal(hypothesisSchema.safeParse(hypothesis({ date: '2024-02-29' })).success, true);
+  // Oracle: YAML 1.1 parsers (Astro frontmatter) load an unquoted date as a UTC-midnight Date.
+  assert.equal(hypothesisSchema.parse(hypothesis({ date: new Date(Date.UTC(2026, 10, 10)) })).date, '2026-11-10');
+  assert.equal(hypothesisSchema.safeParse(hypothesis({ date: new Date(Number.NaN) })).success, false);
   for (const author of ['Upper', 'a--b', '-start', 'end-', 'x'.repeat(40), 'a/b']) {
     assert.equal(hypothesisSchema.safeParse(hypothesis({ author })).success, false);
     assert.equal(reviewSchema.safeParse(review('', { reviewer: author })).success, false);

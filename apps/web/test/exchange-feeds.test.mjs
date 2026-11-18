@@ -11,39 +11,55 @@ const WEB = fileURLToPath(new URL('..', import.meta.url));
 const RESULT = 'darsy-xray-analysis--gsm8k-200--fixture-bot--2026-10-01--44444444';
 
 // Actual static endpoint output is the contract, not source-text assertions or in-tree fixtures.
-test('build emits honest structured and untrusted-text feeds and fails closed on invalid records', { timeout: 120_000 }, () => {
+// Each build is its own test with its own budget; every test gets a fresh, isolated fixture root.
+const h = hypothesis({ benchmark: 'gsm8k-200', models: ['darsy-xray-analysis'],
+  agent: { model: 'fixture-model-not-a-real-agent', harness: 'fixture-harness' } });
+const f = finding({ results: [RESULT] });
+const bytes = JSON.stringify(f, null, 2);
+const r = review(bytes);
+const REVIEW_ID = 'fixture-finding--fixture-reviewer--2026-11-11';
+
+function withBuildFixture(run) {
   const root = mkdtempSync(join(tmpdir(), 'u4ai-exchange-build-fixture-'));
   const out = join(root, 'output');
   for (const dir of ['hypotheses', 'findings', 'reviews']) mkdirSync(join(root, dir));
-  const h = hypothesis({ benchmark: 'gsm8k-200', models: ['darsy-xray-analysis'],
-    agent: { model: 'fixture-model-not-a-real-agent', harness: 'fixture-harness' } });
-  const f = finding({ results: [RESULT] });
-  const bytes = JSON.stringify(f, null, 2);
-  const r = review(bytes);
-  const hypothesisPath = join(root, 'hypotheses/fixture-hypothesis.md');
-  const findingPath = join(root, 'findings/fixture-finding.json');
-  const reviewPath = join(root, 'reviews/fixture-finding--fixture-reviewer--2026-11-11.json');
+  const paths = {
+    hypothesis: join(root, 'hypotheses/fixture-hypothesis.md'),
+    finding: join(root, 'findings/fixture-finding.json'),
+    review: join(root, `reviews/${REVIEW_ID}.json`),
+  };
   const build = () => spawnSync('bun', ['run', 'astro', 'build', '--outDir', out], {
     cwd: WEB, encoding: 'utf8', timeout: 120_000,
     env: { ...process.env, U4AI_EXCHANGE_DIR: root, U4AI_EVALS_DIR: './test/fixtures/evals' },
   });
-  try {
-    writeFileSync(hypothesisPath, markdown({ ...h, grafts: [{ finding: 'fixture-finding', sha256: hash(bytes), note: 'Fixture lineage.' }] }));
-    writeFileSync(findingPath, bytes);
-    // Initially unreviewed: neither the hypothesis status nor the graft may imply acceptance.
+  const feed = (name) => JSON.parse(readFileSync(join(out, `data/${name}.json`), 'utf8'));
+  try { run({ paths, build, feed }); } finally { rmSync(root, { recursive: true, force: true }); }
+}
+
+test('an unreviewed finding leaves the hypothesis open and its graft labelled unreviewed', { timeout: 120_000 }, () => {
+  withBuildFixture(({ paths, build, feed }) => {
+    writeFileSync(paths.hypothesis, markdown({ ...h, grafts: [{ finding: 'fixture-finding', sha256: hash(bytes), note: 'Fixture lineage.' }] }));
+    writeFileSync(paths.finding, bytes);
     const initial = build();
     assert.equal(initial.status, 0, `${initial.stdout}${initial.stderr}`);
-    let structure = JSON.parse(readFileSync(join(out, 'data/exchange.json'), 'utf8'));
+    const structure = feed('exchange');
     assert.equal(structure.hypotheses[0].status, 'open');
     assert.equal(structure.hypotheses[0].grafts[0].state, 'unreviewed');
     assert.deepEqual(structure.hypotheses[0].unreviewed_findings, ['fixture-finding']);
     assert.equal(structure.findings[0].graft_count, 1);
     assert.equal(structure.findings[0].sha256, hash(bytes));
-    writeFileSync(reviewPath, JSON.stringify(r));
+  });
+});
+
+test('an accepted review supports the hypothesis and prose appears only in the untrusted-text feed', { timeout: 120_000 }, () => {
+  withBuildFixture(({ paths, build, feed }) => {
+    writeFileSync(paths.hypothesis, markdown({ ...h, grafts: [{ finding: 'fixture-finding', sha256: hash(bytes), note: 'Fixture lineage.' }] }));
+    writeFileSync(paths.finding, bytes);
+    writeFileSync(paths.review, JSON.stringify(r));
     const accepted = build();
     assert.equal(accepted.status, 0, `${accepted.stdout}${accepted.stderr}`);
-    structure = JSON.parse(readFileSync(join(out, 'data/exchange.json'), 'utf8'));
-    const text = JSON.parse(readFileSync(join(out, 'data/exchange-text.json'), 'utf8'));
+    const structure = feed('exchange');
+    const text = feed('exchange-text');
     assert.equal(structure.hypotheses[0].status, 'supported');
     assert.equal(structure.findings[0].state, 'accepted');
     assert.equal(structure.reviews[0].finding_sha256, hash(bytes));
@@ -53,24 +69,47 @@ test('build emits honest structured and untrusted-text feeds and fails closed on
     }
     assert.equal(text.hypotheses['fixture-hypothesis'].title, h.title);
     assert.equal(text.findings['fixture-finding'].limitations, f.limitations);
-    assert.equal(text.reviews['fixture-finding--fixture-reviewer--2026-11-11'].notes, r.notes);
+    assert.equal(text.reviews[REVIEW_ID].notes, r.notes);
     assert.match(text.warning, /UNTRUSTED THIRD-PARTY CONTENT/);
+  });
+});
 
-    // Invalid candidates fail at the real build interface, exercising the mirrored schemas.
-    for (const [path, invalid, message] of [
-      [hypothesisPath, markdown({ ...h, title: 'x'.repeat(201) }), /title/],
-      [findingPath, JSON.stringify({ ...f, state: 'accepted' }), /state/],
-      [reviewPath, JSON.stringify({ ...r, checks: ['invented-check'] }), /checks/],
-      [hypothesisPath, markdown(h, '<script>fixture</script>'), /Markdown body must be empty/],
-      [findingPath, `${bytes}\n`, /finding_sha256 does not match/],
-    ]) {
-      writeFileSync(hypothesisPath, markdown(h));
-      writeFileSync(findingPath, bytes);
-      writeFileSync(reviewPath, JSON.stringify(r));
-      writeFileSync(path, invalid);
+// Oracle: Astro's YAML 1.1 frontmatter parser loads an unquoted date as a Date; the gate's parser keeps a string.
+test('a hypothesis with an unquoted YAML date builds and publishes the same YYYY-MM-DD the gate sees', { timeout: 120_000 }, () => {
+  withBuildFixture(({ paths, build, feed }) => {
+    writeFileSync(paths.hypothesis, `---
+title: Fixture hypothesis
+claim: Fixture model reaches the threshold.
+benchmark: gsm8k-200
+models: [darsy-xray-analysis]
+prediction: Fixture score exceeds 70.
+author: fixture-author
+date: 2026-11-10
+---
+`);
+    const built = build();
+    assert.equal(built.status, 0, `${built.stdout}${built.stderr}`);
+    assert.equal(feed('exchange').hypotheses[0].date, '2026-11-10');
+  });
+});
+
+// Invalid candidates fail at the real build interface, exercising the mirrored schemas.
+for (const [name, file, invalid, message] of [
+  ['an over-long hypothesis title', 'hypothesis', markdown({ ...h, title: 'x'.repeat(201) }), /title/],
+  ['an authored finding state', 'finding', JSON.stringify({ ...f, state: 'accepted' }), /state/],
+  ['an invented review check', 'review', JSON.stringify({ ...r, checks: ['invented-check'] }), /checks/],
+  ['a hypothesis Markdown body', 'hypothesis', markdown(h, '<script>fixture</script>'), /Markdown body must be empty/],
+  ['finding bytes that no longer match the review hash', 'finding', `${bytes}\n`, /finding_sha256 does not match/],
+]) {
+  test(`build fails closed on ${name}`, { timeout: 120_000 }, () => {
+    withBuildFixture(({ paths, build }) => {
+      writeFileSync(paths.hypothesis, markdown(h));
+      writeFileSync(paths.finding, bytes);
+      writeFileSync(paths.review, JSON.stringify(r));
+      writeFileSync(paths[file], invalid);
       const rejected = build();
       assert.notEqual(rejected.status, 0, 'invalid records must stop publication');
       assert.match(`${rejected.stdout}${rejected.stderr}`, message);
-    }
-  } finally { rmSync(root, { recursive: true, force: true }); }
-});
+    });
+  });
+}

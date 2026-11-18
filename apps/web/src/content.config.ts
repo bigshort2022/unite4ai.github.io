@@ -295,10 +295,13 @@ const exchangeText = (max: number, oneLine = false) => z.string().min(1).max(max
     && (!oneLine || !value.includes('\n')), 'must not contain control characters or forbidden line breaks')
   .refine((value) => !/<[^>]*>|!?\[[\s\S]*?\]\s*(?:\(|\[|:)/u.test(value), 'must be plain text without HTML or Markdown links');
 const exchangeIdentity = z.string().regex(/^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,38}$/, 'must be a lowercase GitHub handle');
-const exchangeDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD').refine((value) => {
-  const date = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
-}, 'must be a real calendar date');
+const exchangeDate = z.preprocess(
+  (value) => value instanceof Date && !Number.isNaN(value.valueOf()) ? value.toISOString().slice(0, 10) : value,
+  z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD').refine((value) => {
+    const date = new Date(`${value}T00:00:00Z`);
+    return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
+  }, 'must be a real calendar date'),
+);
 const exchangeAgent = z.strictObject({ model: exchangeText(100, true), harness: exchangeText(100, true) });
 const graftSchema = z.strictObject({
   finding: contentId,

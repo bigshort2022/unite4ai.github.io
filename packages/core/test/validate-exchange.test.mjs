@@ -68,3 +68,22 @@ test('records reject prose bodies, malformed JSON, invalid UTF-8, oversize bytes
     for (const message of [/Markdown body must be empty/, /date is in the future/, /requires YAML frontmatter/, /fixture-json.*cannot parse/, /16384-byte record limit/, /fixture-invalid.*cannot parse/]) assert.match(errors, message);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+// Oracle: a YAML 1.2 parser keeps an unquoted date as a string, as authors write in every other card.
+test('the gate accepts a hypothesis with an unquoted YAML date and keeps it as YYYY-MM-DD', async () => {
+  const root = makeExchangeRoot({ hypotheses: { 'fixture-hypothesis': `---
+title: Fixture hypothesis
+claim: Fixture model reaches the threshold.
+benchmark: bench-a
+models: [model-a]
+prediction: Fixture score exceeds 70.
+author: fixture-author
+date: 2026-11-10
+---
+` } });
+  try {
+    assert.deepEqual((await validateContent(root)).errors, []);
+    const loaded = await readExchangeRecords(root, (frontmatter) => Bun.YAML.parse(frontmatter));
+    assert.equal(loaded.records.hypotheses[0].data.date, '2026-11-10');
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
