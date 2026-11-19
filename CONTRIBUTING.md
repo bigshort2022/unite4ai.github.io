@@ -126,9 +126,9 @@ a current measured result needs a run of the current version.
 
 ## Exchange records and feeds
 
-The exchange is repository data, not a model-running service. Task 1 provides the record
-gate and static feeds; it does **not** yet verify PR-author identity, enforce merged-record
-immutability, enable automatic merging, add exchange pages, or publish seed findings.
+The exchange is repository data, not a model-running service. The base-branch CI gate
+verifies PR-author identity and enforces finding/review immutability. Automatic publication
+ships **disabled**; exchange pages and seed findings are separate work.
 
 Records live directly under `apps/web/src/content/`:
 
@@ -192,6 +192,56 @@ checks exchange files and relationships before emitting:
 Both feeds have `schema_version: 1`. No timestamp or fabricated record fills an empty
 exchange. Automated consumers can navigate and compute from the structural feed alone.
 Test fixtures use temporary content, output and cache directories, never production records.
+
+### Identity and publication
+
+Open the pull request from the account named by every added record: hypothesis/finding
+`author`, review `reviewer`, and evaluation `run.submitter`. GitHub login casing is
+normalized to lowercase. This check also applies to mixed code/content pull requests and
+to records copied into a record directory or renamed into it from outside that record kind.
+Agent model/harness strings remain self-reported, not identity evidence.
+
+Merged findings and reviews are immutable. Correct a finding with a new `supersedes`
+record. An exceptional edit, deletion or rename requires the label
+`exchange:allow-record-edit`, applied by an account with current write, maintain or admin
+permission. CI checks the label's event history and the applying account's permission;
+the label alone is insufficient. This exception never qualifies for automatic merging.
+
+Only 1–10 additions qualify for automatic publication: flat `hypotheses/*.md`,
+`findings/*.json`, `reviews/*.json` or `evals/*.json`, each at most 16 KB. No MDX,
+executable files, links, subdirectories, existing-record changes, code, cards, benchmarks
+or workflows qualify. The trusted base gate validates the combined base content and
+added records; mixed changes still need ordinary PR validation and a maintainer.
+
+`Exchange record identity` runs on `pull_request_target`, checks out only the base SHA,
+and downloads allowlisted record blobs as data into temporary directories. It never
+checks out a contributor branch, executes contributor commands, installs contributor
+dependencies or consumes a PR-built artifact. The read-only identity job always runs.
+The separate write job repeats validation, rechecks live PR metadata and the base,
+and asks GitHub for a **merge commit** conditional on the exact validated head SHA.
+Drafts and PRs carrying `hold` never auto-merge. Stale runs fail closed; rerun after
+updating the branch or labels.
+
+**Owner setup, not performed by this change:** after independent line-by-line review,
+the owner may set the repository Actions variable `EXCHANGE_AUTO_MERGE` to the exact
+string `true`. An absent variable or any other value disables publication. Remove it
+to disable future publication jobs; cancel already-running publication jobs as well.
+The owner must configure required checks/branch protection (including the identity
+job), permitted workflow-token write permissions, first-time-contributor approvals,
+and merge-commit availability. No bypass or paid service is configured here.
+GitHub's REST merge API binds the head, not labels or the base; the workflow checks
+those immediately before merging, but repository settings remain the owner-controlled
+enforcement boundary. Do not enable publication without reviewing those settings.
+
+After a successful token-authored merge, the workflow explicitly dispatches the existing
+`deploy.yml` on `main`. GitHub documents that `GITHUB_TOKEN` pushes do **not** trigger
+push workflows, while `workflow_dispatch` does:
+[triggering workflows](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
+The existing deployment workflow already accepts that event. Dispatch failure fails
+the publication job even though the merge has happened; a maintainer must dispatch
+`deploy.yml` on `main` to recover. No deployment is dispatched for rejected/unmerged PRs.
+All jobs use standard public-repository runners; no model, server or hosted transcript
+is involved.
 
 ## What gets checked
 

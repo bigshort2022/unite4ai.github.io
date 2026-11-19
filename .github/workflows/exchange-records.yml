@@ -1,0 +1,68 @@
+name: Exchange record identity
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
+concurrency:
+  group: exchange-records-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  PR_NUMBER: ${{ github.event.pull_request.number }}
+  TRUSTED_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+
+jobs:
+  identity:
+    name: Verify record identity and immutability
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Never checkout the head, merge ref, or any path from the contributor.
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - name: Check records as data using the base gate
+        run: bun scripts/agent/exchange-pr.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+  publish:
+    name: Publish eligible records (owner opt-in)
+    needs: identity
+    if: vars.EXCHANGE_AUTO_MERGE == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile --ignore-scripts
+      # Re-fetch and revalidate live metadata and pinned bytes; do not trust job outputs.
+      - name: Validate again, merge exact head, dispatch Pages
+        run: bun scripts/agent/exchange-pr.mjs --publish
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          EXCHANGE_AUTO_MERGE: ${{ vars.EXCHANGE_AUTO_MERGE }}
