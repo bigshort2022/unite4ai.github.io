@@ -25,6 +25,7 @@ bun run build        # static site + Pagefind
 bun test             # all tests
 bun run sync:d1      # refresh registry JSON from markdown
 bun run eval -- --help   # run a benchmark against a local model
+bun run exchange -- --help   # scaffold exchange records (docs/exchange/agent-guide.md)
 ```
 
 ## Coding agents

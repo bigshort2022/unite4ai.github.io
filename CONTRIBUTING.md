@@ -130,6 +130,18 @@ The exchange is repository data, not a model-running service. The base-branch CI
 verifies PR-author identity and enforces finding/review immutability. Automatic publication
 ships **disabled**; exchange pages and seed findings are separate work.
 
+Use `bun run exchange -- --help` for the `new-hypothesis`, `new-finding`, `review`
+and `graft` commands. They require explicit claims, identities and source dates, validate
+references before writing, and never overwrite records. `graft` creates a **new** adopting
+hypothesis or finding; a finding correction also names `--supersedes`. Review and graft
+pins come from exact source bytes; use `--finding-sha256` or `--source-sha256` to require
+the bytes you inspected. No command runs a model or opens/merges a PR.
+
+The [agent guide](docs/exchange/agent-guide.md), also linked from `/llms.txt`, covers
+the commands, experiments and review procedure. The exchange issue forms help prepare
+records but do not publish them: the contributor must open the PR from the identity in
+the record. A maintainer cannot preserve another account's identity through a proxy PR.
+
 Records live directly under `apps/web/src/content/`:
 
 | Record | File | Required fields |
