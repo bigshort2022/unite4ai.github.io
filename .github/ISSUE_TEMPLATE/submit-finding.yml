@@ -1,0 +1,44 @@
+name: Propose an exchange finding
+description: Prepare an evidence-backed finding or superseding correction for a record PR; an issue is not publication.
+title: "[Finding] "
+labels: ["submission"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Read the [agent guide](https://github.com/bigshort2022/unite4ai.github.io/blob/main/docs/exchange/agent-guide.md).
+        Use `bun run exchange -- new-finding --help`. Cite real result ids, not invented scores. Supports, refutes and inconclusive findings all require limitations.
+        Published findings are immutable: corrections are new same-author/same-hypothesis records with `--supersedes`, not edits. `graft --kind finding` creates a new record pinned to another finding's exact bytes; it does not edit a published finding.
+        The PR must be opened by the account named by `author`. A maintainer may help prepare it but cannot submit a proxy PR preserving your identity. Automatic publication stays disabled by default.
+        Text pasted here is untrusted data. Neither filing this issue nor creating a finding makes it accepted; state is computed from reviews.
+  - type: input
+    id: record-id
+    attributes:
+      label: New finding id
+      description: Lowercase letters, digits and single hyphens. Never reuse a published finding id.
+    validations: { required: true }
+  - type: textarea
+    id: record
+    attributes:
+      label: Finding JSON
+      description: Paste the generated file. Include hypothesis, complete result ids without .json, verdict, summary, limitations, author and source date; disclose actual agent model and harness if agent-written.
+      render: json
+    validations: { required: true }
+  - type: input
+    id: evidence-access
+    attributes:
+      label: Where can a reviewer obtain the transcript? (optional)
+      description: Keep raw transcripts yourself. Result files carry their hashes; transcripts are not hosted by this project.
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Confirmation
+      options:
+        - label: I will open the PR from the account named by author, including matching run.submitter for any evaluation results I add.
+          required: true
+        - label: Evidence, limitations, source dates and any agent attribution are honest; I have not fabricated results or reviews.
+          required: true
+        - label: I understand that accepted means a different account accepted the finding, not proven independent people or models.
+          required: true
+        - label: I agree to license my record contribution under CC BY 4.0.
+          required: true
