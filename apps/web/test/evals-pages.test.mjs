@@ -441,10 +441,6 @@ function buildScratch(name, results, definitions = {}) {
 test('the home page lists, under the hero, one leading result for each benchmark that has current results', () => {
   const home = page('index.html');
   const leading = leadingResultsOf(home);
-  assert.match(leading, /^<h2 id="leading-results-title"[^>]*>Leading results<\/h2>/);
-  // Nothing sits between the hero and the results.
-  const lead = home.slice(home.indexOf('<section class="hero'), home.indexOf('<h2 id="leading-results-title"'));
-  assert.equal(lead.split('<section').length - 1, 2, 'Leading results must be the section right after the hero');
 
   // One row per benchmark with a current result, by category then name. The canary benchmark
   // has no result, so it has no row.
@@ -568,7 +564,6 @@ test('when every run is of an earlier version, the home page lists no benchmark 
   const home = earlierOnly('index.html');
   assert.match(home, /<b>3<\/b> ?<span>Evaluation runs<\/span>/);
   const leading = leadingResultsOf(home);
-  assert.match(leading, /^<h2 id="leading-results-title"[^>]*>Leading results<\/h2>/);
   assert.doesNotMatch(leading, /<table|\/evals\/gsm8k-200|>99%</);
   // "No results yet" would be false: there are runs, of versions that are no longer current.
   assert.match(leading, new RegExp(

@@ -1,0 +1,40 @@
+---
+import { REQUEST_BUDGET, TIMEOUT_MS } from '../lib/exchange-latency';
+---
+<section class="exchange-section exchange-latency" aria-labelledby="latency-heading">
+  <h2 id="latency-heading">Record pull request latency</h2>
+  <p>Measured opening-to-merge time, not publication latency. A merged record appears after the next deploy; pages may be cached for some minutes after that.</p>
+  <div class="stats" aria-live="polite" aria-atomic="true">
+    <div class="stat"><b data-exchange-metric="median">Unavailable</b><span>Median time to merge · all history</span></div>
+    <div class="stat"><b data-exchange-metric="waiting">Unavailable</b><span>Record-only PRs waiting · all open PRs</span></div>
+  </div>
+  <p data-exchange-coverage>Loading public GitHub data in your browser…</p>
+  <noscript><p>JavaScript is disabled. Live latency and waiting counts are unavailable.</p></noscript>
+  <details>
+    <summary>Population, coverage and limits</summary>
+    <ul>
+      <li>PRs targeting main, with complete file lists containing only 1–10 added hypothesis (.md), finding, review or evaluation (.json) files in their flat content directories. This describes file shape, not successful validation or permission to merge.</li>
+      <li>Waiting counts every matching currently open PR, including drafts and held PRs. The median uses all matching merged PRs; closed unmerged PRs are excluded. No matching merged records means no median.</li>
+      <li>Each number is displayed only after its entire population has been enumerated. Your browser reads open PRs first, then closed PR history, with pages of 100 and complete file lists. The two populations are reported independently.</li>
+      <li>At most {REQUEST_BUDGET} requests and {TIMEOUT_MS / 1000} seconds per load. Rate limits, errors, invalid responses or exhausted budgets make affected metrics unavailable, never a partial total or a successful zero. GitHub responses are not an atomic snapshot; PRs may change during collection.</li>
+      <li>No token, cookies, persistent cache, polling or server of ours. GitHub receives these public API requests. Deploy and cache delay are not measured or promised.</li>
+    </ul>
+  </details>
+</section>
+<script>
+  import { collectExchangeLatency } from '../lib/exchange-latency';
+  import { formatDuration } from '../lib/repo-metrics';
+  import { REPO_SLUG } from '../lib/site';
+  const panel = document.querySelector('.exchange-latency');
+  if (panel) {
+    collectExchangeLatency(REPO_SLUG).then(({ waiting, median, requests }) => {
+      panel.querySelector('[data-exchange-metric="waiting"]')!.textContent = waiting.value === null ? 'Unavailable' : String(waiting.value);
+      panel.querySelector('[data-exchange-metric="median"]')!.textContent = median.value === null ? 'Unavailable' : formatDuration(median.value);
+      panel.querySelector('[data-exchange-coverage]')!.textContent = [
+        waiting.error ? `Waiting unavailable: ${waiting.error}` : `Waiting: complete open-PR population; ${waiting.inspected} PRs inspected, ${waiting.matched} record-only.`,
+        median.error ? `Median unavailable: ${median.error}` : `History: complete closed-PR population; ${median.inspected} PRs inspected, ${median.matched} merged record-only.${median.matched === 0 ? ' No merged records: median unavailable.' : ''}`,
+        `${requests} GitHub requests.`,
+      ].join(' ');
+    });
+  }
+</script>

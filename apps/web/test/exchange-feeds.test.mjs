@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { hypothesis, finding, review, hash, markdown } from '../../../packages/core/test/fixtures/exchange.mjs';
@@ -33,7 +33,8 @@ function withBuildFixture(run) {
     env: { ...process.env, U4AI_EXCHANGE_DIR: root, U4AI_EVALS_DIR: './test/fixtures/evals' },
   });
   const feed = (name) => JSON.parse(readFileSync(join(out, `data/${name}.json`), 'utf8'));
-  try { run({ paths, build, feed }); } finally { rmSync(root, { recursive: true, force: true }); }
+  const page = (path) => readFileSync(join(out, path), 'utf8');
+  try { run({ paths, build, feed, page }); } finally { rmSync(root, { recursive: true, force: true }); }
 }
 
 test('an unreviewed finding leaves the hypothesis open and its graft labelled unreviewed', { timeout: 120_000 }, () => {
@@ -71,6 +72,60 @@ test('an accepted review supports the hypothesis and prose appears only in the u
     assert.equal(text.findings['fixture-finding'].limitations, f.limitations);
     assert.equal(text.reviews[REVIEW_ID].notes, r.notes);
     assert.match(text.warning, /UNTRUSTED THIRD-PARTY CONTENT/);
+  });
+});
+
+test('record pages preserve computed lineage, corrections, review states and escaped untrusted prose', { timeout: 120_000 }, () => {
+  withBuildFixture(({ paths, build, feed, page }) => {
+    const root = dirname(dirname(paths.finding));
+    const records = {
+      'fixture-finding': { ...f, summary: 'Fixture &lt;script&gt;alert(1)&lt;/script&gt; & literal text' },
+      'fixture-correction': { ...f, verdict: 'refutes', supersedes: 'fixture-finding' },
+      'fixture-support': f,
+      'fixture-unreviewed': { ...f, verdict: 'inconclusive' },
+      'fixture-rejected': { ...f, verdict: 'refutes' },
+      'fixture-disputed': f,
+    };
+    for (const [id, data] of Object.entries(records)) writeFileSync(join(root, 'findings', `${id}.json`), JSON.stringify(data));
+    for (const [id, verdicts] of Object.entries({
+      'fixture-finding': ['accept'], 'fixture-correction': ['accept'], 'fixture-support': ['accept'],
+      'fixture-unreviewed': ['needs-work'], 'fixture-rejected': ['reject'], 'fixture-disputed': ['accept', 'reject'],
+    })) {
+      verdicts.forEach((verdict, index) => {
+        const reviewer = `fixture-reviewer-${index}`;
+        writeFileSync(join(root, 'reviews', `${id}--${reviewer}--2026-11-11.json`),
+          JSON.stringify(review(JSON.stringify(records[id]), { finding: id, reviewer, verdict })));
+      });
+    }
+    writeFileSync(paths.hypothesis, markdown({ ...h, title: 'Fixture & claim < 7', grafts: [
+      { finding: 'fixture-unreviewed', sha256: hash(JSON.stringify(records['fixture-unreviewed'])), note: 'Fixture & unreviewed source.' },
+      { finding: 'fixture-finding', sha256: hash(JSON.stringify(records['fixture-finding'])), note: 'Fixture old source.' },
+    ] }));
+    const built = build();
+    assert.equal(built.status, 0, `${built.stdout}${built.stderr}`);
+    assert.equal(feed('exchange').hypotheses[0].status, 'contested');
+    const hypothesisPage = page('exchange/hypotheses/fixture-hypothesis/index.html');
+    assert.match(hypothesisPage, /Computed status:[\s\S]*?>contested</);
+    assert.match(hypothesisPage, /Fixture &amp; claim &lt; 7/);
+    assert.match(hypothesisPage, /unreviewed source/);
+    assert.match(hypothesisPage, /superseded source/);
+    assert.match(hypothesisPage, /needs-work/);
+    for (const state of ['accepted', 'unreviewed', 'rejected', 'disputed']) assert.match(hypothesisPage, new RegExp(`>${state}<`));
+    const old = page('exchange/findings/fixture-finding/index.html');
+    assert.match(old, /Superseded by accepted replacement/);
+    assert.ok(old.includes('href="/exchange/findings/fixture-correction"'));
+    assert.ok(old.includes('Grafted by (1)'));
+    assert.match(old, /Fixture &amp;lt;script&amp;gt;/);
+    assert.doesNotMatch(old, /<script>alert/);
+    assert.ok(old.includes(hash(JSON.stringify(records['fixture-finding']))), 'review pins exact finding bytes');
+    assert.match(old, new RegExp(`href=\"/evals/gsm8k-200#run-${RESULT}\"`));
+    assert.match(page('evals/gsm8k-200/index.html'), new RegExp(`id=\"run-${RESULT}\"`));
+    const model = page('registry/models/darsy-xray-analysis/index.html');
+    assert.ok(model.includes('href="/exchange/hypotheses/fixture-hypothesis"'));
+    assert.ok(model.includes('href="/exchange/findings/fixture-correction"'));
+    const home = page('index.html');
+    assert.ok(home.includes('href="/exchange/findings/fixture-unreviewed"'));
+    assert.ok(page('exchange/biases/index.html').includes('16.7% (1 / 6)'));
   });
 });
 

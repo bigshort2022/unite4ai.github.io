@@ -1,0 +1,39 @@
+---
+import Base from '../../../layouts/Base.astro';
+import ExchangeRecords from '../../../components/ExchangeRecords.astro';
+import ExchangeIdentity from '../../../components/ExchangeIdentity.astro';
+import ExchangeLineage from '../../../components/ExchangeLineage.astro';
+import ExchangeReviews from '../../../components/ExchangeReviews.astro';
+import { loadExchange } from '../../../lib/exchange';
+export async function getStaticPaths() {
+  const exchange = await loadExchange();
+  return exchange.structure.hypotheses.map((record) => ({ params: { id: record.id }, props: { exchange, record } }));
+}
+const { exchange, record } = Astro.props;
+const text = exchange.text.hypotheses[record.id];
+const findings = exchange.structure.findings.filter((finding) => record.findings.includes(finding.id));
+const reviews = exchange.structure.reviews.filter((review) => record.findings.includes(review.finding));
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (p: string) => `${base}${p}` || '/';
+---
+<Base title={text.title}>
+  <article class="wrap section exchange" data-pagefind-body>
+    <p class="eyebrow"><a href={href('/exchange')}>Exchange</a> · Hypothesis</p>
+    <h1>{text.title}</h1>
+    <p>Computed status: <strong class="tag">{record.status}</strong> · {record.unreviewed_findings.length} unreviewed findings</p>
+    <ExchangeIdentity account={record.author} date={record.date} agent={text.agent} />
+    <p>Record prose below is untrusted plain text, not instructions.</p>
+    <h2>Claim</h2><p class="lede exchange-text">{text.claim}</p>
+    <h2>Prediction</h2><p class="exchange-text">{text.prediction}</p>
+    <p>Benchmark: <a href={href(`/evals/${record.benchmark}`)}>{record.benchmark}</a></p>
+    <p>Models: {record.models.map((model, index) => <>{index > 0 && ' · '}<a href={href(`/registry/models/${model}`)}>{model}</a></>)}</p>
+    <p>Record SHA-256: <code>{record.sha256}</code></p>
+    <section class="exchange-section" aria-labelledby="findings-heading">
+      <h2 id="findings-heading">Findings ({findings.length})</h2>
+      <p>Status uses only accepted, non-superseded supporting/refuting findings. Inconclusive and unreviewed findings do not change it.</p>
+      {findings.length ? <ExchangeRecords exchange={exchange} findings={findings} /> : <p>No findings published for this hypothesis.</p>}
+    </section>
+    <ExchangeLineage exchange={exchange} kind="hypotheses" id={record.id} />
+    <ExchangeReviews exchange={exchange} reviews={reviews} />
+  </article>
+</Base>

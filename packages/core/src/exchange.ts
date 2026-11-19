@@ -14,6 +14,36 @@ export interface ExchangeCatalog {
 export type FindingState = 'unreviewed' | 'accepted' | 'rejected' | 'disputed';
 export type HypothesisStatus = 'open' | 'supported' | 'refuted' | 'contested';
 
+export interface ExchangeGraft { finding: string; sha256: string; state: FindingState }
+export interface ExchangeHypothesis extends Pick<HypothesisData, 'benchmark' | 'models' | 'author' | 'date'> {
+  id: string; sha256: string; agent_self_reported: boolean; status: HypothesisStatus;
+  grafts: ExchangeGraft[]; findings: string[]; unreviewed_findings: string[];
+}
+export interface ExchangeFinding extends Pick<FindingData, 'hypothesis' | 'results' | 'verdict' | 'author' | 'date'> {
+  id: string; sha256: string; agent_self_reported: boolean; state: FindingState;
+  supersedes: string | null; superseded_by: string[]; reviews: string[]; grafts: ExchangeGraft[];
+  grafted_by: { kind: 'hypotheses' | 'findings'; id: string }[]; graft_count: number;
+}
+export interface ExchangeReview extends Pick<ReviewData, 'finding' | 'finding_sha256' | 'verdict' | 'checks' | 'reviewer' | 'date'> {
+  id: string; sha256: string; agent_self_reported: boolean;
+}
+export interface ExchangeStructure {
+  schema_version: number; hypotheses: ExchangeHypothesis[]; findings: ExchangeFinding[]; reviews: ExchangeReview[];
+}
+interface RecordText {
+  agent: NonNullable<HypothesisData['agent']> | null;
+  grafts: { finding: string; note: string }[];
+}
+export interface ExchangeFeeds {
+  structure: ExchangeStructure;
+  text: {
+    warning: string; schema_version: number;
+    hypotheses: Record<string, Pick<HypothesisData, 'title' | 'claim' | 'prediction'> & RecordText>;
+    findings: Record<string, Pick<FindingData, 'summary' | 'limitations'> & RecordText>;
+    reviews: Record<string, Pick<ReviewData, 'notes'> & { agent: NonNullable<ReviewData['agent']> | null }>;
+  };
+}
+
 /** Schema-validated records only. Hashes are of the original file bytes, not reserialized JSON. */
 export function validateExchange(records: ExchangeRecords, catalog: ExchangeCatalog): string[] {
   const errors: string[] = [];
@@ -98,7 +128,7 @@ export function validateExchange(records: ExchangeRecords, catalog: ExchangeCata
 }
 
 /** Explicit allowlists keep every contributor-written text field out of the structural feed. */
-export function buildExchangeFeeds(records: ExchangeRecords, catalog: ExchangeCatalog) {
+export function buildExchangeFeeds(records: ExchangeRecords, catalog: ExchangeCatalog): ExchangeFeeds {
   const errors = validateExchange(records, catalog);
   if (errors.length) throw new Error(`Invalid exchange records:\n${errors.join('\n')}`);
   const ordered = {
