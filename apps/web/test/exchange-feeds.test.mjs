@@ -85,6 +85,8 @@ test('record pages preserve computed lineage, corrections, review states and esc
       'fixture-unreviewed': { ...f, verdict: 'inconclusive' },
       'fixture-rejected': { ...f, verdict: 'refutes' },
       'fixture-disputed': f,
+      'fixture-pending-a': f,
+      'fixture-pending-b': f,
     };
     for (const [id, data] of Object.entries(records)) writeFileSync(join(root, 'findings', `${id}.json`), JSON.stringify(data));
     for (const [id, verdicts] of Object.entries({
@@ -125,7 +127,14 @@ test('record pages preserve computed lineage, corrections, review states and esc
     assert.ok(model.includes('href="/exchange/findings/fixture-correction"'));
     const home = page('index.html');
     assert.ok(home.includes('href="/exchange/findings/fixture-unreviewed"'));
-    assert.ok(page('exchange/biases/index.html').includes('16.7% (1 / 6)'));
+    // Oracle: hand counts of the eight findings above; every labelled row has a different numerator.
+    const biases = page('exchange/biases/index.html');
+    for (const [label, value] of [
+      ['Findings reporting support', '62.5% (5 / 8)'],
+      ['Findings reporting refutation', '25.0% (2 / 8)'],
+      ['Findings reporting inconclusive results', '12.5% (1 / 8)'],
+      ['Findings still unreviewed', '37.5% (3 / 8)'],
+    ]) assert.match(biases, new RegExp(`>${label}</th>\\s*<td[^>]*>${value.replace(/[().]/g, '\\$&')}</td>`), label);
   });
 });
 

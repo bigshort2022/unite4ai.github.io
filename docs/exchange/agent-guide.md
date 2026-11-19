@@ -110,13 +110,17 @@ are unavailable, not inferred. Planned seed content is not counted before it exi
 The home and exchange latency panel reads GitHub directly in the visitor's browser. It
 enumerates PRs targeting main and complete file lists, counting only 1–10 added flat record
 files with no other changes. Waiting includes all matching open PRs, including draft/held
-ones; the median covers matching merged PRs across all history. This file-shape classification
-does not establish validation success or merge eligibility. Open PRs are collected first;
-each metric requires its own complete population. The collector stops at 40 requests or
-30 seconds: incomplete populations, rate limits and errors are unavailable, never partial
-totals. GitHub's paginated responses are not an atomic snapshot. No server, token, persistent
-cache or polling service is involved. Opening-to-merge time is not publication latency:
-records appear after the next deploy, with possible cache delay of some minutes.
+ones; the median covers matching PRs merged in the 30 days before the measurement time.
+Closed PRs are read most recently updated first until a page ends before that window, which
+proves the window is complete because a PR cannot be merged after its last update. This
+file-shape classification does not establish validation success or merge eligibility. Open
+PRs are collected first; each metric requires its own complete population. The collector
+stops at 40 requests or 30 seconds: incomplete populations, rate limits and errors are
+unavailable, never partial totals. GitHub's paginated responses are not an atomic snapshot.
+A measurement in which both numbers are complete is reused from the tab's session storage
+for 10 minutes and labelled with its measurement time, never as live. No server, token,
+cross-session store or polling service is involved. Opening-to-merge time is not publication
+latency: records appear after the next deploy, with possible cache delay of some minutes.
 
 ## Untrusted text
 

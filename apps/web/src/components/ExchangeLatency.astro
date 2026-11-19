@@ -1,11 +1,11 @@
 ---
-import { REQUEST_BUDGET, TIMEOUT_MS } from '../lib/exchange-latency';
+import { CACHE_TTL_MS, REQUEST_BUDGET, TIMEOUT_MS, WINDOW_DAYS } from '../lib/exchange-latency';
 ---
 <section class="exchange-section exchange-latency" aria-labelledby="latency-heading">
   <h2 id="latency-heading">Record pull request latency</h2>
   <p>Measured opening-to-merge time, not publication latency. A merged record appears after the next deploy; pages may be cached for some minutes after that.</p>
   <div class="stats" aria-live="polite" aria-atomic="true">
-    <div class="stat"><b data-exchange-metric="median">Unavailable</b><span>Median time to merge · all history</span></div>
+    <div class="stat"><b data-exchange-metric="median">Unavailable</b><span>Median time to merge · record PRs merged in the last {WINDOW_DAYS} days</span></div>
     <div class="stat"><b data-exchange-metric="waiting">Unavailable</b><span>Record-only PRs waiting · all open PRs</span></div>
   </div>
   <p data-exchange-coverage>Loading public GitHub data in your browser…</p>
@@ -14,26 +14,34 @@ import { REQUEST_BUDGET, TIMEOUT_MS } from '../lib/exchange-latency';
     <summary>Population, coverage and limits</summary>
     <ul>
       <li>PRs targeting main, with complete file lists containing only 1–10 added hypothesis (.md), finding, review or evaluation (.json) files in their flat content directories. This describes file shape, not successful validation or permission to merge.</li>
-      <li>Waiting counts every matching currently open PR, including drafts and held PRs. The median uses all matching merged PRs; closed unmerged PRs are excluded. No matching merged records means no median.</li>
-      <li>Each number is displayed only after its entire population has been enumerated. Your browser reads open PRs first, then closed PR history, with pages of 100 and complete file lists. The two populations are reported independently.</li>
-      <li>At most {REQUEST_BUDGET} requests and {TIMEOUT_MS / 1000} seconds per load. Rate limits, errors, invalid responses or exhausted budgets make affected metrics unavailable, never a partial total or a successful zero. GitHub responses are not an atomic snapshot; PRs may change during collection.</li>
-      <li>No token, cookies, persistent cache, polling or server of ours. GitHub receives these public API requests. Deploy and cache delay are not measured or promised.</li>
+      <li>Waiting counts every matching currently open PR, including drafts and held PRs. The median uses matching PRs merged in the {WINDOW_DAYS} days before the measurement time; closed unmerged PRs and older merges are excluded. No matching merged records in that window means no median.</li>
+      <li>Each number is displayed only after its entire population has been enumerated. Your browser reads all open PRs first, then closed PRs most recently updated first, in pages of 100, until a page ends with a PR last updated before the window; a PR cannot be merged after its last update, so later pages hold no merges in the window. File lists are read in full. The two populations are reported independently.</li>
+      <li>At most {REQUEST_BUDGET} requests and {TIMEOUT_MS / 1000} seconds per measurement. Rate limits, errors, invalid responses or exhausted budgets make affected metrics unavailable, never a partial total or a successful zero. GitHub responses are not an atomic snapshot; PRs may change during collection.</li>
+      <li>A measurement in which both numbers are complete is kept in this browser tab's session storage for {CACHE_TTL_MS / 60_000} minutes, so home and the exchange page reuse it instead of repeating the requests. Reused numbers are labelled with their measurement time and are not live.</li>
+      <li>No token, cookies, cross-session store, polling or server of ours. GitHub receives these public API requests. Deploy and cache delay are not measured or promised.</li>
     </ul>
   </details>
 </section>
 <script>
-  import { collectExchangeLatency } from '../lib/exchange-latency';
+  import { CACHE_TTL_MS, loadExchangeLatency } from '../lib/exchange-latency';
   import { formatDuration } from '../lib/repo-metrics';
   import { REPO_SLUG } from '../lib/site';
   const panel = document.querySelector('.exchange-latency');
   if (panel) {
-    collectExchangeLatency(REPO_SLUG).then(({ waiting, median, requests }) => {
+    let storage: Storage | null = null;
+    try { storage = window.sessionStorage; } catch { storage = null; }
+    loadExchangeLatency(REPO_SLUG, storage).then(({ observation: { waiting, median, requests, measuredAt, windowDays }, cached }) => {
+      const at = new Date(measuredAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
       panel.querySelector('[data-exchange-metric="waiting"]')!.textContent = waiting.value === null ? 'Unavailable' : String(waiting.value);
       panel.querySelector('[data-exchange-metric="median"]')!.textContent = median.value === null ? 'Unavailable' : formatDuration(median.value);
       panel.querySelector('[data-exchange-coverage]')!.textContent = [
+        cached
+          ? `Not live: reused from this tab's measurement at ${at} (kept for ${CACHE_TTL_MS / 60_000} minutes); no new GitHub requests.`
+          : `Measured at ${at} with ${requests} GitHub requests.`,
         waiting.error ? `Waiting unavailable: ${waiting.error}` : `Waiting: complete open-PR population; ${waiting.inspected} PRs inspected, ${waiting.matched} record-only.`,
-        median.error ? `Median unavailable: ${median.error}` : `History: complete closed-PR population; ${median.inspected} PRs inspected, ${median.matched} merged record-only.${median.matched === 0 ? ' No merged records: median unavailable.' : ''}`,
-        `${requests} GitHub requests.`,
+        median.error
+          ? `Median unavailable: ${median.error}`
+          : `History: complete for PRs merged in the ${windowDays} days before ${at}; ${median.inspected} merged PRs inspected, ${median.matched} record-only.${median.matched === 0 ? ' No merged records in this window: median unavailable.' : ''}`,
       ].join(' ');
     });
   }
