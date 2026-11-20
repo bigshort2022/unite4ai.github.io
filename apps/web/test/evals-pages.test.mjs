@@ -93,7 +93,7 @@ test('the published results pass the content gate; the version 1 GSM8K run and i
 
 test('leaderboard and benchmark page render fixture results', { timeout: 120_000 }, () => {
   const build = buildWith('./test/fixtures/evals', out);
-  assert.equal(build.status, 0, `${build.stdout}${build.stderr}`);
+  assert.equal(build.status, 0, `${build.error ?? ''}${build.stdout}${build.stderr}`);
   const exchange = JSON.parse(page('data/exchange.json'));
   assert.deepEqual(exchange.hypotheses, [], 'evaluation fixtures must not load production hypotheses');
   assert.deepEqual(exchange.findings, [], 'evaluation fixtures must not load production findings');
@@ -352,14 +352,14 @@ test('a model page names the benchmarks it has results for only in an earlier ve
 
 test('a result that references a missing model fails the build and names it', { timeout: 120_000 }, () => {
   const build = buildWith('./test/fixtures/evals-dangling', danglingOut);
-  const output = `${build.stdout}${build.stderr}`;
+  const output = `${build.error ?? ''}${build.stdout}${build.stderr}`;
   assert.notEqual(build.status, 0, output);
   assert.match(output, /ghost-model--gsm8k-200--fixture-bot--2026-11-01--55555555: model "ghost-model"/);
 });
 
 test('the content collection rejects a result with an unknown key, like the validator does', { timeout: 120_000 }, () => {
   const build = buildWith('./test/fixtures/evals-unknown-key', unknownKeyOut);
-  const output = `${build.stdout}${build.stderr}`;
+  const output = `${build.error ?? ''}${build.stdout}${build.stderr}`;
   assert.notEqual(build.status, 0, output);
   assert.match(output, /Unrecognized key: "notes"/);
 });
@@ -446,7 +446,7 @@ function buildScratch(name, results, definitions = {}) {
   }
   const outDir = scratchDir(`${name}-site`);
   const build = spawnSync('bun', ['run', 'astro', 'build', '--outDir', outDir], { cwd: ROOT, encoding: 'utf8', timeout: 120_000, env });
-  assert.equal(build.status, 0, `${build.stdout}${build.stderr}`);
+  assert.equal(build.status, 0, `${build.error ?? ''}${build.stdout}${build.stderr}`);
   return (path) => readFileSync(join(outDir, path), 'utf8').replace(/\s+/g, ' ');
 }
 
