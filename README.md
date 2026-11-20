@@ -1,6 +1,6 @@
 # Unite4AI
 
-Open-source AI education platform and federated model registry — a trust-first alternative to centralized hubs.
+The secure exchange for open source AI models (hypotheses, experiments, reviews and knowledge grafts), with a federated model registry and a free school: a trust-first alternative to centralized hubs.
 
 ## Monorepo layout
 
