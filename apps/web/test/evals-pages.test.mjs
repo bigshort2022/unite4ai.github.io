@@ -622,9 +622,6 @@ test('a benchmark with runs of earlier versions only says which version has no r
 });
 
 test('with no runs at all, the home page says that results arrive by pull request', { timeout: 120_000 }, () => {
-  // A loader that finds no file leaves the content store as it was, and the fixture builds share
-  // one: start this build from an empty store, or it would show the previous build's runs.
-  rmSync(join(ROOT, 'node_modules/.astro-fixtures'), { recursive: true, force: true });
   const built = buildScratch('no-runs', []);
   const home = built('index.html');
   assert.match(home, /<b>0<\/b> ?<span>Evaluation runs<\/span>/);
