@@ -105,7 +105,7 @@ per-result anchors linking findings to the cited run, including previous benchma
 `/exchange/biases` computes account counts and finding/review shares at build time, with
 denominators that include superseded records. Hardware descriptions do not establish a
 physical-machine identity, and model names do not provide a model-family field: those shares
-are unavailable, not inferred. Planned seed content is not counted before it exists.
+are unavailable, not inferred. Seed records are counted like any other published record; the schema does not mark them.
 
 The home and exchange latency panel reads GitHub directly in the visitor's browser. It
 enumerates PRs targeting main and complete file lists, counting only 1–10 added flat record

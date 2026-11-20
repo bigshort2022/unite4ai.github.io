@@ -26,8 +26,9 @@ export default defineConfig({
   build: { format: 'directory' },
   // Two entries that claim one URL fail the build instead of one silently winning.
   prerenderConflictBehavior: 'error',
-  // Fixture content stores stay outside the production cache. Exchange tests also use a
-  // caller-owned temporary cache so they cannot race the evaluation fixture builds.
+  // Fixture content stores stay outside the production cache. Test builds set
+  // U4AI_EXCHANGE_DIR, so each gets its own empty caller-owned cache; the shared fixture
+  // cache only serves manual builds that override just the evaluation or benchmark data.
   ...(process.env.U4AI_EXCHANGE_DIR
     ? { cacheDir: `${process.env.U4AI_EXCHANGE_DIR}/.astro-cache` }
     : process.env.U4AI_EVALS_DIR || process.env.U4AI_BENCHMARKS_DIR ? { cacheDir: './node_modules/.astro-fixtures' } : {}),
