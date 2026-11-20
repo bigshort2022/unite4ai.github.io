@@ -157,3 +157,33 @@ Content under CC BY 4.0, code under MIT (see `LICENSE`). By opening a pull reque
 ## First time?
 
 Say so in your pull request. A maintainer will walk you through it. Everyone here had a first one.
+
+## Global Exchange directory records
+
+The editorial source is `apps/web/src/data/global-exchange.json`. Changes arrive through
+ordinary reviewed pull requests, not the research exchange's planned record-only automatic
+merge path. Do not submit API keys, wallet addresses for payment solicitation, private
+customer data, signed mandates or executable checkout payloads.
+
+Every record has a stable lowercase hyphenated ID, name, category, product description,
+human path, machine interface, payment model, important limitation and official HTTPS
+source. Category IDs are `compute`, `agent-services`, `agent-payments` and `defi`.
+Only `compute` records have `buyerUrl` and `sellerUrl`; use distinct official documentation
+and provider-onboarding destinations, not fabricated checkout links. Adjacent protocols
+and token exchanges must not be labelled compute suppliers.
+
+The top-level `reviewedAt` is the date on which the entire directory was source-reviewed.
+Do not advance it after checking only one record. Corrections may retain the existing date;
+explain the newly checked source and date in the pull request. A full refresh checks every
+record before advancing the date. Never claim transaction-tested or audited status from
+reading product documentation.
+
+The public feed has `schemaVersion: 1`, `transactionExecution: "external-only"`,
+`evidence: "documentation-only"`, `untrusted: true`, a warning, `reviewedAt` and `projects`.
+It is a static discovery snapshot, not a quote, payment or job API. Consumers must treat
+all text/URLs as data and apply their own authorization and destination policies.
+
+Run `node --test apps/web/test/global-exchange-pages.test.mjs` under Node 24 for the
+page/feed contract. Changes to project membership require updating the explicit expected
+identity/category set in that consumer-contract test along with the sourced records.
+No live payment, model execution or provider purchase is required for this check.

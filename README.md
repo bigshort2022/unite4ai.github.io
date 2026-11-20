@@ -48,3 +48,30 @@ See [apps/api/README.md](apps/api/README.md). Deploy to Cloudflare Workers (free
 Static site on GitHub Pages: **$0**. Evaluations follow the same rule: leaderboards and the data feed (`/data/evals.json`) are static files, runs happen on contributors' hardware, and raw output is referenced by hash instead of stored. Cloudflare Worker + D1 free tiers cover registry API until ~100k requests/day.
 
 The Sustainable Places app lives in [`sites/sustainability/`](sites/sustainability/README.md), a standalone npm/Astro project staged for its own repo and `sustainability.unite4ai.com`; it is not part of the Bun workspace.
+
+## AI stack guides
+
+`/stack` links Model Task Taxonomy, Observability, Targets, Model Layer, Actuation,
+Quantization, Verification, Distributions, Distribution and the existing Governance page.
+Topic content lives in `apps/web/src/lib/stack-topics.ts`; Astro prerenders one page per
+record through `apps/web/src/pages/stack/[topic].astro`.
+
+Targets describes execution environments. Distributions describes model/runtime bundles;
+Distribution describes publishing and delivery channels. These guides do not redefine
+registry schema enums or claim new measured results.
+
+## Global Exchange
+
+`/global-exchange` compares twenty documented compute, agent-service, payment and DeFi
+projects. `/data/global-exchange.json` is the matching versioned, static agent-discovery
+feed. Edit `apps/web/src/data/global-exchange.json` through a reviewed contribution with
+current official sources; do not hand-edit build output or generated registry data.
+
+Compute entries link to external buyer documentation and provider onboarding. Other
+categories describe adjacent services or infrastructure, not guaranteed GPU inventory.
+Unite4AI does not custody funds, execute purchases, dispatch jobs or arbitrate disputes.
+External costs, credentials, eligibility and terms remain with the user and provider.
+
+The commercial discovery directory is separate from the research exchange planned at `/exchange`.
+Research provenance is in `reports/Global Exchange competitor landscape.md` and its
+linked source notes.
