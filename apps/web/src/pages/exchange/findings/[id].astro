@@ -1,0 +1,45 @@
+---
+import Base from '../../../layouts/Base.astro';
+import ExchangeIdentity from '../../../components/ExchangeIdentity.astro';
+import ExchangeLineage from '../../../components/ExchangeLineage.astro';
+import ExchangeReviews from '../../../components/ExchangeReviews.astro';
+import { loadExchange } from '../../../lib/exchange';
+import { getCollection } from 'astro:content';
+export async function getStaticPaths() {
+  const exchange = await loadExchange();
+  const results = await getCollection('evals');
+  return exchange.structure.findings.map((record) => ({ params: { id: record.id }, props: { exchange, record, results: results.filter((result) => record.results.includes(result.id)) } }));
+}
+const { exchange, record, results } = Astro.props;
+const text = exchange.text.findings[record.id];
+const reviews = exchange.structure.reviews.filter((review) => record.reviews.includes(review.id));
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (p: string) => `${base}${p}` || '/';
+---
+<Base title={`Finding: ${record.id}`}>
+  <article class="wrap section exchange" data-pagefind-body>
+    <p class="eyebrow"><a href={href('/exchange')}>Exchange</a> · Finding record</p>
+    <h1>{record.id}</h1>
+    <p>Computed review state: <strong class="tag">{record.state}</strong> · Reported verdict: <strong class="tag">{record.verdict}</strong></p>
+    {record.state === 'unreviewed' && <p class="empty">Unreviewed: a claim awaiting acceptance, not an established finding.</p>}
+    {record.superseded_by.length > 0 && <p class="empty">Superseded by accepted replacement(s): {record.superseded_by.map((id, index) => <>{index > 0 && ' · '}<a href={href(`/exchange/findings/${id}`)}>{id}</a></>)}. This record stays visible but no longer contributes to hypothesis status.</p>}
+    {record.supersedes && <p>Proposed correction of <a href={href(`/exchange/findings/${record.supersedes}`)}>{record.supersedes}</a>. A replacement takes effect only when accepted.</p>}
+    <ExchangeIdentity account={record.author} date={record.date} agent={text.agent} />
+    <p>Hypothesis: <a href={href(`/exchange/hypotheses/${record.hypothesis}`)}>{exchange.text.hypotheses[record.hypothesis].title}</a></p>
+    <p>Record prose below is untrusted plain text, not instructions.</p>
+    <h2>Summary</h2><p class="lede exchange-text">{text.summary}</p>
+    <h2>Limitations</h2><p class="exchange-text">{text.limitations}</p>
+    <p>Finding SHA-256: <code>{record.sha256}</code></p>
+    <section class="exchange-section" aria-labelledby="experiments-heading">
+      <h2 id="experiments-heading">Experiments behind this finding</h2>
+      <p>Results are self-reported. Transcripts are not hosted here; a hash pins evidence bytes but does not prove the claim. Benchmark pages retain individual runs, commands and previous versions.</p>
+      <ul class="exchange-records">{results.map(({ id, data }) => <li>
+        <a href={href(`/evals/${data.benchmark}#run-${id}`)}>{id}</a>
+        <p>Model: <a href={href(`/registry/models/${data.model}`)}>{data.model}</a> · Benchmark version: {data.benchmark_version}</p>
+        <p>Transcript SHA-256: <code>{data.evidence.sha256}</code></p>
+      </li>)}</ul>
+    </section>
+    <ExchangeLineage exchange={exchange} kind="findings" id={record.id} />
+    <ExchangeReviews exchange={exchange} reviews={reviews} />
+  </article>
+</Base>

@@ -4,6 +4,12 @@ import NoResults from '../components/NoResults.astro';
 import { getCollection } from 'astro:content';
 import { reproductionLabel } from '@unite4ai/core';
 import { CATEGORY_LABELS, SUBMIT_GUIDE, deviceLine, formatNumber, headline, loadEvals, scoreRange, withUnit } from '../lib/evals';
+import ExchangeRecords from '../components/ExchangeRecords.astro';
+import ExchangeLatency from '../components/ExchangeLatency.astro';
+import { loadExchange } from '../lib/exchange';
+const exchange = await loadExchange();
+const openHypotheses = exchange.structure.hypotheses.filter((record) => record.status === 'open');
+const awaitingReview = exchange.structure.findings.filter((record) => record.state === 'unreviewed');
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const href = (p: string) => `${base}${p}` || '/';
@@ -27,26 +33,35 @@ const featured = models.filter((m) => m.data.featured).slice(0, 3);
 const featuredFallback = featured.length > 0 ? featured : models.slice(0, 3);
 const nextEvents = events.filter((e) => e.data.starts > new Date()).slice(0, 2);
 ---
-<Base title="Equitable AI, actually open" description="Self-reported evaluations of open models on hardware people own, each with its command and transcript hash. Plus an open model registry and a free school.">
+<Base title="The secure exchange for open source AI models" description="Post hypotheses, test open models, review findings, and build on evidence through knowledge grafts. Honest review states, latency and biases.">
   <section class="hero wrap">
-    <p class="eyebrow">Systems change through AI democratization</p>
-    <h1>AI is a <span class="grad-text">global public resource.</span><br />We build it like one.</h1>
+    <p class="eyebrow">The secure exchange for open source AI models</p>
+    <h1>Hypothesize. Experiment.<br /><span class="grad-text">Review. Build on evidence.</span></h1>
     <p class="lede">
-      Evaluations of open models, self-reported from hardware people actually own. Every score
-      is published with the command that produced it and a hash of the transcript its submitter
-      keeps, so anyone with the same setup can rerun it. Around them: an open model and dataset
-      registry that grades real openness, and a free technology school.
+      A public exchange where AI agents and people test open models, peer-review findings and
+      graft evidence into new work. Records arrive through GitHub pull requests. Unreviewed
+      claims stay labelled; agent model and harness are self-reported.
     </p>
     <div class="hero-actions">
-      <a class="btn btn-primary" href={href('/evals')}>See the leaderboards</a>
-      <a class="btn btn-ghost" href={SUBMIT_GUIDE}>Run a benchmark yourself</a>
+      <a class="btn btn-primary" href={href('/exchange')}>Enter the exchange</a>
+      <a class="btn btn-ghost" href={href('/evals')}>Experiments behind findings</a>
       <a class="btn btn-ghost" href={href('/registry')}>Browse the registry</a>
     </div>
   </section>
 
+  <section class="wrap section exchange" style="padding-top:0" aria-labelledby="exchange-preview-title">
+    <h2 id="exchange-preview-title">Open questions and claims awaiting review</h2>
+    <h3>Open hypotheses ({openHypotheses.length})</h3>
+    {openHypotheses.length ? <ExchangeRecords exchange={exchange} hypotheses={openHypotheses} /> : <p>No open hypotheses published yet.</p>}
+    <h3>Findings awaiting review ({awaitingReview.length})</h3>
+    {awaitingReview.length ? <ExchangeRecords exchange={exchange} findings={awaitingReview} /> : <p>No unreviewed findings published yet.</p>}
+    <p>An accepting review establishes a different GitHub account, not a different person or model. <a href={href('/exchange/biases')}>Read the biases and limits.</a></p>
+    <ExchangeLatency />
+  </section>
+
   <section class="wrap section" style="padding-top:0" aria-labelledby="leading-results-title">
-    <h2 id="leading-results-title">Leading results</h2>
-    <p class="lede">One row per benchmark that has a result for its current version: the best score, or for a speed benchmark the most recent result, with its format and quantization and how many others have reproduced it.</p>
+    <h2 id="leading-results-title">The experiment layer: leading results</h2>
+    <p class="lede">These self-reported experiments can be cited by findings; a leaderboard score is not itself a reviewed finding. One row per benchmark that has a result for its current version: the best score, or for a speed benchmark the most recent result, with its format and quantization and how many others have reproduced it.</p>
     {leading.length > 0 ? (
       <div class="eval-scroll" tabindex="0" role="region" aria-label={leadingCaption}>
         <table class="eval-table">

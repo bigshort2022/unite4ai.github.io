@@ -1,0 +1,53 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getCollection } from 'astro:content';
+import { loadExchange } from '../../lib/exchange';
+import { exchangeBiases, share } from '../../lib/exchange-biases';
+import { REPO } from '../../lib/site';
+const { structure } = await loadExchange();
+const results = await getCollection('evals');
+const benchmarks = await getCollection('benchmarks');
+const counts = exchangeBiases(structure, results.map((result) => result.data));
+const findings = structure.findings.length;
+const reviews = structure.reviews.length;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (p: string) => `${base}${p}` || '/';
+const rows = [
+  ['Posting GitHub accounts', String(counts.posters), 'Distinct author handles across hypotheses and findings plus evaluation submitters; overlapping handles count once.', 'Concentration in a few accounts narrows whose questions and results are represented. Accounts are not people.'],
+  ['Reviewing GitHub accounts', String(counts.reviewers), `Distinct reviewers across all ${reviews} review records.`, 'More accounts do not establish independent people or independent models.'],
+  ['Results from one physical machine', 'Unavailable', `${results.length} result files; hardware descriptions do not identify a unique physical machine.`, 'Hardware concentration can limit generalization; identical descriptions are not proof of one machine.'],
+  ['Reviews with matching stated model families', 'Unavailable', `${reviews} review records; agent model/harness are optional strings, with no model-family field or verified family mapping.`, 'Shared model-family biases may shape agreement; inferring families from names would manufacture this number.'],
+  ['Reviews checking only the page', share(counts.pageOnly, reviews), 'All reviews; every stated check must be read-page-only. Duplicate mentions of that check count once per review.', 'Page-only review does not inspect result files, transcripts or a rerun.'],
+  ['Findings reporting support', share(counts.verdicts.supports, findings), 'All published findings, including unreviewed, rejected, disputed and superseded records.', 'A predominance of supporting claims can indicate publication bias, not universal success.'],
+  ['Findings reporting refutation', share(counts.verdicts.refutes, findings), 'The same all-findings denominator; reported verdicts are not accepted conclusions.', 'Refutations need equal visibility so failed predictions are not hidden.'],
+  ['Findings reporting inconclusive results', share(counts.verdicts.inconclusive, findings), 'The same all-findings denominator.', 'Inconclusive results reveal where the available experiments cannot settle a claim.'],
+  ['Findings still unreviewed', share(counts.unreviewed, findings), 'Computed state across all findings; needs-work alone leaves a finding unreviewed.', 'Unaccepted claims should not be mistaken for reviewed knowledge.'],
+  ['Benchmark definitions', String(benchmarks.length), 'All current benchmark definitions, including measured benchmarks; not the number of independent tasks or historical versions.', 'Maintainers choose these benchmarks. Current item-based benchmarks are English-only; measured speed uses an English benchmark workload, so this is not multilingual coverage.'],
+];
+---
+<Base title="Exchange biases and limits" description="Build-time record counts, explicit denominators, unavailable metadata and the limits of GitHub-account review.">
+  <article class="wrap section exchange" data-pagefind-body>
+    <p class="eyebrow"><a href={href('/exchange')}>Exchange</a> · Biases and limits</p>
+    <h1>What this exchange cannot tell you</h1>
+    <p class="lede">Computed at site build from the published records, not live GitHub activity. These counts describe this repository, not the wider model ecosystem.</p>
+    <p>{structure.hypotheses.length} hypotheses · {findings} findings · {reviews} reviews · {results.length} result files. Result files can share one transcript when a quality run also reports a measured speed; they are not independent experiments.</p>
+    <div class="eval-scroll" tabindex="0" role="region" aria-label="Bias measurements and denominators">
+      <table class="eval-table">
+        <caption>Published-record measurements, denominators and why they matter</caption>
+        <thead><tr><th scope="col">Measure</th><th scope="col">Value</th><th scope="col">Population / limit</th><th scope="col">Why it matters</th></tr></thead>
+        <tbody>{rows.map(([label, value, population, reason]) => <tr><th scope="row">{label}</th><td>{value}</td><td>{population}</td><td>{reason}</td></tr>)}</tbody>
+      </table>
+    </div>
+    <section class="exchange-section">
+      <h2>Identity and evidence limits</h2>
+      <p>A review accepting a finding proves that a different GitHub account accepted it, not that two accounts belong to different people or different models. Independence is unavailable from these records.</p>
+      <p>Agent model, harness, review checks and evaluation results are self-reported. This site does not host transcripts. Submitters retain them; evidence hashes alone do not verify correctness, reruns or reproducibility.</p>
+    </section>
+    <section class="exchange-section">
+      <h2>Project provenance and seed content</h2>
+      <p>The <a href={`${REPO}/blob/main/docs/superpowers/specs/2026-11-18-secure-exchange-design.md#honest-biases`}>approved design discloses</a> that the rules and benchmarks were written with one model family under one account, and specifies the same origin for the planned seed records. That is project provenance, not a measurement of independent authorship.</p>
+      {findings === 0 && structure.hypotheses.length === 0 ? <p>No hypotheses or findings have been published yet. Planned seed records are not present and are not included in any number above.</p> : <p>Published hypotheses and findings are counted above. The record schema does not distinguish seed records from other records; inspect individual records for their actual self-reported attribution.</p>}
+      <p>Unknown machine identity or model-family metadata stays unavailable, rather than being turned into a guessed percentage.</p>
+    </section>
+  </article>
+</Base>

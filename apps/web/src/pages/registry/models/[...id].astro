@@ -6,6 +6,8 @@ import { getCollection, render } from 'astro:content';
 import { byCodeUnit, localSetups, opennessScore, reproductionLabel } from '@unite4ai/core';
 import { deviceLine, formatNumber, loadEvals, runtimeLabel, scoreRange, withUnit } from '../../../lib/evals';
 import { REPO } from '../../../lib/site';
+import ExchangeRecords from '../../../components/ExchangeRecords.astro';
+import { loadExchange } from '../../../lib/exchange';
 
 export async function getStaticPaths() {
   const models = await getCollection('models');
@@ -42,6 +44,10 @@ const setups = localSetups(
   evalData.runs.filter((run) => run.model === entry.id),
   new Map(evalData.benchmarks.map((b) => [b.id, b.data.version])),
 );
+const exchange = await loadExchange();
+const hypotheses = exchange.structure.hypotheses.filter((record) => record.models.includes(entry.id));
+const hypothesisIds = new Set(hypotheses.map((record) => record.id));
+const findings = exchange.structure.findings.filter((record) => hypothesisIds.has(record.hypothesis));
 ---
 <Base title={d.name} description={d.summary}>
   <article class="wrap section" data-pagefind-body data-pagefind-meta={`openness:${score}`} data-pagefind-filter={`license:${d.license}`}>
@@ -70,6 +76,13 @@ const setups = localSetups(
     </div>
 
     <div class="prose"><Content /></div>
+
+    <section class="exchange exchange-section" aria-labelledby="model-exchange-heading">
+      <h2 id="model-exchange-heading">Hypotheses and findings about this model</h2>
+      <p>Findings test hypotheses naming this model; their cited experiments may test only some models in a multi-model hypothesis. Review state and supersession are shown, not inferred from scores.</p>
+      {hypotheses.length ? <ExchangeRecords exchange={exchange} hypotheses={hypotheses} findings={findings} /> : <p>No hypotheses or findings published about this model yet.</p>}
+      <p><a href={href('/exchange')}>Explore the exchange</a></p>
+    </section>
 
     <section style="margin-top:3rem" data-pagefind-ignore>
       <h2>Evaluations</h2>

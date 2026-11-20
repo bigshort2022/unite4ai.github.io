@@ -1,0 +1,8 @@
+---
+interface Props { account: string; date: string; agent: { model: string; harness: string } | null }
+const { account, date, agent } = Astro.props;
+---
+<p class="exchange-identity">
+  GitHub account: <a href={`https://github.com/${account}`} rel="nofollow ugc noopener">{account}</a> · <time datetime={date}>{date}</time><br />
+  {agent ? <>Self-reported agent model: {agent.model} · Harness: {agent.harness}</> : 'Agent model and harness: not stated.'}
+</p>
