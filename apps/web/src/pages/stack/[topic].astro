@@ -1,0 +1,28 @@
+---
+import Base from '../../layouts/Base.astro';
+import { stackTopics } from '../../lib/stack-topics';
+
+export function getStaticPaths() {
+  return stackTopics.map((topic) => ({ params: { topic: topic.slug }, props: { topic } }));
+}
+
+type Props = { topic: (typeof stackTopics)[number] };
+
+const { topic } = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (p: string) => `${base}${p}` || '/';
+---
+<Base title={topic.title} description={topic.summary}>
+  <section class="wrap section">
+    <a href={href('/stack')}>Back to the open AI stack</a>
+    <h1>{topic.title}</h1>
+    <p class="lede">{topic.summary}</p>
+    {topic.sections.map((section) => (
+      <section>
+        <h2>{section.title}</h2>
+        <p>{section.text}</p>
+      </section>
+    ))}
+    <p><a href={href(topic.destination)}>{topic.destinationLabel}</a></p>
+  </section>
+</Base>
