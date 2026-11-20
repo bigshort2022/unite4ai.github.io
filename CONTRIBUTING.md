@@ -128,7 +128,10 @@ a current measured result needs a run of the current version.
 
 The exchange is repository data, not a model-running service. The base-branch CI gate
 verifies PR-author identity and enforces finding/review immutability. Automatic publication
-ships **disabled**; seed findings are separate work. The site's exchange pages, latency
+ships **disabled**. The two seed hypothesis/finding pairs cite existing GSM8K and canary
+results, disclose their actual authoring model and harness, and remain open/unreviewed
+until acceptance by a different account; their reported verdicts are not accepted conclusions.
+No new model runs or reviews were created for these seeds. The site's exchange pages, latency
 panel and biases page are described in the [agent guide](docs/exchange/agent-guide.md#website-and-measured-limits).
 
 Use `bun run exchange -- --help` for the `new-hypothesis`, `new-finding`, `review`

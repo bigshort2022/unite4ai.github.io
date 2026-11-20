@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { after } from 'node:test';
@@ -12,14 +12,21 @@ const out = mkdtempSync(join(tmpdir(), 'u4ai-evals-site-'));
 const danglingOut = mkdtempSync(join(tmpdir(), 'u4ai-evals-dangling-'));
 const unknownKeyOut = mkdtempSync(join(tmpdir(), 'u4ai-evals-unknown-key-'));
 const gateRoot = mkdtempSync(join(tmpdir(), 'u4ai-evals-gate-'));
-// The fixture builds keep their content store in their own cacheDir (see astro.config.mjs), so
-// fixture rows cannot reach a normal build even if this run is killed; remove it when done.
+// Each fixture build needs empty exchange records and its own content cache, including
+// when the next build has no results. Production findings cannot cite fixture result ids.
+const exchangeRoots = [];
+function fixtureEnv(evalsDir) {
+  const root = mkdtempSync(join(tmpdir(), 'u4ai-evals-exchange-'));
+  exchangeRoots.push(root);
+  for (const kind of ['hypotheses', 'findings', 'reviews']) mkdirSync(join(root, kind));
+  return { ...process.env, U4AI_EVALS_DIR: evalsDir, U4AI_EXCHANGE_DIR: root };
+}
 after(() => {
   rmSync(out, { recursive: true, force: true });
   rmSync(danglingOut, { recursive: true, force: true });
   rmSync(unknownKeyOut, { recursive: true, force: true });
   rmSync(gateRoot, { recursive: true, force: true });
-  rmSync(join(ROOT, 'node_modules/.astro-fixtures'), { recursive: true, force: true });
+  for (const root of exchangeRoots) rmSync(root, { recursive: true, force: true });
 });
 
 const page = (path) => readFileSync(join(out, path), 'utf8');
@@ -29,7 +36,8 @@ function buildWith(evalsDir, outDir) {
   return spawnSync('bun', ['run', 'astro', 'build', '--outDir', outDir], {
     cwd: ROOT,
     encoding: 'utf8',
-    env: { ...process.env, U4AI_EVALS_DIR: evalsDir },
+    timeout: 120_000,
+    env: fixtureEnv(evalsDir),
   });
 }
 
@@ -85,7 +93,11 @@ test('the published results pass the content gate; the version 1 GSM8K run and i
 
 test('leaderboard and benchmark page render fixture results', { timeout: 120_000 }, () => {
   const build = buildWith('./test/fixtures/evals', out);
-  assert.equal(build.status, 0, `${build.stdout}${build.stderr}`);
+  assert.equal(build.status, 0, `${build.error ?? ''}${build.stdout}${build.stderr}`);
+  const exchange = JSON.parse(page('data/exchange.json'));
+  assert.deepEqual(exchange.hypotheses, [], 'evaluation fixtures must not load production hypotheses');
+  assert.deepEqual(exchange.findings, [], 'evaluation fixtures must not load production findings');
+  assert.deepEqual(exchange.reviews, [], 'evaluation fixtures must not load production reviews');
 
   const board = page('evals/index.html');
   assert.match(board, /GSM8K \(first 200\)/);
@@ -340,14 +352,14 @@ test('a model page names the benchmarks it has results for only in an earlier ve
 
 test('a result that references a missing model fails the build and names it', { timeout: 120_000 }, () => {
   const build = buildWith('./test/fixtures/evals-dangling', danglingOut);
-  const output = `${build.stdout}${build.stderr}`;
+  const output = `${build.error ?? ''}${build.stdout}${build.stderr}`;
   assert.notEqual(build.status, 0, output);
   assert.match(output, /ghost-model--gsm8k-200--fixture-bot--2026-11-01--55555555: model "ghost-model"/);
 });
 
 test('the content collection rejects a result with an unknown key, like the validator does', { timeout: 120_000 }, () => {
   const build = buildWith('./test/fixtures/evals-unknown-key', unknownKeyOut);
-  const output = `${build.stdout}${build.stderr}`;
+  const output = `${build.error ?? ''}${build.stdout}${build.stderr}`;
   assert.notEqual(build.status, 0, output);
   assert.match(output, /Unrecognized key: "notes"/);
 });
@@ -426,15 +438,15 @@ const scratchDir = (name) => {
 function buildScratch(name, results, definitions = {}) {
   const evalsDir = scratchDir(name);
   for (const { name: file, content } of results) writeFileSync(join(evalsDir, file), JSON.stringify(content));
-  const env = { ...process.env, U4AI_EVALS_DIR: evalsDir };
+  const env = fixtureEnv(evalsDir);
   if (Object.keys(definitions).length > 0) {
     env.U4AI_BENCHMARKS_DIR = scratchDir(`${name}-benchmarks`);
     cpSync(join(ROOT, 'src/content/benchmarks'), env.U4AI_BENCHMARKS_DIR, { recursive: true });
     for (const [file, text] of Object.entries(definitions)) writeFileSync(join(env.U4AI_BENCHMARKS_DIR, file), text);
   }
   const outDir = scratchDir(`${name}-site`);
-  const build = spawnSync('bun', ['run', 'astro', 'build', '--outDir', outDir], { cwd: ROOT, encoding: 'utf8', env });
-  assert.equal(build.status, 0, `${build.stdout}${build.stderr}`);
+  const build = spawnSync('bun', ['run', 'astro', 'build', '--outDir', outDir], { cwd: ROOT, encoding: 'utf8', timeout: 120_000, env });
+  assert.equal(build.status, 0, `${build.error ?? ''}${build.stdout}${build.stderr}`);
   return (path) => readFileSync(join(outDir, path), 'utf8').replace(/\s+/g, ' ');
 }
 
@@ -610,9 +622,6 @@ test('a benchmark with runs of earlier versions only says which version has no r
 });
 
 test('with no runs at all, the home page says that results arrive by pull request', { timeout: 120_000 }, () => {
-  // A loader that finds no file leaves the content store as it was, and the fixture builds share
-  // one: start this build from an empty store, or it would show the previous build's runs.
-  rmSync(join(ROOT, 'node_modules/.astro-fixtures'), { recursive: true, force: true });
   const built = buildScratch('no-runs', []);
   const home = built('index.html');
   assert.match(home, /<b>0<\/b> ?<span>Evaluation runs<\/span>/);

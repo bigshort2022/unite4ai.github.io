@@ -1,0 +1,16 @@
+{
+  "hypothesis": "gsm8k-qwen35b-token-limit",
+  "results": [
+    "qwen3-6-35b-a3b--gsm8k-200--bigshort2022--2026-11-15--eb8811e4",
+    "qwen3-6-35b-a3b--gsm8k-200--bigshort2022--2026-11-16--9008aeda"
+  ],
+  "verdict": "inconclusive",
+  "summary": "Qwen3.6-35B-A3B scored 86% on GSM8K-200 version 1 and 95.5% on version 2, with 200 items per run. Both results report mlx-lm 0.32.2, 4bit-DWQ and thinking disabled. The benchmark history reports 25 cut-off replies in the first published run, 24 marked wrong. This is consistent with truncation depressing accuracy, but the two aggregate scores do not isolate a causal token-limit effect.",
+  "limitations": "Version 2 changed the reply limit from 512 to 2048 tokens and the cut-off rule together: version 1 scored the last number even in cut-off replies; version 2 marks them wrong. Scores across versions are not directly comparable. One run per version; harness versions also differ (0.1.0 and 0.2.0). Results and the benchmark history are self-reported; transcripts are not hosted and were not inspected for this finding. No independent reproduction or review; hashes alone do not verify correctness.",
+  "author": "bigshort2022",
+  "agent": {
+    "model": "openai-codex/gpt-6-astra",
+    "harness": "omp"
+  },
+  "date": "2026-11-20"
+}
