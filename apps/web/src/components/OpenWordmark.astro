@@ -1,14 +1,13 @@
 <div class="open-wordmark">
   <p class="open-wordmark-text">
     <span class="sr-only">Open source, open science, open models, open data.</span>
-    <span aria-hidden="true">OPEN <span class="open-wordmark-words">
-      <span data-open-word>SOURCE</span>
-      <span data-open-word hidden>SCIENCE</span>
-      <span data-open-word hidden>MODELS</span>
-      <span data-open-word hidden>DATA</span>
-    </span></span>
+    <span class="open-wordmark-words" aria-hidden="true">
+      <span data-open-word data-active>OPEN SOURCE</span>
+      <span data-open-word>OPEN SCIENCE</span>
+      <span data-open-word>OPEN MODELS</span>
+      <span data-open-word>OPEN DATA</span>
+    </span>
   </p>
-  <button class="open-wordmark-toggle" type="button" disabled aria-label="Pause word rotation">Pause</button>
 </div>
 
 <style>
@@ -21,58 +20,86 @@
     letter-spacing: .03em;
     white-space: nowrap;
   }
-  /* All words occupy the same grid cell, reserving the widest suffix. */
+  /* Overlay full phrases to reserve the widest word without shifting layout. */
   .open-wordmark-words { display: inline-grid; text-align: left; }
-  [data-open-word] { grid-area: 1 / 1; }
-  [data-open-word][hidden] { display: block; visibility: hidden; }
-  .open-wordmark-toggle {
-    visibility: hidden;
-    margin-top: .5rem;
-    padding: .25rem .5rem;
+  [data-open-word] { grid-area: 1 / 1; opacity: 0; }
+  [data-open-word][data-active] { opacity: 1; }
+  [data-open-word]:nth-child(1) { color: var(--u-blue); }
+  [data-open-word]:nth-child(2) { color: var(--u-violet); }
+  [data-open-word]:nth-child(3) { color: var(--u-magenta); }
+  [data-open-word]:nth-child(4) { color: var(--u-cyan); }
+  .open-wordmark-text :global(.open-wordmark-toggle) {
+    display: inline-block;
+    padding: 0;
     font: inherit;
-    font-size: .8rem;
-    color: var(--u-text-dim);
+    letter-spacing: inherit;
+    color: inherit;
     background: transparent;
-    border: 1px solid var(--u-border);
-    border-radius: var(--u-radius-sm);
+    border: 0;
     cursor: pointer;
   }
-  .open-wordmark-toggle:enabled { visibility: visible; }
-  @media (prefers-reduced-motion: reduce) {
-    .open-wordmark-toggle { visibility: hidden !important; }
+  .open-wordmark-text :global(.open-wordmark-toggle:focus-visible) {
+    outline: 2px solid var(--u-cyan);
+    outline-offset: 4px;
+    border-radius: var(--u-radius-sm);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    :global(.open-wordmark-toggle:not([data-paused])) [data-open-word] {
+      transition: opacity 240ms ease-in-out;
+    }
   }
 </style>
 
 <script>
-  const words = Array.from(document.querySelectorAll<HTMLElement>('[data-open-word]'));
-  const toggle = document.querySelector<HTMLButtonElement>('.open-wordmark-toggle');
-  if (words.length && toggle) {
+  const text = document.querySelector<HTMLElement>('.open-wordmark-text');
+  const phrases = text?.querySelector<HTMLElement>('.open-wordmark-words');
+  if (text && phrases) {
+    const words = Array.from(phrases.querySelectorAll<HTMLElement>('[data-open-word]'));
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const toggle = document.createElement('button');
+    toggle.className = 'open-wordmark-toggle';
+    toggle.type = 'button';
     let index = 0;
     let paused = false;
     let timer: ReturnType<typeof setInterval> | undefined;
-    let fade: Animation | undefined;
 
+    const show = () => {
+      words.forEach((word, position) => word.toggleAttribute('data-active', position === index));
+    };
     const update = () => {
       clearInterval(timer);
-      fade?.cancel();
-      toggle.disabled = reducedMotion.matches;
-      toggle.textContent = paused ? 'Resume' : 'Pause';
-      toggle.setAttribute('aria-label', `${paused ? 'Resume' : 'Pause'} word rotation`);
       if (reducedMotion.matches) {
         index = 0;
-        words.forEach((word, position) => { word.hidden = position !== 0; });
-      } else if (!paused) {
+        paused = false;
+        show();
+        if (toggle.isConnected) toggle.replaceWith(phrases);
+        return;
+      }
+      if (!toggle.isConnected) {
+        phrases.replaceWith(toggle);
+        toggle.append(phrases);
+      }
+      toggle.toggleAttribute('data-paused', paused);
+      toggle.setAttribute('aria-label', `${paused ? 'Resume' : 'Pause'} word rotation`);
+      if (!paused) {
         timer = setInterval(() => {
-          words[index].hidden = true;
           index = (index + 1) % words.length;
-          words[index].hidden = false;
-          fade = words[index].animate([{ opacity: .65 }, { opacity: 1 }], { duration: 240 });
+          show();
         }, 3200);
       }
     };
 
-    toggle.addEventListener('click', () => { paused = !paused; update(); });
+    toggle.addEventListener('click', () => {
+      if (!paused) {
+        // Settle on the most visible phrase if activated during the crossfade.
+        index = words.reduce((best, word, position) =>
+          Number(getComputedStyle(word).opacity) > Number(getComputedStyle(words[best]).opacity)
+            ? position : best, 0);
+      }
+      paused = !paused;
+      update();
+      show();
+    });
     reducedMotion.addEventListener('change', update);
     update();
   }
