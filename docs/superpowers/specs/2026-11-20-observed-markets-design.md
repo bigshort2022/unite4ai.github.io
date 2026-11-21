@@ -1,10 +1,7 @@
 # Observed Markets Design
 
-Records the owner's decisions made in conversation on 2026-11-19 and 2026-11-20; the
-document itself awaits his review. Builds on `2026-11-18-secure-exchange-design.md`
-(research records, identity, publication) and on the Global Exchange directory designed in
-`2026-11-19-global-exchange-pages-design.md` (pull request #25, not yet merged when this was
-written).
+Revised 2026-11-21 after review. Builds on the research records, identity and publication
+rules in `2026-11-18-secure-exchange-design.md` and the directory IDs introduced by PR #25.
 
 ## Objective
 
@@ -17,21 +14,22 @@ The Global Exchange directory aggregates twenty projects from their documentatio
 design adds the evaluation: what actually happens with real money on a marketplace, read from
 public data, plus forecasts of it that are scored in public.
 
-The product is the answer, for an agent or its owner, to three questions about a
-marketplace: what will a transaction cost, is its activity credible, and is it really used.
-With a published record of how well those answers predicted what happened next.
+First answer for a buyer: **What fixed USDC prices did sampled Base offers quote, when
+were they collected, and how many eligible offers had usable prices?** Usage and credibility
+indicators follow only where the evidence supports them. A price survey is useful on its own;
+it is not evidence of paid demand.
 
 ## Fixed constraints
 
 1. **No running cost.** Static site, git as the database, free tiers only.
 2. **Observe, never spend.** No wallet, no keys, no purchases, no trading or payment tool is
    ever called. Everything is read from public sources.
-3. **Never fabricate, never estimate.** A number is measured or it is absent. A gap in the
-   data is shown as a gap.
+3. **Never impute observations.** Missing measurements stay missing. Forecasts are explicitly
+   predictions, not measurements; scoring never substitutes a prediction for a missing outcome.
 4. **Reported and observed are different things** and are never merged into one figure.
 5. **No overall score** for a marketplace, and no single credibility score.
-6. **No token prices and no investment advice.** Amounts are stated in the settlement
-   currency.
+6. **No token prices and no investment advice.** Report quotes, transfers and fees in their
+   own assets and units, never as a synthetic total.
 7. **Honest about latency and biases**, with numbers where the data can supply them.
 8. **Money comes later.** No revenue mechanism is built now. Every evaluation carries a
    `funded_by` field, empty until the owner decides otherwise.
@@ -42,15 +40,17 @@ With a published record of how well those answers predicted what happened next.
 |---|---|---|
 | Global Exchange directory, `/global-exchange` | Built in pull request #25 | Documentation only |
 | Research exchange, `/exchange` | Live | Hypotheses, findings, reviews, grafts |
-| **Observed markets (this design)** | New | Observed from public data, and forecast |
+| **Observed markets (this design)** | New | Operator-reported surveys, chain measurements where attributable, and forecasts |
 
-A directory entry gains an evidence level: `documented` (today) or `observed` (has at least
-one complete observation). Entry ids come from the directory; this design adds none.
+Use the existing directory ID. Show `documented` for documentation, `reported` for a
+catalogue survey, and `observed` only for a complete chain measurement of **attributed
+x402 settlement activity** within a named scope. Show the period and scope beside the
+badge; a complete address scan alone does not qualify.
 
 ## First world: x402 on Base
 
-One world end to end before any other. Chosen because both what is for sale and the payments
-are public and free to read.
+The Bazaar publishes offers; Base publishes transfers. Whether public evidence can link
+the two at zero cost is the scout's question, not an assumption.
 
 Facts checked on 2026-11-20:
 
@@ -58,8 +58,8 @@ Facts checked on 2026-11-20:
 |---|---|
 | The x402 protocol is Apache-2.0 | `github.com/x402-foundation/x402` |
 | The Bazaar is a public catalogue of paid services, readable without a key | `docs.cdp.coinbase.com/x402/buyer/discover-services` |
-| Each listing gives a price, the address paid, and calls and distinct payers over the last 30 days | Read from the public discovery API |
-| The catalogue held 37,540 listings | Read from the public discovery API on 2026-11-20 |
+| A resource may have multiple offers; price, payee and resource-wide 30-day counters are not guaranteed fields | [Discovery schema](https://docs.cdp.coinbase.com/api-reference/v2/rest-api/x402-facilitator/list-x402-resources) |
+| Discovery reported 37,540 resources across the catalogue, not a Base-only census or seller count | API pagination total, 2026-11-20 |
 | Coinbase's facilitator verifies and settles payments on-chain, screens against sanctions lists, and is free for the first 1,000 on-chain transactions a month, then $0.001 each | `docs.cdp.coinbase.com/x402/seller/facilitator` |
 | One on-chain transaction can settle thousands of payments | Same page ("batch-settlement") |
 | Base's public endpoint is free and rate-limited | `docs.base.org` |
@@ -74,35 +74,45 @@ Virtuals Agent Commerce Protocol.
 
 ## Two sources, kept apart
 
-| Source | What it gives | How far it can be trusted |
-|---|---|---|
-| **Catalogue (reported)** | Listings, prices, and per-listing calls and distinct payers over 30 days | Reported by the operator. Cannot be re-fetched later: a snapshot is witnessed once and committed to by hash. |
-| **Chain (observed)** | Payments arriving at listed addresses in a block range | Anyone can re-run the same query over the same blocks and get the same answer. |
+**Catalogue (reported).** The population is *currently indexed resources offering Base
+mainnet*. Normalize v1 `base` and v2 `eip155:8453`; exclude testnets. Offers identify a
+network; the resource's calls and unique payers do not. Never assign a multi-network
+resource's counters to Base or sum per-resource unique payers into a market-wide count.
+Coinbase [indexes after payment and removes resources after 30 days without settlement](https://docs.cdp.coinbase.com/x402/seller/get-discovered#troubleshooting-discovery).
+Index activity is not an adoption rate for all offered services.
 
-Where both cover the same listing, the gap between them is itself published. It is an
-indicator, not proof: batched settlement and other facilitators mean the two legitimately
-differ.
+**Chain (observed).** Distinguish transfers to sampled payees, identified x402 settlements,
+and paid calls. An unrelated transfer to a listed address is still just a transfer. Two
+routes sharing a payee cannot both claim the same event. A batch can settle many calls;
+never infer its call count or route from its amount. Count each event once at the strongest
+level supported by the versioned method. Mark an unsupported attribution **not attributable**.
+
+Publish a cross-source discrepancy only when independent evidence matches the route,
+network, population, unit and window. Otherwise show the series separately, without a
+ratio or difference. Weekly captures of a trailing 30-day counter overlap by 23 days;
+subtracting them does not recover the last week's calls.
 
 ## Measures
 
-Final list and exact definitions are fixed by the feasibility scout. Intended:
+The scout proposes a fixed sample rule, denominator and unit for each measure **before**
+outcomes are assessed. Do not extrapolate sample results to the market.
 
-**Transaction cost**
-- Listed price per call: median and ninetieth percentile, in the settlement currency
-- Network fee paid by settlement transactions: median and ninetieth percentile
-- Facilitator fee: a documented fact, not a measure
-
-**Real usage**
-- Listings, and listings with at least one call in the last 30 days (reported)
-- Calls over 30 days (reported)
-- Payments, distinct payers, distinct payees and amount in the week (observed)
-
-**Credibility indicators** (shown individually, labelled "indicators, not a verdict")
-- Share of activity in the ten largest listings and the ten largest paid addresses
-- Share of observed amount moving between addresses that also pay each other
-- Share of payers seen in an earlier week
-- Listings added and removed since the last snapshot
-- Reported calls against observed payments, for listings where both exist
+- **Price.** Start with the median and 90th percentile of fixed-price (`exact`) Base USDC
+  offers, one observation per distinct eligible offer. An `upto` amount is a spending cap,
+  not a price paid. Keep caps, realized settlement amounts and network fees separate.
+  Preserve integer atomic units without floating-point loss; identify asset by network
+  and contract, decimals for display, and who pays. CDP normally pays settlement gas;
+  some buyers pay a one-time approval. The facilitator tariff is a documented price
+  schedule, not an observed per-call charge. [Cost and gas FAQ](https://docs.cdp.coinbase.com/x402/support/faq#cost-and-money-movement)
+- **Usage.** Report resource-wide rolling counters as such. For a finalized chain week,
+  report counts, distinct addresses by role, and amounts by asset only for the declared
+  event population. Settlement transaction sender does not by itself identify the buyer.
+- **Indicators, not verdicts.** Show concentration, reciprocal flows and repeat payer
+  shares only with their asset, window and denominator. A refund can look reciprocal.
+  Catalogue changes are index appearances/disappearances, not launches/closures. Churn
+  and returning-payer metrics require comparable retained sets; without them show a gap.
+  Zero events in a fully covered population is zero; a share with a zero denominator is
+  undefined. Every metric gives eligible, measured and missing counts.
 
 ## Records
 
@@ -127,74 +137,105 @@ older observations are kept and never mixed with newer ones.
 
 ### Observation (`observations/`)
 
-One subject, one method, one period, one source.
+One subject, versioned method, UTC reporting week, source and declared sample per record.
 
-- `subject` (directory entry id), `method` and `method_version`
-- `period` (start and end dates; a week)
-- `source`: `catalogue` with the endpoint host and fetch time, or `chain` with the network
-  identifier, block range and endpoint host
-- `measures`: typed numbers from the method's fixed list; no free-form keys
-- `coverage`: `complete`, or `partial` with the reason. A partial observation is shown and
-  never ranked, compared or used to score a forecast.
-- `sample`: how the measured listings were chosen, when not all were measured
-- `evidence`: hash and size of the raw data; the raw data is not hosted
-- `author`, optional `agent`, `date`, `funded_by` (optional)
+- `subject`, `method`, `method_version`, `source`, `sample` and `period` identify scope.
+  Use Monday 00:00 UTC to the following Monday, end exclusive. Distinguish capture time
+  from the actual measurement window (e.g. a trailing operator counter).
+- Record the catalogue host, crawl start/end, offsets, reported totals, duplicate count
+  and field coverage. For chain records pin network, canonical finalized block bounds
+  and hashes, endpoint, filter definition and completed ranges or their evidence manifest.
+- `measures` are typed and versioned. `complete` means complete **for the declared
+  method and sample**, not for the marketplace or a point-in-time catalogue. Preserve
+  coverage per measure; a missing counter never becomes zero. A partial collection is
+  visible but not ranked, compared or scored; even a completed traversal cannot resolve
+  an outcome with missing required fields.
+- `evidence` includes hash, size, capture manifest and retention/replay status. Keep
+  bulk evidence outside the 16 KB record. Retain bounded, hash-verified input bytes and
+  checkpoints across runs where replay is promised; disclose expiry. A digest without
+  accessible bytes proves neither availability nor independent reproducibility.
+- Record `author`, optional `agent`, `date` and empty `funded_by`. Identify additional
+  witnesses as such; a second capture is corroboration, not replay of the original.
 
 ### Forecast (`forecasts/`)
 
-A prediction of one measure for one subject in one future period.
+Predict one predeclared target. Its key binds directory subject, method **and version**,
+source, sample rule/cohort, measure, asset/unit, horizon and target window. For a catalogue
+target specify which scheduled capture qualifies; for a chain target specify the finalized
+week. A trailing counter observed next week is not next week's demand.
 
-- `subject`, `method`, `method_version`, `measure`, `period`
-- one of: `range` (tenth, fiftieth and ninetieth percentile), or `probability` with the
-  threshold it refers to
-- `made` (date), `data_through` (the last period the forecaster used)
-- `approach` (one line, untrusted text), `author`, optional `agent`
-
-Rule: a forecast must be merged before its period begins. The gate compares `made` with the
-period; the publication workflow refuses one that arrives late.
+Submit ordered 10th/50th/90th percentiles or a probability in [0,1] for a fixed event
+whose threshold and equality rule are set before forecasts open. Retain `made`,
+`data_through`, untrusted `approach`, `author` and optional `agent`. Use the trusted GitHub
+merge time of the **exact submitted revision**, strictly before target start, including
+manual merges; an author's date or an earlier passing check is not proof of timeliness.
+Score at most one submission per author and target; reject duplicates.
 
 ### Scores (computed, never typed)
 
-When a complete observation exists for a forecast's subject, method, measure and period:
+Resolve against one complete observation with the exact target key and eligible measure.
+Predeclare the resolving collector/capture rule independently of the value. Other
+witnesses are evidence for review; if the rule cannot select a unique outcome, leave the
+forecast unscored and explain why. A method change starts a new series.
 
-- a range is scored by its quantile error, and by whether the outcome fell inside the range
-- a probability is scored by its squared error
+At the shared UTC forecast cutoff, freeze baseline inputs by immutable repository revision
+or observation IDs available **before** the cutoff. Later backfills never change an issued
+baseline. Start with absolute error of the predicted median versus the same loss for
+“last period” and “mean of the last four consecutive periods.” Missing required history
+means baseline unavailable; do not skip a missing week to fill it.
 
-Per forecaster and measure the site shows mean error and how often the stated ranges held
-the outcome. Two **baselines** are computed at build time from the observations alone and
-always appear: "same as last period" and "mean of the last four periods".
-
-No statement that anyone beats a baseline is shown until at least eight periods have been
-scored. Until then the board says how many periods exist.
+Compare only identical targets on paired weeks. Show eligible, submitted, missed, unresolved
+and paired counts. For distributions, report mean pinball loss over the three quantiles
+and inclusive 80% interval coverage separately. For probabilities use Brier loss
+`(p − event)²`. Neither is compared to a point baseline under a different loss.
+After eight paired periods the board may say “lower mean loss on these periods,” not
+“proven predictive skill”; overlapping windows are not independent evidence.
 
 ## Collector
 
-A read-only command in the existing CLI. Given a method and a period it reads the public
-sources, writes the observation file, and keeps the raw data locally with its hash. It holds
-no key and no wallet and runs no model. Given the same raw data it always produces the same
-file.
+The existing CLI reads public data only. The same input bytes, capture manifest and
+method version must produce the same aggregate. No model, wallet or payment credential.
 
-A free scheduled GitHub Action runs it weekly and opens a pull request that adds only
-records. Anyone can run it for the same period; a second, independently fetched catalogue
-snapshot on the same day is how a reported observation gets reproduced.
-
-Failure handling: a rate limit, an incomplete page or an unreachable endpoint produces a
-`partial` observation naming the gap, or no observation. It never fills in.
+- **Catalogue:** offset pagination is a crawl over time, not an atomic snapshot. The
+  historical total of 37,540 at the documented default of 100/page implies 376 requests
+  before retries, not a runtime measurement. Report pagination drift; deduplication does
+  not prove there were no skips. Reduce the declared sample if a sweep cannot fit the
+  budget. A fresh crawl cannot backfill a missed historical capture.
+- **Chain:** use [bounded log ranges](https://docs.base.org/base-chain/api-reference/ethereum-json-rpc-api/eth_getLogs)
+  over finalized blocks. At 200 ms/block, a week is roughly three million blocks, or
+  about 1,500 queries per filter group at roughly 2,000 blocks/query before receipts or
+  retries. These are planning figures, not throughput guarantees. Batch compatible
+  filters, deduplicate logs by network/block hash/transaction hash/log index and fetch a
+  receipt once per transaction. Waiting for [finality](https://docs.base.org/specifications/transactions/transaction-finality)
+  trades roughly 20 minutes under normal conditions for a stable weekly result.
+- **Recovery:** set request, wall-time, retry and concurrency caps before collecting.
+  Respect rate limits. Resume verified completed ranges, rechecking boundary hashes.
+  A missing range or schema change produces an explicit gap, never a plausible zero.
+  Prefer the last published value with its age to a live dependency at page load.
+- **Publication:** one aggregate per stable period key, not a record per listing. Retry
+  the same record or redeploy its existing merge; do not recollect to fix a deploy.
+  Extend the trusted-base gate's path, author and immutability rules for the new kinds.
+  Its current author grammar rejects `github-actions[bot]`; automatic PRs are limited
+  to ten records. Prove the chosen owner-approved identity triggers trusted validation,
+  with an explicit verifier handoff if necessary. Keep auto-merge owner-opt-in.
 
 ## Pages and feeds
 
-- Each observed directory entry gets a page: the parts and who runs them, the weekly
-  measures with reported and observed in separate columns, the credibility indicators, the
-  forecasts and their record, and the limits.
-- A forecasts page: every forecaster against the baselines, per measure, misses included.
-- The directory shows each entry's evidence level.
+- Each surveyed entry shows its evidence level, scope, window and last publication age,
+  with quoted prices, operator-reported activity and attributable chain measures separate.
+  Include coverage, limitations, individual credibility indicators and who runs each part.
+- Show expected collection time, actual capture interval, merge and deployment separately;
+  record a missing scheduled week even when no PR exists.
+- The forecasts page shows matching targets, scores and baselines, including misses,
+  unresolved outcomes and unavailable baselines.
 - Feeds follow the research exchange: one structure-only feed, free text separate and marked
   untrusted.
 
 ## Limits the site states
 
 - The chain shows that money moved, not that what was bought was delivered or any good.
-- Catalogue figures are the operator's own, and a snapshot cannot be checked after the fact.
+- Operator counters refresh on a six-hour schedule. A later fetch cannot verify what
+  the operator served earlier; replaying retained bytes checks the calculation, not the operator.
 - An address is not an agent or a person. The site cannot tell agents from humans, and
   cannot prove that activity is fake.
 - Settlement off-chain is invisible; such a marketplace is marked "not observable".
@@ -202,35 +243,38 @@ Failure handling: a rate limit, an incomplete page or an unreachable endpoint pr
 - Free endpoints are rate-limited; gaps are shown.
 - The first world is one operator's ecosystem, chosen by the maintainers.
 - Publishing indicators and forecasts may change the behaviour they describe.
-- With few periods of history, forecasts will be poor.
+- Few or overlapping periods limit what scores can establish.
 
-Computed bias numbers, added to the existing biases page: share of observations that are
-partial, share of listings measured, number of independent collectors, number of forecasters
-other than the baselines, and number of periods scored.
+On the biases page count missing, partial and complete periods against the schedule,
+measured versus eligible offers, distinct collector identities (not proof of independence),
+non-baseline forecasters and paired periods scored.
 
 ## Delivery
 
 Through firstmate, each piece its own pull request, in this order:
 
-0. **Feasibility scout** (report only, nothing published). Can a full catalogue snapshot be
-   read within free limits? Can a week of payments to listed addresses be read from a free
-   Base endpoint, and for how many addresses? How can x402 settlements be recognised
-   on-chain, and how far can reported calls be compared with observed payments given batched
-   settlement? Recommend the sample rule and the final measure list.
-1. **Records and catalogue collector.** Method, observation and their gate rules; the
-   catalogue half of the collector; evidence level on directory entries.
-2. **Chain collector**, as the scout recommends.
-3. **Pages and feeds**, with the limits and bias numbers.
-4. **Forecasts.** The record, the timing rule, baselines, scoring, the forecasts page.
-5. **Weekly schedule.** The free scheduled job that opens record-only pull requests.
+0. **Feasibility scout, report only.** Demonstrate shared-payee, unrelated-transfer and
+   batch cases; interrupt/resume a bounded collection; report requests, retries, elapsed
+   time, coverage and retained bytes. Demonstrate on labelled examples that late inputs,
+   a conflicting witness and a new method version cannot change a frozen baseline or select
+   the wrong outcome. Produce one sample fixed-USDC quote report with time and coverage.
+   Propose the attribution rule, sample and budgets. Stop for captain review; publish nothing.
+1. **Records and catalogue collector.** Version the quote method; validate evidence,
+   coverage and the reported-only status. Preserve the exchange's trust boundary.
+2. **Chain collector**, only for the scope supported by the scout and approved by the captain.
+3. **Pages and feeds.** Deliver the quote survey, coverage, freshness and limits first.
+4. **Weekly schedule and publication proof.** Carry a real aggregate through trusted
+   validation, merge and deployed feed; exercise idempotent recovery before building a board.
+5. **Forecasts.** Start with one defensible target, frozen point baselines and paired
+   scores. No real-usage forecast without a defensible real-usage outcome.
 6. **Link to the research exchange.** Hypotheses about a directory entry, findings that
    cite observations.
 7. **Second and third worlds**, each starting with its own scout.
 
 ## Risks
 
-- **The scout may find the chain half infeasible for free.** Then the first world ships with
-  reported figures only, labelled as such, and the design's central claim is weaker.
+- **Attribution or free collection may fail.** Stop for the captain to choose a clearly
+  labelled catalogue-only price survey or no release. Never publish it as verified demand.
 - **Dependence on one operator's API.** Its shape or access can change without notice.
 - **Gaming.** A listing's operator can inflate both its reported and observed activity by
   paying itself. The circularity and concentration indicators exist for this and are not
