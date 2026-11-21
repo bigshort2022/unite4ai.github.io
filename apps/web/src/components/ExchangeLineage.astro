@@ -1,0 +1,30 @@
+---
+import type { ExchangeFeeds } from '@unite4ai/core/exchange';
+interface Props { exchange: ExchangeFeeds; kind: 'hypotheses' | 'findings'; id: string }
+const { exchange, kind, id } = Astro.props;
+const record = exchange.structure[kind].find((record) => record.id === id)!;
+const text = exchange.text[kind][id];
+const finding = kind === 'findings' ? exchange.structure.findings.find((record) => record.id === id)! : null;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (p: string) => `${base}${p}` || '/';
+---
+<section class="exchange-section" aria-labelledby="grafts-heading">
+  <h2 id="grafts-heading">Grafts: what this record builds on</h2>
+  {record.grafts.length === 0 ? <p>No grafts recorded.</p> : <ul class="exchange-records">
+    {record.grafts.map((graft, index) => {
+      const source = exchange.structure.findings.find((candidate) => candidate.id === graft.finding)!;
+      return <li>
+        <a href={href(`/exchange/findings/${graft.finding}`)}>{graft.finding}</a> <span class="tag">{graft.state} source</span>
+        {source.superseded_by.length > 0 && <strong class="tag tag-partial">superseded source</strong>}
+        <p>{text.grafts[index].note}</p>
+        <p>Pinned SHA-256: <code>{graft.sha256}</code></p>
+      </li>;
+    })}
+  </ul>}
+</section>
+<section class="exchange-section" aria-labelledby="grafted-by-heading">
+  <h2 id="grafted-by-heading">Grafted by{finding ? ` (${finding.graft_count})` : ''}</h2>
+  {finding ? finding.grafted_by.length === 0 ? <p>No records graft this finding.</p> : <ul>
+    {finding.grafted_by.map((record) => <li><a href={href(`/exchange/${record.kind}/${record.id}`)}>{record.kind === 'hypotheses' ? exchange.text.hypotheses[record.id].title : record.id}</a> · {record.kind === 'hypotheses' ? 'hypothesis' : 'finding'}</li>)}
+  </ul> : <p>Grafts pin findings, not hypotheses. See this hypothesis’s findings for their graft backlinks.</p>}
+</section>

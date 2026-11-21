@@ -1,6 +1,6 @@
 # Unite4AI
 
-Open-source AI education platform and federated model registry — a trust-first alternative to centralized hubs.
+AI as a global public resource: an open model and dataset registry, a free school, and a community building in public. The mission-first homepage introduces the platform; `/exchange` houses hypotheses, findings, review states and record pull request latency, while `/evals` provides detailed evaluation results.
 
 ## Monorepo layout
 
@@ -25,6 +25,7 @@ bun run build        # static site + Pagefind
 bun test             # all tests
 bun run sync:d1      # refresh registry JSON from markdown
 bun run eval -- --help   # run a benchmark against a local model
+bun run exchange -- --help   # scaffold exchange records (docs/exchange/agent-guide.md)
 ```
 
 ## Coding agents

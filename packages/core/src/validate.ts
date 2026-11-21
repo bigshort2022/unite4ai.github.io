@@ -2,6 +2,8 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { OPEN_LICENSE_SET, OPEN_WASHED } from '@unite4ai/schema';
 import { validateEvals } from './validate-evals.ts';
+import { readExchangeRecords } from './read-exchange.ts';
+import { validateExchange } from './exchange.ts';
 
 export interface ValidateResult {
   errors: string[];
@@ -129,7 +131,9 @@ export async function validateContent(contentRoot: string): Promise<ValidateResu
     }
   });
 
-  await validateEvals(contentRoot, errors, warnings);
+  const catalog = await validateEvals(contentRoot, errors, warnings);
+  const exchange = await readExchangeRecords(contentRoot);
+  errors.push(...exchange.errors, ...validateExchange(exchange.records, catalog));
 
   return { errors, warnings };
 }

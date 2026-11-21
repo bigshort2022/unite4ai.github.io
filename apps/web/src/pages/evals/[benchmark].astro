@@ -104,7 +104,7 @@ const modelName = (id: string) => modelNames.get(id) ?? id;
             </thead>
             <tbody>
               {list.map((run) => (
-                <tr>
+                <tr id={`run-${run.id}`}>
                   <td class="num">{run.run.date}<small>v{run.benchmark_version}</small></td>
                   <td><a href={href(`/registry/models/${run.model}`)}>{modelName(run.model)}</a></td>
                   <td class="num"><span class="score">{withUnit(formatNumber(run.score), d.metric.unit)}</span>{d.items > 0 && <small>n = {run.n}</small>}</td>

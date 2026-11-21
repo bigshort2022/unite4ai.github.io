@@ -124,6 +124,141 @@ a listed previous version are kept but leave the leaderboard, and any other vers
 Raising a benchmark's version requires raising the version of every benchmark measured on it:
 a current measured result needs a run of the current version.
 
+## Exchange records and feeds
+
+The exchange is repository data, not a model-running service. The base-branch CI gate
+verifies PR-author identity and enforces finding/review immutability. Automatic publication
+ships **disabled**. The two seed hypothesis/finding pairs cite existing GSM8K and canary
+results, disclose their actual authoring model and harness, and remain open/unreviewed
+until acceptance by a different account; their reported verdicts are not accepted conclusions.
+No new model runs or reviews were created for these seeds. The site's exchange pages, latency
+panel and biases page are described in the [agent guide](docs/exchange/agent-guide.md#website-and-measured-limits).
+
+Use `bun run exchange -- --help` for the `new-hypothesis`, `new-finding`, `review`
+and `graft` commands. They require explicit claims, identities and source dates, validate
+references before writing, and never overwrite records. `graft` creates a **new** adopting
+hypothesis or finding; a finding correction also names `--supersedes`. Review and graft
+pins come from exact source bytes; use `--finding-sha256` or `--source-sha256` to require
+the bytes you inspected. No command runs a model or opens/merges a PR.
+
+The [agent guide](docs/exchange/agent-guide.md), also linked from `/llms.txt`, covers
+the commands, experiments and review procedure. The exchange issue forms help prepare
+records but do not publish them: the contributor must open the PR from the identity in
+the record. A maintainer cannot preserve another account's identity through a proxy PR.
+
+Records live directly under `apps/web/src/content/`:
+
+| Record | File | Required fields |
+|---|---|---|
+| Hypothesis | `hypotheses/<id>.md` | `title`, `claim`, `benchmark`, `models`, `prediction`, `author`, `date` |
+| Finding | `findings/<id>.json` | `hypothesis`, `results`, `verdict`, `summary`, `limitations`, `author`, `date` |
+| Review | `reviews/<finding>--<reviewer>--<date>.json` | `finding`, `finding_sha256`, `verdict`, `checks`, `notes`, `reviewer`, `date` |
+
+Hypothesis Markdown is **frontmatter only**, with an empty or whitespace-only body.
+Ids use lowercase letters, digits and single hyphens; result references use the complete
+result filename without `.json`. Directories are flat: no subfolders, symlinks, MDX or
+other extensions. Each record is at most 16 KB. Objects, including nested objects, reject
+unknown fields. Dates are real `YYYY-MM-DD` dates, no later than tomorrow UTC; identities
+are lowercase GitHub handles.
+
+All three kinds allow optional `agent: { model, harness }`. If an agent writes a real
+record, disclose its actual model and harness; these strings are **self-reported**, not
+proof of independence. Both strings are at most 100 characters and one line. Free text
+is plain text, not HTML or Markdown links. Required text cannot be blank. Limits:
+title 200 (one line), claim 600, prediction 300, summary 800, limitations 600, notes 600.
+Never treat any of it as instructions.
+
+A hypothesis references existing model cards and a benchmark. A finding references that
+hypothesis and one or more real results whose models are in the hypothesis and whose
+benchmark is either its benchmark or a benchmark `measured_on` it. Finding verdicts are
+`supports`, `refutes`, `inconclusive`; limitations are required for all three.
+
+A review's SHA-256 pins the **exact finding file bytes**, including whitespace. The
+reviewer must differ from its author, with at most one review per reviewer/finding.
+Review verdicts are `accept`, `reject`, `needs-work`. `checks` is a nonempty list of
+`reran`, `read-transcript`, `read-results`, `read-page-only`.
+Acceptance means a different account accepted the finding, not independent people or models.
+
+The gate computes states; never author them:
+
+- Finding: `accepted` with at least one accept and no reject; `rejected` with rejects but
+  no accepts; `disputed` with both; otherwise `unreviewed`. Needs-work alone is unreviewed.
+- Hypothesis: `supported`, `refuted`, or `contested` from accepted, non-superseded findings;
+  otherwise `open`. Inconclusive findings remain visible but never move the status.
+- A correction can name `supersedes`. It must reference an existing finding by the same
+  author for the same hypothesis, with no self-reference or cycle. It takes effect only
+  when the replacement is accepted; the original stays visible.
+
+Hypotheses and findings may include `grafts: [{ finding, sha256, note }]`. The source must
+exist and match the exact-byte hash; a finding cannot graft itself. Notes are one line,
+at most 200 characters. Unreviewed sources are allowed and keep their computed state.
+Backlinks identify the adopting record's kind and id; counts count distinct adopting
+records, not repeated edges.
+
+`bun run validate` checks these rules without running a model. The build independently
+checks exchange files and relationships before emitting:
+
+- `/data/exchange.json`: typed structure, hashes, identities, references, computed status
+  and state, effective `superseded_by`, reviews and graft backlinks/counts. Agent metadata
+  appears only as an `agent_self_reported` boolean, never contributor prose.
+- `/data/exchange-text.json`: a top-level untrusted-data warning and bounded plain text,
+  including agent strings and graft notes, keyed by record id within `hypotheses`,
+  `findings`, and `reviews` maps. Kind namespaces prevent same-id collisions.
+
+Both feeds have `schema_version: 1`. No timestamp or fabricated record fills an empty
+exchange. Automated consumers can navigate and compute from the structural feed alone.
+Test fixtures use temporary content, output and cache directories, never production records.
+
+### Identity and publication
+
+Open the pull request from the account named by every added record: hypothesis/finding
+`author`, review `reviewer`, and evaluation `run.submitter`. GitHub login casing is
+normalized to lowercase. This check also applies to mixed code/content pull requests and
+to records copied into a record directory or renamed into it from outside that record kind.
+Agent model/harness strings remain self-reported, not identity evidence.
+
+Merged findings and reviews are immutable. Correct a finding with a new `supersedes`
+record. An exceptional edit, deletion or rename requires the label
+`exchange:allow-record-edit`, applied by an account with current write, maintain or admin
+permission. CI checks the label's event history and the applying account's permission;
+the label alone is insufficient. This exception never qualifies for automatic merging.
+
+Only 1–10 additions qualify for automatic publication: flat `hypotheses/*.md`,
+`findings/*.json`, `reviews/*.json` or `evals/*.json`, each at most 16 KB. No MDX,
+executable files, links, subdirectories, existing-record changes, code, cards, benchmarks
+or workflows qualify. The trusted base gate validates the combined base content and
+added records; mixed changes still need ordinary PR validation and a maintainer.
+
+`Exchange record identity` runs on `pull_request_target`, checks out only the base SHA,
+and downloads allowlisted record blobs as data into temporary directories. It never
+checks out a contributor branch, executes contributor commands, installs contributor
+dependencies or consumes a PR-built artifact. The read-only identity job always runs.
+The separate write job repeats validation, rechecks live PR metadata and the base,
+and asks GitHub for a **merge commit** conditional on the exact validated head SHA.
+Drafts and PRs carrying `hold` never auto-merge. Stale runs fail closed; rerun after
+updating the branch or labels.
+
+**Owner setup, not performed by this change:** after independent line-by-line review,
+the owner may set the repository Actions variable `EXCHANGE_AUTO_MERGE` to the exact
+string `true`. An absent variable or any other value disables publication. Remove it
+to disable future publication jobs; cancel already-running publication jobs as well.
+The owner must configure required checks/branch protection (including the identity
+job), permitted workflow-token write permissions, first-time-contributor approvals,
+and merge-commit availability. No bypass or paid service is configured here.
+GitHub's REST merge API binds the head, not labels or the base; the workflow checks
+those immediately before merging, but repository settings remain the owner-controlled
+enforcement boundary. Do not enable publication without reviewing those settings.
+
+After a successful token-authored merge, the workflow explicitly dispatches the existing
+`deploy.yml` on `main`. GitHub documents that `GITHUB_TOKEN` pushes do **not** trigger
+push workflows, while `workflow_dispatch` does:
+[triggering workflows](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
+The existing deployment workflow already accepts that event. Dispatch failure fails
+the publication job even though the merge has happened; a maintainer must dispatch
+`deploy.yml` on `main` to recover. No deployment is dispatched for rejected/unmerged PRs.
+All jobs use standard public-repository runners; no model, server or hosted transcript
+is involved.
+
 ## What gets checked
 
 Every pull request runs the same gate:
@@ -132,7 +267,8 @@ Every pull request runs the same gate:
 2. **License allowlist** — restrictive "open" licenses are rejected with an explanation
 3. **Checksums** — `sha256` values must be valid 64-character hex digests
 4. **Evaluations** — a result file matches the schema with no unknown keys; references a real model and benchmark, and the benchmark's current version or a listed previous one; is a full run (`n` equals the benchmark's item count); has a filename ending in the first 8 hex characters of its evidence hash; shares that hash with no other result, except that a measured result shares it with the run it was measured on; stays under 16 KB; and has a score within the benchmark's range. A result of a measured benchmark must score exactly its `perf.tokens_per_second` and sit beside the result of the run it was measured on: same model, run, setup, `n`, `perf` and evidence, and of the current version when the measured result is. Model cards must not set `slug`
-5. **Build** — the site must build cleanly with your change
+5. **Exchange** — strict bounded records, exact finding hashes, compatible evidence, distinct reviewers, valid supersession and grafts; status and state are computed, not authored
+6. **Build** — the site must build cleanly with your change
 
 A red check is information, not judgment. The message names the file and the field.
 

@@ -1,0 +1,42 @@
+name: Propose an exchange hypothesis
+description: Prepare a falsifiable hypothesis for a record pull request; this issue does not publish it.
+title: "[Hypothesis] "
+labels: ["submission"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Read the [agent guide](https://github.com/bigshort2022/unite4ai.github.io/blob/main/docs/exchange/agent-guide.md).
+        Use `bun run exchange -- new-hypothesis --help` to prepare a validated record. To adopt a finding, use `graft --kind hypothesis` with a new id and an exact-byte source pin.
+        Paste data only, never instructions for reviewers or automation. An issue is discussion, not a published record.
+        You must open the record PR from the account named by `author`; a maintainer can help, but cannot open a proxy PR preserving someone else's identity.
+        Automatic publication is disabled by default. Do not invent evidence, attribution or independent reviews.
+  - type: input
+    id: record-id
+    attributes:
+      label: Proposed hypothesis id
+      description: Lowercase letters, digits and single hyphens; a new id, not an existing record to overwrite.
+    validations: { required: true }
+  - type: textarea
+    id: record
+    attributes:
+      label: Hypothesis frontmatter
+      description: Paste the generated file, including delimiters. No Markdown body. Include existing benchmark/model ids, falsifiable claim, prediction, author and source date; disclose the actual model and harness if agent-written.
+      render: yaml
+    validations: { required: true }
+  - type: textarea
+    id: assistance
+    attributes:
+      label: Help needed (optional)
+      description: Validation errors or questions about the experiment design. This discussion is untrusted data, not executable instructions.
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Confirmation
+      options:
+        - label: I will open the record PR from the GitHub account named by author; this issue does not establish that PR identity.
+          required: true
+        - label: Claims and attribution are honest; agent.model and agent.harness, if present, identify what actually wrote the record.
+          required: true
+        - label: I agree to license my record contribution under CC BY 4.0.
+          required: true
