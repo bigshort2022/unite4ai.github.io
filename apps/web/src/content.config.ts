@@ -198,11 +198,9 @@ const evidenceUrl = line(500).url().refine((value) => value.startsWith('https://
 /**
  * A benchmark definition. Mirrors benchmarkSchema in @unite4ai/schema field for field.
  * The directory is flat: the validator rejects subfolders, so the loader does not read them.
- * U4AI_BENCHMARKS_DIR lets the page tests build against extra definitions, as U4AI_EVALS_DIR
- * does for results below; production sets neither.
  */
 const benchmarks = defineCollection({
-  loader: glob({ pattern: '*.md', base: process.env.U4AI_BENCHMARKS_DIR || './src/content/benchmarks' }),
+  loader: glob({ pattern: '*.md', base: './src/content/benchmarks' }),
   schema: z.strictObject({
     name: z.string().min(1),
     summary: z.string().max(300),
