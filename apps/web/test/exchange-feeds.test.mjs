@@ -125,8 +125,9 @@ test('record pages preserve computed lineage, corrections, review states and esc
     const model = page('registry/models/darsy-xray-analysis/index.html');
     assert.ok(model.includes('href="/exchange/hypotheses/fixture-hypothesis"'));
     assert.ok(model.includes('href="/exchange/findings/fixture-correction"'));
-    const home = page('index.html');
-    assert.ok(home.includes('href="/exchange/findings/fixture-unreviewed"'));
+    const exchange = page('exchange/index.html');
+    assert.ok(exchange.includes('href="/exchange/findings/fixture-unreviewed"'));
+    assert.ok(!page('index.html').includes('href="/exchange/findings/fixture-unreviewed"'));
     // Oracle: hand counts of the eight findings above; every labelled row has a different numerator.
     const biases = page('exchange/biases/index.html');
     for (const [label, value] of [
