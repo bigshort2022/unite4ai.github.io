@@ -14,6 +14,7 @@ const href = (p: string) => `${base}${p}` || '/';
 const path = Astro.url.pathname.replace(base, '').replace(/\/$/, '') || '/';
 
 const nav = [
+  { label: 'Global Exchange', href: '/global-exchange' },
   { label: 'Exchange', href: '/exchange' },
   { label: 'Stack', href: '/stack' },
   { label: 'Registry', href: '/registry' },
