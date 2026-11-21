@@ -81,7 +81,7 @@ async function directorySize(dir) {
 }
 
 // Reads the build of the first test. Real scores and model names change, so none is asserted.
-test('home leads to exchange while preserving experiments and registry navigation', async () => {
+test('home restores the mission-first layout with Exchange in navigation', async () => {
   const home = await readFile(new URL('dist/index.html', ROOT), 'utf8');
   const text = home.replace(/\s+/g, ' ');
   assert.equal(home.split('<h1').length - 1, 1);
@@ -90,23 +90,32 @@ test('home leads to exchange while preserving experiments and registry navigatio
   const hero = text.slice(heroStart, text.indexOf('</section>', heroStart));
 
   const actions = [...hero.matchAll(/<a class="btn (btn-\w+)" href="([^"]+)"/g)].map(([, kind, target]) => ({ kind, target }));
-  assert.deepEqual(actions[0], { kind: 'btn-primary', target: '/exchange' });
-  assert.ok(actions.some(({ target }) => target === '/evals'));
-  assert.ok(actions.some(({ target }) => target === '/registry'));
+  assert.match(hero, /<h1>AI is a <span class="grad-text">global public resource\.<\/span><br\s*\/?>We build it like one\.<\/h1>/);
+  assert.deepEqual(actions, [
+    { kind: 'btn-primary', target: '/stack' },
+    { kind: 'btn-ghost', target: '/school' },
+    { kind: 'btn-ghost', target: '/registry' },
+  ]);
   const nav = text.match(/<nav class="site-nav"[^>]*>(.*?)<\/nav>/)?.[1] ?? '';
-  assert.equal([...nav.matchAll(/href="([^"]+)"/g)][0]?.[1], '/exchange');
-  const preview = text.indexOf('id="exchange-preview-title"');
-  const leading = text.indexOf('id="leading-results-title"');
-  assert.ok(preview > heroStart && leading > preview, 'exchange precedes the experiment layer');
-  assert.match(text.slice(preview, leading), /href="\/exchange\/biases"/);
-  assert.match(text.slice(preview, leading), /data-exchange-metric="waiting"/);
-  const definitions = (await readdir(new URL('src/content/benchmarks/', ROOT))).filter((name) => name.endsWith('.md'));
+  assert.equal([...nav.matchAll(/href="\/exchange"/g)].length, 1);
+  assert.match(nav, /href="\/evals"/);
+  assert.doesNotMatch(nav, /aria-current="page"/);
+  assert.doesNotMatch(text, /exchange-preview-title|leading-results-title|data-exchange-metric|<table/);
+  const order = ['class="hero', 'id="stack-preview-title"', 'aria-label="Platform at a glance"', 'What makes us different', 'Featured models', 'Progress is not automatic.'];
+  const positions = order.map((marker) => text.indexOf(marker));
+  assert.ok(positions.every((position, index) => position >= 0 && (index === 0 || position > positions[index - 1])));
+  const exchange = await readFile(new URL('dist/exchange/index.html', ROOT), 'utf8');
+  assert.match(exchange, /href="\/exchange" aria-current="page"/);
+  assert.match(exchange, /Hypotheses by status/);
+  assert.match(exchange, /Findings by review state/);
+  assert.match(exchange, /data-exchange-metric="waiting"/);
+  assert.match(exchange, /href="\/exchange\/biases"/);
+  assert.match(exchange, /href="\/evals"/);
   const stats = [...text.matchAll(/<div class="stat"><b>(\d+)<\/b>\s*<span>([^<]+)<\/span>/g)];
   assert.deepEqual(
     stats.map(([, , label]) => label),
-    ['Evaluation runs', 'Benchmarks', 'Open models', 'Open datasets', 'Free courses', 'Community events'],
+    ['Open models', 'Open datasets', 'Evaluation runs', 'Free courses', 'Community events'],
   );
-  assert.equal(Number(stats[1][1]), definitions.length);
 
 
   assert.doesNotMatch(home, fixtureMarkers);
@@ -210,7 +219,7 @@ test('the governance metrics page computes its figures and prints no number of i
 });
 
 // Derived from the published files, so it holds whatever results and versions are current.
-test('the home page and the leaderboards agree with the published results about which benchmarks have a current result', async () => {
+test('the leaderboards agree with published results about earlier benchmark versions', async () => {
   const versions = new Map();
   for (const file of await filesUnder(new URL('src/content/benchmarks/', ROOT), ['.md'])) {
     const id = file.pathname.split('/').pop().replace(/\.md$/, '');
@@ -225,10 +234,6 @@ test('the home page and the leaderboards agree with the published results about 
   }
 
   const page = async (path) => (await readFile(new URL(`dist/${path}`, ROOT), 'utf8')).replace(/\s+/g, ' ');
-  const home = await page('index.html');
-  const leading = home.slice(home.indexOf('<h2 id="leading-results-title"'));
-  const rows = (leading.slice(0, leading.indexOf('</section>')).split('<tbody>')[1] ?? '').split('<tr').slice(1);
-  assert.deepEqual(rows.map((row) => row.match(/href="\/evals\/([^"]+)"/)?.[1]).sort(), [...current].sort());
 
   // A benchmark whose only results are of an earlier version says so, with their number, and
   // its own page points down to them.

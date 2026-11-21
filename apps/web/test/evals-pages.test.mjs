@@ -364,7 +364,7 @@ test('the content collection rejects a result with an unknown key, like the vali
   assert.match(output, /Unrecognized key: "notes"/);
 });
 
-// ── The home page's Leading results, and what a board says when it has nothing current ──
+// ── Homepage run counts and benchmark empty states ──
 
 /** A field of a card's frontmatter, so these tests follow the content instead of repeating it. */
 const cardField = (collection, id, field) => {
@@ -378,7 +378,6 @@ const inHtml = (text) => text
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const MODEL = 'darsy-xray-analysis';
-const modelName = inHtml(cardField('models', MODEL, 'name'));
 const benchmarkName = (id) => inHtml(cardField('benchmarks', id, 'name'));
 const currentVersion = (id) => cardField('benchmarks', id, 'version');
 /** No benchmark has had a version "0", so a run of it is always a run of an earlier version. */
@@ -390,14 +389,6 @@ const noResultsYet = (subject) => new RegExp(
   `No results yet\\. Results arrive by pull request from people who ran ${subject} on their own hardware\\. ${GUIDE}`,
 );
 
-/** The home page's Leading results section, from its heading to the end of the section. */
-const leadingResultsOf = (home) => {
-  const start = home.indexOf('<h2 id="leading-results-title"');
-  return start === -1 ? '' : home.slice(start, home.indexOf('</section>', start));
-};
-/** The table rows of that section, one per benchmark. */
-const rowsOf = (section) => (section.split('<tbody>')[1] ?? '').split('<tr').slice(1);
-const benchmarksOf = (rows) => rows.map((row) => row.match(/href="\/evals\/([^"]+)"/)?.[1]);
 
 /** A result file the content collection accepts: a test names what it is about, this fills in the rest. */
 function result({ benchmark, version = currentVersion(benchmark), score, date, hash, submitter = 'fixture-bot', format = 'mlx', quantization = 'FIXTURE_Q', device = 'Fixture Laptop', memory = 32 }) {
@@ -432,139 +423,22 @@ const scratchDir = (name) => {
 };
 
 /**
- * Builds the site against result files written for one test, and against extra benchmark
- * definitions when given. Returns a reader of the built pages with their whitespace collapsed.
+ * Builds the site against result files written for one test.
+ * Returns a reader of the built pages with their whitespace collapsed.
  */
-function buildScratch(name, results, definitions = {}) {
+function buildScratch(name, results) {
   const evalsDir = scratchDir(name);
   for (const { name: file, content } of results) writeFileSync(join(evalsDir, file), JSON.stringify(content));
   const env = fixtureEnv(evalsDir);
-  if (Object.keys(definitions).length > 0) {
-    env.U4AI_BENCHMARKS_DIR = scratchDir(`${name}-benchmarks`);
-    cpSync(join(ROOT, 'src/content/benchmarks'), env.U4AI_BENCHMARKS_DIR, { recursive: true });
-    for (const [file, text] of Object.entries(definitions)) writeFileSync(join(env.U4AI_BENCHMARKS_DIR, file), text);
-  }
   const outDir = scratchDir(`${name}-site`);
   const build = spawnSync('bun', ['run', 'astro', 'build', '--outDir', outDir], { cwd: ROOT, encoding: 'utf8', timeout: 120_000, env });
   assert.equal(build.status, 0, `${build.error ?? ''}${build.stdout}${build.stderr}`);
   return (path) => readFileSync(join(outDir, path), 'utf8').replace(/\s+/g, ' ');
 }
 
-test('the home page lists, under the hero, one leading result for each benchmark that has current results', () => {
-  const home = page('index.html');
-  const leading = leadingResultsOf(home);
-
-  // One row per benchmark with a current result, by category then name. The canary benchmark
-  // has no result, so it has no row.
-  const rows = rowsOf(leading);
-  assert.deepEqual(benchmarksOf(rows), ['gsm8k-200', 'decode-speed-gsm8k-200']);
-  assert.doesNotMatch(leading, /canary-injection-v1/);
-  assert.equal(leading.split('<th scope="col">').length - 1, 6);
-  assert.equal(leading.split('<th scope="row">').length - 1, rows.length);
-  // The region that scrolls the table is named after the table, not after the section's heading:
-  // two regions with one name cannot be told apart.
-  const caption = leading.match(/<caption class="sr-only">([^<]+)<\/caption>/)?.[1];
-  assert.ok(caption && caption !== 'Leading results');
-  assert.ok(leading.includes(`role="region" aria-label="${caption}"`));
-
-  // A ranked benchmark shows its best group: gguf at 70 leads mlx at 62, alone, and its two runs
-  // agree. Hardware does not change a score, so the row names no runtime and no machine.
-  const [quality, speed] = rows;
-  assert.match(quality, /<td>Quality<\/td>/);
-  assert.match(quality, new RegExp(`<a href="/evals/gsm8k-200">${benchmarkName('gsm8k-200')}</a>`));
-  assert.match(quality, new RegExp(`<a href="/registry/models/${MODEL}">${modelName}</a>`));
-  assert.match(quality, /<span class="score">70%<\/span>\s*<small>Best score<\/small>/);
-  assert.match(quality, /gguf · FIXTURE_Q/);
-  assert.match(quality, /<span class="tag">not yet reproduced<\/span>/);
-  assert.doesNotMatch(quality, /Most recent|tied with|range|Fixture|llama\.cpp|4bit/);
-  // Neither earlier-version run is a current result: this model's 99, or the other model's 41.
-  assert.doesNotMatch(leading, />99%<|>41%<|qwen3-6-35b-a3b/);
-
-  // A measured benchmark has no winner: the row is its most recent result, with the runtime and
-  // machine it ran on.
-  assert.match(speed, /<td>Efficiency<\/td>/);
-  assert.match(speed, new RegExp(`<a href="/evals/decode-speed-gsm8k-200">${benchmarkName('decode-speed-gsm8k-200')}</a>`));
-  assert.match(speed, /<span class="score">140\.25 tok\/s<\/span>\s*<small>Most recent<\/small>\s*<small>2026-11-05<\/small>/);
-  assert.match(speed, /gguf · FIXTURE_Q\s*<small>llama\.cpp 0\.0\.0<\/small>\s*<small>Fixture Tower · 24 GB<\/small>/);
-  assert.doesNotMatch(speed, /Fixture Laptop|Best score|tied with/);
-  assert.doesNotMatch(leading, /class="rank|>Rank<|Fastest/);
-
-  assert.match(leading, /<a href="\/evals">All leaderboards<\/a>/);
-  assert.doesNotMatch(leading, /No results/);
-});
-
-test('a home row shows a tie, a reproduced leader with its range, the lowest score where lower is better, and the most recent speed', { timeout: 120_000 }, () => {
-  const built = buildScratch('rows', [
-    // GSM8K: two submitters agree on mlx within 68–72 (median 70); one gguf run scores 70 too.
-    result({ benchmark: 'gsm8k-200', score: 68, date: '2026-11-01', hash: 'a' }),
-    result({ benchmark: 'gsm8k-200', score: 72, date: '2026-11-02', hash: 'b', submitter: 'fixture-bot-2' }),
-    result({ benchmark: 'gsm8k-200', score: 70, date: '2026-11-03', hash: 'c', format: 'gguf' }),
-    // An error rate: three groups share the lowest score, a fourth is worse.
-    result({ benchmark: 'fixture-error-rate', version: '1', score: 30, date: '2026-11-01', hash: 'd' }),
-    result({ benchmark: 'fixture-error-rate', version: '1', score: 12, date: '2026-11-02', hash: 'e', format: 'gguf' }),
-    result({ benchmark: 'fixture-error-rate', version: '1', score: 12, date: '2026-11-03', hash: 'f', format: 'gguf', quantization: 'FIXTURE_Q8' }),
-    result({ benchmark: 'fixture-error-rate', version: '1', score: 12, date: '2026-11-04', hash: '1', quantization: 'FIXTURE_Q8' }),
-    // Speed: the fastest run is the oldest; the two newest share a date, and the slower has the lower id.
-    result({ benchmark: 'decode-speed-gsm8k-200', score: 200, date: '2026-11-01', hash: '2', format: 'gguf', device: 'Fixture Tower', memory: 48 }),
-    // The laptop has two runs of different speeds, by two people: its group's median is 58.25.
-    result({ benchmark: 'decode-speed-gsm8k-200', score: 55, date: '2026-11-02', hash: '6', format: 'gguf', submitter: 'fixture-bot-2' }),
-    result({ benchmark: 'decode-speed-gsm8k-200', score: 61.5, date: '2026-11-06', hash: '3', format: 'gguf' }),
-    result({ benchmark: 'decode-speed-gsm8k-200', score: 140.25, date: '2026-11-06', hash: '5', format: 'gguf', device: 'Fixture Tower', memory: 24 }),
-  ], {
-    'fixture-error-rate.md': [
-      '---',
-      'name: Fixture error rate',
-      'summary: A lower-is-better benchmark that exists only in the page tests.',
-      'category: quality',
-      'version: "1"',
-      'metric:',
-      '  name: error rate',
-      '  unit: "%"',
-      '  higher_is_better: false',
-      '  min: 0',
-      '  max: 100',
-      'scoring: exact-match',
-      'items: 200',
-      'source_url: https://example.org/fixture-error-rate.jsonl',
-      'license: mit',
-      'updated: 2026-11-15',
-      '---',
-      '',
-      'Exists only in the page tests.',
-      '',
-    ].join('\n'),
-  });
-
-  const rows = rowsOf(leadingResultsOf(built('index.html')));
-  assert.deepEqual(benchmarksOf(rows), ['fixture-error-rate', 'gsm8k-200', 'decode-speed-gsm8k-200']);
-  const [errorRate, gsm8k, speed] = rows;
-
-  // Lower is better: 12 leads 30. Three groups score 12; the first by the leaderboard's order is shown.
-  assert.match(errorRate, /<span class="score">12%<\/span> ?<small>Best score<\/small> ?<small>tied with 2 others<\/small>/);
-  assert.match(errorRate, /gguf · FIXTURE_Q ?</);
-  assert.match(errorRate, /<span class="tag">not yet reproduced<\/span>/);
-  assert.doesNotMatch(errorRate, /30%|range/);
-
-  // Both GSM8K groups score 70; the one two people submitted comes first, with the range of its runs.
-  assert.match(
-    gsm8k,
-    /<span class="score">70%<\/span> ?<small>range 68–72<\/small> ?<small>Best score<\/small> ?<small>tied with 1 other<\/small>/,
-  );
-  assert.match(gsm8k, /mlx · FIXTURE_Q ?</);
-  assert.match(gsm8k, /<span class="tag tag-open">reproduced by 1<\/span>/);
-
-  // Neither the fastest run (200) nor the faster of the two newest (140.25): the most recent by
-  // date, then id. The number is that run's own, not the median of its group (58.25) or its
-  // range; the reproduction is the group's, which a second person also ran.
-  assert.match(speed, /<span class="score">61\.5 tok\/s<\/span> ?<small>Most recent<\/small> ?<small>2026-11-06<\/small> ?<\/td>/);
-  assert.match(speed, /gguf · FIXTURE_Q ?<small>llama\.cpp 0\.0\.0<\/small> ?<small>Fixture Laptop · 32 GB<\/small>/);
-  assert.match(speed, /<span class="tag tag-open">reproduced by 1<\/span>/);
-  assert.doesNotMatch(speed, /200 tok|140\.25|58\.25|55 tok|range|2026-11-02|Fixture Tower|tied with|Best score/);
-});
-
 let earlierOnly;
 
-test('when every run is of an earlier version, the home page lists no benchmark and points to the leaderboards', { timeout: 120_000 }, () => {
+test('the home page counts earlier-version runs without duplicating the leaderboards', { timeout: 120_000 }, () => {
   // Two earlier-version runs of GSM8K-200, one of the speed benchmark, none of the canary.
   for (const id of ['gsm8k-200', 'decode-speed-gsm8k-200']) assert.notEqual(currentVersion(id), EARLIER);
   earlierOnly = buildScratch('earlier-only', [
@@ -575,15 +449,8 @@ test('when every run is of an earlier version, the home page lists no benchmark 
 
   const home = earlierOnly('index.html');
   assert.match(home, /<b>3<\/b> ?<span>Evaluation runs<\/span>/);
-  const leading = leadingResultsOf(home);
-  assert.doesNotMatch(leading, /<table|\/evals\/gsm8k-200|>99%</);
-  // "No results yet" would be false: there are runs, of versions that are no longer current.
-  assert.match(leading, new RegExp(
-    "No results for the current benchmark versions yet\\. Earlier runs are listed on each benchmark's page, "
-    + `linked from the <a href="/evals">leaderboards</a>\\. ${GUIDE}`,
-  ));
-  assert.doesNotMatch(leading, /No results yet/);
-  assert.match(leading, /<a href="\/evals">All leaderboards<\/a>/);
+  assert.doesNotMatch(home, /<table|leading-results-title/);
+  assert.match(home, /href="\/evals"/);
 });
 
 test('a benchmark with runs of earlier versions only says which version has no result and where those runs are', () => {
@@ -621,14 +488,11 @@ test('a benchmark with runs of earlier versions only says which version has no r
   assert.doesNotMatch(canary, /previous-versions|[Ee]arlier-version/);
 });
 
-test('with no runs at all, the home page says that results arrive by pull request', { timeout: 120_000 }, () => {
+test('with no runs the home counts zero and the leaderboard explains participation', { timeout: 120_000 }, () => {
   const built = buildScratch('no-runs', []);
   const home = built('index.html');
   assert.match(home, /<b>0<\/b> ?<span>Evaluation runs<\/span>/);
-  const leading = leadingResultsOf(home);
-  // The evaluations page's empty state with its link, but about "a benchmark": none is in view here.
-  assert.match(leading, noResultsYet('a benchmark'));
-  assert.doesNotMatch(leading, /this benchmark|<table|current benchmark versions/);
+  assert.doesNotMatch(home, /<table|leading-results-title/);
   assert.match(categorySection(built('evals/index.html'), 'quality'), noResultsYet('this benchmark'));
 });
 

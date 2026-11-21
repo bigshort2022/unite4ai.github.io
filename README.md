@@ -1,6 +1,6 @@
 # Unite4AI
 
-The secure exchange for open source AI models (hypotheses, experiments, reviews and knowledge grafts), with a federated model registry and a free school: a trust-first alternative to centralized hubs.
+AI as a global public resource: an open model and dataset registry, a free school, and a community building in public. The mission-first homepage introduces the platform; `/exchange` houses hypotheses, findings, review states and record pull request latency, while `/evals` provides detailed evaluation results.
 
 ## Monorepo layout
 

@@ -28,10 +28,10 @@ export default defineConfig({
   prerenderConflictBehavior: 'error',
   // Fixture content stores stay outside the production cache. Test builds set
   // U4AI_EXCHANGE_DIR, so each gets its own empty caller-owned cache; the shared fixture
-  // cache only serves manual builds that override just the evaluation or benchmark data.
+  // cache only serves manual builds that override just the evaluation data.
   ...(process.env.U4AI_EXCHANGE_DIR
     ? { cacheDir: `${process.env.U4AI_EXCHANGE_DIR}/.astro-cache` }
-    : process.env.U4AI_EVALS_DIR || process.env.U4AI_BENCHMARKS_DIR ? { cacheDir: './node_modules/.astro-fixtures' } : {}),
+    : process.env.U4AI_EVALS_DIR ? { cacheDir: './node_modules/.astro-fixtures' } : {}),
   vite: {
     ssr: { noExternal: ['@unite4ai/core', '@unite4ai/schema'] },
     optimizeDeps: { include: ['@unite4ai/core', '@unite4ai/schema'] },
