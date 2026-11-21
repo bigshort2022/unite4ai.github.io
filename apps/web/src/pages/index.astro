@@ -1,5 +1,6 @@
 ---
 import Base from '../layouts/Base.astro';
+import OpenWordmark from '../components/OpenWordmark.astro';
 import { getCollection } from 'astro:content';
 import { loadEvals } from '../lib/evals';
 
@@ -22,6 +23,7 @@ const nextEvents = events.filter((e) => e.data.starts > new Date()).slice(0, 2);
   <section class="hero wrap">
     <p class="eyebrow">Systems change through AI democratization</p>
     <h1>AI is a <span class="grad-text">global public resource.</span><br />We build it like one.</h1>
+    <OpenWordmark />
     <p class="lede">
       An open model &amp; dataset registry that grades real openness, a free technology school,
       and a community where contributing is how you belong. No open-washing — every card, course,
