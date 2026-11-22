@@ -30,7 +30,7 @@ test('the pass@1 bootstrap is seeded, so every machine gets the same interval', 
   assert.deepEqual(bootstrapPass1Percent([10, 0, 0, 0, 0, 40], 5), [68, 90]);
   assert.deepEqual(bootstrapPass1Percent([0, 0, 0, 0, 0, 50], 5), [100, 100]);
   assert.deepEqual(bootstrapPass1Percent([0, 1, 0, 2], 3), [33.33, 100]);
-  assert.deepEqual(bootstrapPass1Percent([3, 5, 7, 9, 11, 15], 5), [57.6, 74.8]);
+  assert.deepEqual(bootstrapPass1Percent([3, 0, 6, 1, 1, 0], 5), [20, 49.09]);
 });
 
 test('answers are tallied per item and per run; a missing token count leaves that total out', () => {
@@ -51,6 +51,9 @@ test('answers are tallied per item and per run; a missing token count leaves tha
   const negative = attempts();
   negative[3] = { ...negative[3], index: -1 };
   assert.throws(() => tallyAttempts(negative, 3, 3), /answer for run 1 item -1 is outside 3 runs of 3 items/);
+  const beyond = attempts();
+  beyond[3] = { ...beyond[3], index: 3 };
+  assert.throws(() => tallyAttempts(beyond, 3, 3), /answer for run 1 item 3 is outside 3 runs of 3 items/);
   const twice = attempts();
   twice[4] = { ...twice[4], index: 0 };
   assert.throws(() => tallyAttempts(twice, 3, 3), /run 1 item 0 is answered twice/);
