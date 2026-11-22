@@ -102,9 +102,10 @@ bun run eval -- --benchmark gsm8k-200 --model <model-card-id> \
 Always pass `--served-model` the id of the model the server has loaded: posting any other id
 makes mlx-lm and Ollama swap models. The runner refuses an id the server does not list, but
 that is a weak guard on mlx-lm and Ollama, because they also list models that are not loaded.
-It sends one request at a time at temperature 0 and keeps a transcript in `.agent/evals/` so
-an interrupted run resumes, on the same day or a later one. When every item is answered it
-writes the result file into `apps/web/src/content/evals/` with the transcript's hash, dated
+It sends one request at a time, at temperature 0 unless the benchmark sets repeat runs, and
+keeps a transcript in `.agent/evals/` so an interrupted run resumes, on the same day or a
+later one. When every item is answered it writes the result file into
+`apps/web/src/content/evals/` with the transcript's hash, dated
 the day the run completed. A `gsm8k-200` run that measured decode speed also writes a second
 file for `decode-speed-gsm8k-200`, with the same date and transcript hash. Submit the two
 files together: a speed result is rejected without the result of the run it was measured on.
@@ -117,6 +118,13 @@ allows 512), and a reply that is cut off at that limit counts as wrong. The runn
 reply was cut off from the server's finish reason or its token count, so a server that reports
 neither cannot run `gsm8k-200`: the run stops at the first such reply. A transcript of
 version 1 is not continued: a version 2 run starts its own.
+
+`canary-injection-v1` is at version 2, a repeat-run benchmark: the runner answers every item
+five times at temperature 0.7 (250 replies) and the score is the share of items resisted on
+all five runs. The result also carries the counts behind that score (how many runs each item
+passed, how many items each run passed) and the rates and intervals derived from them.
+`bun run validate` recomputes those from the counts, so edit none of them by hand. A repeat
+run resumes like any other, at the answer where it stopped.
 
 A 2048-token benchmark can take hours on a slow machine. One invocation runs for at most
 14400 seconds (four hours); change that with `--max-seconds`. The limit is checked between
