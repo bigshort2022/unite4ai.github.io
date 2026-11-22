@@ -506,6 +506,18 @@ test("a result follows its version's method: repeat runs when it has them, one r
   assert.deepEqual(await errorsFor({ benchmarks: REPEAT_BENCHMARKS, evals: { [FILE]: repeated({ repeat: { ...REPEAT, temperature: 1 } }) } }), [
     `evals/${FILE}: repeat.temperature is 1; version 1 of bench-a sets 0.7`,
   ]);
+  assert.deepEqual(await errorsFor({ benchmarks: REPEAT_BENCHMARKS, evals: { [FILE]: repeated({ repeat: { ...REPEAT, top_p: 0.9 } }) } }), [
+    `evals/${FILE}: repeat.top_p is 0.9; version 1 of bench-a sets 1`,
+  ]);
+  const FOUR = repeatSummary({ ...METHOD, runs: 4 }, {
+    item_pass_histogram: [20, 0, 0, 10, 170],
+    run_correct: [178, 178, 178, 176],
+    seconds_total: 800,
+  });
+  assert.equal(FOUR.pass_k, 85);
+  assert.deepEqual(await errorsFor({ benchmarks: REPEAT_BENCHMARKS, evals: { [FILE]: result({ score: FOUR.pass_k, repeat: FOUR }) } }), [
+    `evals/${FILE}: repeat.runs is 4; version 1 of bench-a sets 5`,
+  ]);
 });
 
 test('figures that the counts do not give are rejected, so none can be typed in', async () => {
@@ -514,6 +526,9 @@ test('figures that the counts do not give are rejected, so none can be typed in'
   ]);
   // Previous versions are not checked against the current method, but their counts still are.
   const earlier = { 'bench-a': benchmark({ version: '2', previous_versions: ['1'] }) };
-  const errors = await errorsFor({ benchmarks: earlier, evals: { [FILE]: repeated({ repeat: { ...REPEAT, run_correct: [178] } }) } });
+  const { errors, warnings } = await validateContent(
+    makeRoot({ benchmarks: earlier, evals: { [FILE]: repeated({ repeat: { ...REPEAT, run_correct: [178] } }) } }),
+  );
   assert.deepEqual(errors, [`evals/${FILE}: repeat.run_correct must have 5 entries, one per run`]);
+  assert.ok(warnings.some((w) => w.startsWith(`evals/${FILE}: result is for benchmark version 1;`)));
 });
