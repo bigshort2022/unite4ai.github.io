@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Research each of the 20 Global Exchange entries with an agent team and publish an owner-reviewed profile per entry: identity, legal jurisdiction facts, usage and market data, price quotes, transaction-cost components, and computed Security, Risk and Transaction Cost scores.
+**Goal:** Research each of the 20 Global Exchange entries with an agent team and publish an owner-reviewed profile per entry: identity, legal jurisdiction facts, usage and market data, price quotes, transaction-cost components, and computed Security, Risk and Transaction Cost scores with A–F letter grades. Optionally run automated security tests from Kali, only inside an owner-accepted bug-bounty scope, with findings reported privately.
 
 **Architecture:** One strict JSON record per entry under `apps/web/src/content/exchange-profiles/`, validated by a Zod schema in `@unite4ai/schema` and cross-checked by `@unite4ai/core` inside the existing `validateContent` gate. Scores are pure functions over versioned rubrics in core and are never stored. Astro pages and a JSON feed read published records through the core reader at build time. Research runs as an agent team in the maintainer's session, followed by deterministic evidence checks, an independent literal review and owner review.
 
@@ -16,7 +16,7 @@
 
 - Work on a feature branch from `origin/main`; never commit to `main`.
 - `source scripts/agent/activate-node.sh` before running tests or the gate.
-- Tests never touch the network. Network is used only by the manual research CLIs (Tasks 6–7) and only for public, passive reads.
+- Tests never touch the network. Network is used only by the manual research CLIs (Tasks 6–7) for public, passive reads, and by the gated Kali runner (Task 10), which only runs inside an owner-accepted bug-bounty scope.
 - Never invent a value. Anything not found is `not-published` with the pages searched.
 - No new dependencies. Bun runs the `.ts` CLIs directly.
 - Finish each pull request with `node scripts/agent/verify.mjs --only hub` and quote its JSON line.
@@ -41,6 +41,11 @@
 | `apps/web/test/exchange-profiles-pages.test.mjs` (new) | Built page and feed contract |
 | `scripts/profiles/new.ts`, `verify-evidence.ts`, `passive-security.ts` (new) | Research CLIs |
 | `package.json` (modify) | `profile:*` scripts |
+| `packages/core/src/scan-scope.ts` (new) | Decide which hosts and tools a Kali run may use |
+| `packages/core/test/scan-scope.test.mjs` (new) | Scope decision tests |
+| `scripts/profiles/kali-scan.ts` (new) | Run allowed tools on `kali`; store output privately on m5 |
+| `research_notes/exchange-profiles/scan-scopes/<id>.json` (new, per programme) | Owner-accepted bug-bounty scope records |
+| `research_notes/exchange-profiles/scan-eligibility.md` (new) | Which projects permit automated testing, with quotes |
 | `docs/exchange-profiles/research-protocol.md` (new) | Agent briefs, review procedure, refresh |
 | `CONTRIBUTING.md` (modify) | Profile rules and operator correction process |
 
@@ -315,7 +320,7 @@ git commit -m "feat(schema): add exchange profile record schema"
 // packages/core/test/profile-scores.test.mjs
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { securityScore, riskScore, transactionCostScore, quotesByWorkload } from '../src/profile-scores.ts';
+import { securityScore, riskScore, transactionCostScore, quotesByWorkload, letterGrade } from '../src/profile-scores.ts';
 import { MIN_COVERAGE } from '../src/profile-rubrics.ts';
 import { profile } from './fixtures/profile.mjs';
 
@@ -385,6 +390,20 @@ test('quotes are compared only within the same workload, currency, unit and stat
   assert.deepEqual(usd.map((r) => [r.directoryId, r.amount]), [['akash', 1.8], ['vast-ai', 2.1]]);
   assert.equal(groups.get('gpu-hour-h100-80gb|EUR|GPU-hour|median').length, 1);
 });
+
+test('letters: A 90+, B 80-89, C 70-79, D 50-69, F below 50; withheld scores get no letter', () => {
+  assert.deepEqual([100, 90, 89, 80, 79, 70, 69, 50, 49, 0].map(letterGrade), ['A', 'A', 'B', 'B', 'C', 'C', 'D', 'D', 'F', 'F']);
+  assert.equal(letterGrade(null), null);
+  const p = profile();
+  p.securityChecks = p.securityChecks.slice(0, 2);
+  assert.equal(securityScore(p).grade, null);
+});
+
+test('security and cost are graded on their score; risk is graded on 100 minus its score', () => {
+  assert.equal(securityScore(profile()).grade, 'A'); // 94
+  assert.equal(riskScore(profile()).grade, 'D'); // 100 - 33 = 67
+  assert.equal(transactionCostScore(profile()).grade, 'C'); // 79
+});
 ```
 
 - [ ] **Step 2: Run and confirm failure**
@@ -440,6 +459,9 @@ export const REFERENCE_WORKLOADS = [
   { id: 'api-call', label: 'One paid API call' },
   { id: 'render-unit', label: 'One rendering unit as the operator defines it' },
 ] as const;
+
+/** Letter bands, highest first; anything below the last band is F. */
+export const GRADE_BANDS: readonly (readonly [number, 'A' | 'B' | 'C' | 'D'])[] = [[90, 'A'], [80, 'B'], [70, 'C'], [50, 'D']];
 ```
 
 - [ ] **Step 4: Write the scores module**
@@ -447,16 +469,26 @@ export const REFERENCE_WORKLOADS = [
 ```ts
 // packages/core/src/profile-scores.ts
 import type { ExchangeProfile } from '@unite4ai/schema';
-import { COST_CAP_PERCENT, MIN_COVERAGE, REFERENCE_USD, RISK_CRITERIA, RUBRIC_VERSION, SECURITY_CRITERIA, type Criterion } from './profile-rubrics.ts';
+import { COST_CAP_PERCENT, GRADE_BANDS, MIN_COVERAGE, REFERENCE_USD, RISK_CRITERIA, RUBRIC_VERSION, SECURITY_CRITERIA, type Criterion } from './profile-rubrics.ts';
+
+export type Grade = 'A' | 'B' | 'C' | 'D' | 'F';
+
+/** A 90+, B 80–89, C 70–79, D 50–69, F below 50. No score, no letter. */
+export function letterGrade(score: number | null): Grade | null {
+  if (score === null) return null;
+  return GRADE_BANDS.find(([min]) => score >= min)?.[1] ?? 'F';
+}
 
 export interface RubricScore {
   rubricVersion: string;
   score: number | null;
+  /** Letter for the score; for risk it grades 100 − score so A is always best. */
+  grade: Grade | null;
   coverage: number;
   breakdown: { criterion: string; label: string; weight: number; outcome: string; evidence: string[] }[];
 }
 
-function rubricScore(criteria: readonly Criterion[], checks: ExchangeProfile['securityChecks'], counted: 'pass' | 'fail'): RubricScore {
+function rubricScore(criteria: readonly Criterion[], checks: ExchangeProfile['securityChecks'], counted: 'pass' | 'fail', higherIsWorse: boolean): RubricScore {
   const byId = new Map(checks.map((c) => [c.criterion, c]));
   let applicable = 0, known = 0, hit = 0;
   const breakdown = criteria.map((c) => {
@@ -472,22 +504,25 @@ function rubricScore(criteria: readonly Criterion[], checks: ExchangeProfile['se
     return { criterion: c.id, label: c.label, weight: c.weight, outcome, evidence: check?.evidence ?? [] };
   });
   const coverage = applicable === 0 ? 0 : known / applicable;
+  const score = coverage >= MIN_COVERAGE && known > 0 ? Math.round((100 * hit) / known) : null;
   return {
     rubricVersion: RUBRIC_VERSION,
-    score: coverage >= MIN_COVERAGE && known > 0 ? Math.round((100 * hit) / known) : null,
+    score,
+    grade: letterGrade(score === null ? null : higherIsWorse ? 100 - score : score),
     coverage: Math.round(coverage * 100) / 100,
     breakdown,
   };
 }
 
 /** Higher means more protective practices are evidenced. */
-export const securityScore = (p: ExchangeProfile): RubricScore => rubricScore(SECURITY_CRITERIA, p.securityChecks, 'pass');
+export const securityScore = (p: ExchangeProfile): RubricScore => rubricScore(SECURITY_CRITERIA, p.securityChecks, 'pass', false);
 /** Higher means more risk indicators are present. */
-export const riskScore = (p: ExchangeProfile): RubricScore => rubricScore(RISK_CRITERIA, p.riskChecks, 'fail');
+export const riskScore = (p: ExchangeProfile): RubricScore => rubricScore(RISK_CRITERIA, p.riskChecks, 'fail', true);
 
 export interface CostScore {
   rubricVersion: string;
   score: number | null;
+  grade: Grade | null;
   costPercent: number | null;
   excluded: string[];
   notComputable: string[];
@@ -511,15 +546,10 @@ export function transactionCostScore(p: ExchangeProfile): CostScore {
     else notComputable.push(`${c.kind} (${c.appliesTo}): ${c.basis} fee in ${c.currency}`);
   }
   if (fees === 0) notComputable.push('no fee components published');
-  if (notComputable.length > 0) return { rubricVersion: RUBRIC_VERSION, score: null, costPercent: null, excluded, notComputable };
+  if (notComputable.length > 0) return { rubricVersion: RUBRIC_VERSION, score: null, grade: null, costPercent: null, excluded, notComputable };
   const costPercent = Math.round(percent * 100) / 100;
-  return {
-    rubricVersion: RUBRIC_VERSION,
-    score: Math.round(100 * (1 - Math.min(costPercent, COST_CAP_PERCENT) / COST_CAP_PERCENT)),
-    costPercent,
-    excluded,
-    notComputable,
-  };
+  const score = Math.round(100 * (1 - Math.min(costPercent, COST_CAP_PERCENT) / COST_CAP_PERCENT));
+  return { rubricVersion: RUBRIC_VERSION, score, grade: letterGrade(score), costPercent, excluded, notComputable };
 }
 
 export interface QuoteRow { directoryId: string; amount: number; sampleSize?: number; sampledAt: string; level: string }
@@ -554,7 +584,7 @@ In `packages/core/package.json`, add to `exports`:
 - [ ] **Step 6: Run and confirm pass**
 
 Run: `bun test packages/core/test/profile-scores.test.mjs`
-Expected: 8 pass, 0 fail.
+Expected: 10 pass, 0 fail.
 
 - [ ] **Step 7: Commit**
 
@@ -980,9 +1010,9 @@ test('published profiles render with scores and evidence; drafts never render', 
     assert.equal(build.status, 0, `${build.stdout}\n${build.stderr}`);
 
     const page = readFileSync(join(out, 'global-exchange', 'akash', 'index.html'), 'utf8');
-    assert.match(page, /Security Score[\s\S]*94/);
-    assert.match(page, /Risk Score[\s\S]*33/);
-    assert.match(page, /Transaction Cost Score[\s\S]*79/);
+    assert.match(page, /Security Score[\s\S]*?94[\s\S]*?grade A/);
+    assert.match(page, /Risk Score[\s\S]*?33[\s\S]*?grade D/);
+    assert.match(page, /Transaction Cost Score[\s\S]*?79[\s\S]*?grade C/);
     assert.match(page, /Rubric version 1/);
     assert.match(page, /not a judgement of the company/);
     assert.match(page, /informational, not legal advice/i);
@@ -1001,6 +1031,7 @@ test('published profiles render with scores and evidence; drafts never render', 
     assert.deepEqual(feed.profiles.map((p) => p.id), ['akash']);
     assert.equal(feed.profiles[0].scores.security.score, 94);
     assert.equal(feed.profiles[0].scores.transactionCost.costPercent, 4.3);
+    assert.equal(feed.profiles[0].scores.risk.grade, 'D');
   } finally {
     rmSync(fixtures, { recursive: true, force: true });
     rmSync(out, { recursive: true, force: true });
@@ -1064,9 +1095,10 @@ const factRows = (section: Record<string, any>) => Object.entries(section).map((
   <section class="wrap section" aria-labelledby="scores">
     <h2 id="scores">Scores</h2>
     <p>Rubric version {scores[0].s.rubricVersion}. A rubric score, not a judgement of the company's conduct.</p>
+    <p>Letters: A 90+, B 80–89, C 70–79, D 50–69, F below 50. The Risk letter grades 100 − Risk Score, so A always means fewest risk indicators.</p>
     {scores.map(({ name, note, s }) => (
       <article class="card">
-        <h3>{name}: {s.score ?? `insufficient evidence (${Math.round(s.coverage * 100)}% coverage)`}</h3>
+        <h3>{name}: {s.score === null ? `insufficient evidence (${Math.round(s.coverage * 100)}% coverage)` : `${s.score} (grade ${s.grade})`}</h3>
         <p>{note} Evidence coverage {Math.round(s.coverage * 100)}%.</p>
         <ul>{s.breakdown.map((b) => (
           <li>{b.label} ({b.weight}): {b.outcome}{b.evidence.map((id) => <> <a href={link(id)} rel="nofollow noopener">[{id}]</a></>)}</li>
@@ -1074,7 +1106,7 @@ const factRows = (section: Record<string, any>) => Object.entries(section).map((
       </article>
     ))}
     <article class="card">
-      <h3>Transaction Cost Score: {cost.score ?? 'not computable'}</h3>
+      <h3>Transaction Cost Score: {cost.score === null ? 'not computable' : `${cost.score} (grade ${cost.grade})`}</h3>
       <p>Higher means cheaper; compare within the same directory category only. Reference: a USD 100 purchase and, where applicable, a USD 100 seller payout.</p>
       {cost.costPercent !== null && <p>Effective cost {cost.costPercent}% excluding {cost.excluded.join(', ') || 'nothing'}.</p>}
       {cost.notComputable.length > 0 && <ul>{cost.notComputable.map((r) => <li>{r}</li>)}</ul>}
@@ -1443,13 +1475,241 @@ Expected: final JSON `{"status":"pass",...}`. Open a PR "Add exchange profile re
 - [ ] **Step 3:** One PR per batch, each with `bun run validate`, `profile:verify` for every profile in the batch, and the hub gate JSON.
 - [ ] **Step 4:** After the last batch, add a short "Profiles" section to `README.md` naming the route, the feed and the protocol.
 
+### Task 10: Kali in-scope active testing (gated)
+
+**Prerequisites:** Tasks 1–7 merged. Kali's SSH route is working (Step 1). For each programme, the owner has personally registered and accepted its terms. Can run in parallel with Tasks 8–9.
+
+**Files:**
+- Modify: `packages/schema/src/index.ts` (append), `packages/core/package.json` (export `"./scan-scope": "./src/scan-scope.ts"`), `package.json` (script)
+- Create: `packages/core/src/scan-scope.ts`, `packages/core/test/scan-scope.test.mjs`, `scripts/profiles/kali-scan.ts`, `research_notes/exchange-profiles/scan-eligibility.md`, `research_notes/exchange-profiles/scan-scopes/<id>.json`
+
+- [ ] **Step 1: Make Kali reachable (owner, then agent)**
+
+As of 2026-11-22, `nc -z kali.tailbc2bfe.ts.net 22` was closed. The owner runs this on kali: `sudo tailscale file get /tmp && sudo bash /tmp/kali-bootstrap.sh`. The agent then follows the `ssh-host-control` skill: check the port, compare the host-key fingerprint with the one shown on kali's screen, pin it, and run the identity check (expect `kali`, `kali`, `Linux x86_64`). Then the tool preflight:
+
+```bash
+ssh -T -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 kali 'for t in testssl.sh nmap nuclei; do printf "%s: " $t; command -v $t || echo missing; done'
+```
+
+Missing tools are installed by the owner (`sudo apt install testssl.sh nmap nuclei`). Agents never use sudo on kali. Any authentication or host-key failure is stop-and-report.
+
+- [ ] **Step 2: Write the failing scope tests**
+
+```js
+// packages/core/test/scan-scope.test.mjs
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { scanScopeSchema } from '@unite4ai/schema';
+import { checkScanRun } from '../src/scan-scope.ts';
+
+// FIXTURE ONLY — invented programme.
+const scope = (over = {}) => ({
+  directoryId: 'olas', programUrl: 'https://bounty.example/olas', platform: 'Example Bounty',
+  automatedTestingQuote: 'Automated scanning of in-scope web assets is permitted at up to 5 requests per second.',
+  inScope: ['*.fixture.example', 'app.other.example'], outOfScope: ['status.fixture.example'],
+  allowedTools: ['testssl', 'nuclei-safe'], maxRequestsPerSecond: 5,
+  requiredHeader: { name: 'X-Bug-Bounty', value: 'fixture-owner' },
+  acceptedBy: 'fixture-owner', acceptedAt: '2026-11-20', expiresAt: '2026-12-15', ...over,
+});
+const run = (over = {}) => checkScanRun(scanScopeSchema.parse(scope(over.scope)), over.tool ?? 'testssl', over.targets ?? ['api.fixture.example'], over.today ?? '2026-11-22');
+
+test('an in-scope host with an allowed tool inside the scope window is allowed', () => {
+  assert.deepEqual(run(), { allowed: ['api.fixture.example'], refused: [] });
+});
+
+test('wildcards cover subdomains but not the bare domain; exact entries match only themselves', () => {
+  const r = run({ targets: ['a.b.fixture.example', 'fixture.example', 'app.other.example', 'x.other.example'] });
+  assert.deepEqual(r.allowed, ['a.b.fixture.example', 'app.other.example']);
+  assert.deepEqual(r.refused.map((x) => x.target), ['fixture.example', 'x.other.example']);
+});
+
+test('out-of-scope wins over a matching wildcard', () => {
+  assert.match(run({ targets: ['status.fixture.example'] }).refused[0].reason, /out of scope/);
+});
+
+test('a tool the programme does not allow refuses every host', () => {
+  const r = run({ tool: 'nmap-top100-connect' });
+  assert.deepEqual(r.allowed, []);
+  assert.match(r.refused[0].reason, /tool/);
+});
+
+test('an expired scope, or one valid for more than 30 days, refuses to run', () => {
+  assert.match(run({ today: '2026-12-16' }).refused[0].reason, /expired/);
+  assert.match(run({ scope: { expiresAt: '2027-01-30' } }).refused[0].reason, /30 days/);
+});
+
+test('targets must be bare hostnames, never URLs, IP ranges or shell text', () => {
+  const r = run({ targets: ['https://api.fixture.example', '10.0.0.0/8', 'api.fixture.example;id'] });
+  assert.equal(r.allowed.length, 0);
+  assert.equal(r.refused.length, 3);
+});
+
+test('the schema caps the rate at 10 per second and requires the permission quote', () => {
+  assert.equal(scanScopeSchema.safeParse(scope({ maxRequestsPerSecond: 50 })).success, false);
+  const { automatedTestingQuote, ...noQuote } = scope();
+  assert.equal(scanScopeSchema.safeParse(noQuote).success, false);
+});
+```
+
+Run: `bun test packages/core/test/scan-scope.test.mjs`
+Expected: FAIL — `scanScopeSchema` is not exported.
+
+- [ ] **Step 3: Append the scope schema**
+
+Append to `packages/schema/src/index.ts`:
+
+```ts
+// ── Kali in-scope scan records (exchange profiles design, "Active testing from Kali") ──
+
+export const SCAN_TOOLS = ['testssl', 'nmap-top100-connect', 'nuclei-safe'] as const;
+export const SCAN_HOST = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
+const scanHostPattern = z.string().refine((v) => SCAN_HOST.test(v.startsWith('*.') ? v.slice(2) : v), 'must be a hostname or *.hostname');
+
+export const scanScopeSchema = z.strictObject({
+  directoryId: contentId,
+  programUrl: httpsUrl,
+  platform: exchangeText(60, true),
+  /** Verbatim programme text that explicitly permits automated testing. */
+  automatedTestingQuote: exchangeText(500),
+  inScope: z.array(scanHostPattern).min(1),
+  outOfScope: z.array(scanHostPattern),
+  allowedTools: z.array(z.enum(SCAN_TOOLS)).min(1),
+  maxRequestsPerSecond: z.number().positive().max(10),
+  requiredHeader: z.strictObject({
+    name: z.string().regex(/^[A-Za-z0-9-]{1,64}$/),
+    value: z.string().regex(/^[A-Za-z0-9._@:+=/-]{1,128}$/),
+  }).optional(),
+  /** The owner who personally registered with the programme and accepted its terms. */
+  acceptedBy: exchangeIdentity,
+  acceptedAt: exchangeDate,
+  expiresAt: exchangeDate,
+});
+export type ScanScope = z.infer<typeof scanScopeSchema>;
+```
+
+- [ ] **Step 4: Implement the scope decision**
+
+```ts
+// packages/core/src/scan-scope.ts
+import { SCAN_HOST, type ScanScope } from '@unite4ai/schema';
+
+const DAY = 86_400_000;
+const covers = (pattern: string, host: string) => (pattern.startsWith('*.') ? host.endsWith(pattern.slice(1)) : host === pattern);
+
+export interface ScanDecision { allowed: string[]; refused: { target: string; reason: string }[] }
+
+/** Which hosts a Kali run may touch with `tool` today. Any scope-level problem refuses every host. */
+export function checkScanRun(scope: ScanScope, tool: string, targets: string[], today: string): ScanDecision {
+  const window = Date.parse(`${scope.expiresAt}T00:00:00Z`) - Date.parse(`${scope.acceptedAt}T00:00:00Z`);
+  const blocker = today > scope.expiresAt ? `scope expired on ${scope.expiresAt}; re-read the programme rules`
+    : window < 0 || window > 30 * DAY ? 'scope must expire within 30 days of acceptance'
+    : today < scope.acceptedAt ? 'scope is not yet accepted'
+    : !(scope.allowedTools as readonly string[]).includes(tool) ? `tool ${tool} is not allowed by this programme`
+    : null;
+  const decision: ScanDecision = { allowed: [], refused: [] };
+  for (const target of targets) {
+    if (blocker) decision.refused.push({ target, reason: blocker });
+    else if (!SCAN_HOST.test(target)) decision.refused.push({ target, reason: 'not a bare hostname' });
+    else if (scope.outOfScope.some((p) => covers(p, target))) decision.refused.push({ target, reason: 'out of scope' });
+    else if (!scope.inScope.some((p) => covers(p, target))) decision.refused.push({ target, reason: 'not listed in scope' });
+    else decision.allowed.push(target);
+  }
+  return decision;
+}
+```
+
+Run: `bun test packages/core/test/scan-scope.test.mjs && bun run typecheck`
+Expected: 7 pass, 0 fail; typecheck exits 0.
+
+- [ ] **Step 5: Write the runner**
+
+```ts
+// scripts/profiles/kali-scan.ts — usage: bun run profile:scan <scope.json> <tool> <host...>
+// Runs only what checkScanRun allows, on kali, and stores output privately on m5. Never writes into the repository.
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { scanScopeSchema } from '../../packages/schema/src/index.ts';
+import { checkScanRun } from '../../packages/core/src/scan-scope.ts';
+
+const [scopePath, tool, ...targets] = process.argv.slice(2);
+if (!scopePath || !tool || targets.length === 0) { console.error('usage: bun run profile:scan <scope.json> <tool> <host...>'); process.exit(2); }
+const raw = readFileSync(scopePath);
+const scope = scanScopeSchema.parse(JSON.parse(raw.toString('utf8')));
+const decision = checkScanRun(scope, tool, targets, new Date().toISOString().slice(0, 10));
+if (decision.refused.length > 0) {
+  for (const r of decision.refused) console.error(`refused ${r.target}: ${r.reason}`);
+  process.exit(2);
+}
+
+const ssh = (command: string) => spawnSync('ssh', ['-T', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=15', 'kali', command],
+  { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 3_600_000 });
+const identity = ssh('hostname; whoami; uname -sm');
+if (identity.status !== 0 || identity.stdout.trim() !== 'kali\nkali\nLinux x86_64') {
+  console.error(`kali identity check failed; stopping.\n${identity.stdout}${identity.stderr}`);
+  process.exit(2);
+}
+
+// Hosts and header values are validated by the schema to contain no shell metacharacters.
+const rps = scope.maxRequestsPerSecond;
+const header = scope.requiredHeader ? `${scope.requiredHeader.name}: ${scope.requiredHeader.value}` : null;
+const command = (host: string): string => {
+  switch (tool) {
+    case 'testssl': return `testssl.sh --quiet --sneaky --color 0 --warnings off${header ? ` --reqheader '${header}'` : ''} https://${host}`;
+    case 'nmap-top100-connect': return `nmap -sT -Pn --top-ports 100 -T2 --max-rate ${rps} ${host}`;
+    case 'nuclei-safe': return `nuclei -u https://${host} -rl ${rps} -c 1 -etags dos,intrusive,fuzz,bruteforce -duc -silent -jsonl${header ? ` -H '${header}'` : ''}`;
+    default: throw new Error(`unknown tool ${tool}`);
+  }
+};
+
+const outDir = join(homedir(), 'unite4ai-private', 'scans', scope.directoryId, new Date().toISOString().replace(/[:.]/g, '-'));
+if (resolve(outDir).startsWith(resolve(process.cwd()))) { console.error('refusing to write scan output inside the repository'); process.exit(2); }
+mkdirSync(outDir, { recursive: true, mode: 0o700 });
+const scopeSha256 = createHash('sha256').update(raw).digest('hex');
+for (const host of decision.allowed) {
+  const started = new Date().toISOString();
+  const result = ssh(command(host));
+  const file = join(outDir, `${tool}-${host}.txt`);
+  writeFileSync(file, `${result.stdout}\n--- stderr ---\n${result.stderr}`, { mode: 0o600 });
+  appendFileSync(join(outDir, 'runs.jsonl'), `${JSON.stringify({ host, tool, scopeSha256, started, finished: new Date().toISOString(), exit: result.status })}\n`, { mode: 0o600 });
+  console.log(`${host}: exit ${result.status} -> ${file}`);
+}
+console.log('Output is private. Triage it and report findings only through the programme; never commit or publish it.');
+```
+
+In root `package.json` `scripts`, add `"profile:scan": "bun scripts/profiles/kali-scan.ts",`.
+
+Offline check: `bun run profile:scan /dev/null testssl example.com` must exit with a schema error before any SSH call.
+
+- [ ] **Step 6: Commit the tooling**
+
+```bash
+git add packages/schema/src/index.ts packages/core/src/scan-scope.ts packages/core/package.json packages/core/test/scan-scope.test.mjs scripts/profiles/kali-scan.ts package.json
+git commit -m "feat(scripts): add scope-checked Kali scan runner"
+```
+
+- [ ] **Step 7: Eligibility research (agent, public reads only)**
+
+For each of the 20 directory ids, find any bug-bounty or disclosure programme (the operator's security page, HackerOne, Bugcrowd, Immunefi, Cantina). Quote the rule that **permits or forbids** automated testing of web assets. Write `research_notes/exchange-profiles/scan-eligibility.md` with one row per project: programme URL, quote, eligible yes/no, in-scope hosts. Where a programme does not say, mark the project ineligible. Commit the note; it contains public programme text only.
+
+- [ ] **Step 8: Owner acceptance and scope records**
+
+For each eligible project, the owner registers with the programme, reads and accepts its terms, and approves a scope record at `research_notes/exchange-profiles/scan-scopes/<id>.json` with `acceptedBy` set to themselves and `expiresAt` at most 30 days later. An agent may draft the record, but only the owner sets `acceptedBy`. If no project is eligible, record that in the eligibility note and stop this task.
+
+- [ ] **Step 9: Run, triage, report privately**
+
+Run `bun run profile:scan research_notes/exchange-profiles/scan-scopes/<id>.json <tool> <host...>` once per allowed tool. The owner triages the private output in `~/unite4ai-private/scans/` and reports findings only through the programme. Nothing from the output goes into the repository, profiles or site. A finding may be cited in a profile only after the programme publishes it, and only as `incident-handling` evidence.
+
 ## Validation
 
 - [ ] Schema, score, validation and check tests pass (`bun test packages/core/test`).
 - [ ] The page/feed fixture build test passes; drafts never render; every fact links to highlighted evidence.
 - [ ] Scores are withheld below 70% coverage; cost is "not computable" rather than converted.
 - [ ] Every published profile passes `profile:verify` and an independent literal review and has `reviewedBy`.
-- [ ] No paid source, scheduled job, CI network access, purchase, sign-up, scan or probe is introduced.
+- [ ] No paid source, scheduled job, CI network access, purchase or sign-up is introduced by agents. Active testing runs only through `profile:scan` with an unexpired, owner-accepted scope, and no scan output is committed or published.
+- [ ] Letter grades follow A 90+, B 80–89, C 70–79, D 50–69, F below 50; the Risk letter uses 100 − score.
 - [ ] The hub gate passes on every PR.
 
 ## Risks / unknowns
@@ -1458,6 +1718,8 @@ Expected: final JSON `{"status":"pass",...}`. Open a PR "Add exchange profile re
 - **Coverage may be low** for private companies (Vast.ai, Skyfire, Payman): many scores may be withheld. That is the honest outcome; do not loosen thresholds to fill pages.
 - **JavaScript-rendered pages** defeat the evidence verifier; such evidence needs manual confirmation in the review.
 - **Aggregator terms and rate limits** for market data may change; name the source per value and back off politely.
+- **Kali scanning may have no eligible targets.** Many programmes forbid automated testing or limit it to contracts. Task 10 records that outcome rather than working around it.
+- **Tool behaviour drifts.** `testssl.sh` and `nuclei` flags can change between Kali releases; the Step 1 preflight should also print versions, and the owner confirms the command templates before the first run.
 - **Usage metrics overlap Observed Markets.** When an observation exists for an entry, cite it as `observed` evidence instead of re-measuring.
 
 ## Notes

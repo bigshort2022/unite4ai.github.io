@@ -22,6 +22,8 @@ team; every profile is published only after the owner reviews it.
 | Rollout | **Pilot three** (Akash, Olas, x402), review the template, then the other 17 |
 | Legal section | **Cited facts only**, marked "informational, not legal advice" |
 | Required fields | URL, headquarters, date of formation, market cap, average weekly users, trading volume, number of traders, Risk Score, Security Score, Transaction Cost Score |
+| Letter grades | Each computed score is also shown as a letter: **A** 90+, **B** 80–89, **C** 70–79, **D** 50–69, **F** below 50; the Risk letter uses 100 − Risk Score so A is always best |
+| Active testing | **Kali** may run automated tests only against assets a project's published bug-bounty scope explicitly opens to automated testing; findings go privately to that programme |
 
 ## Amendment to Observed Markets
 
@@ -51,9 +53,10 @@ never impute, reported and observed kept separate, no referral links, honest abo
 - **Three evidence levels**, never merged into one figure: `stated` (the operator's own
   documentation or terms), `reported` (an operator dashboard, a regulator, or a named public
   data aggregator), `observed` (a measurement produced by the Observed Markets collector).
-- **Public, passive research only.** Reading public pages, registries, APIs, block explorers,
-  certificate and DNS records. No scanning, probing, credential use, purchases, sign-ups or
-  wallet connections.
+- **Public, passive research by default.** Reading public pages, registries, APIs, block
+  explorers, certificate and DNS records. No credential use, purchases or wallet
+  connections. The only exception is in-scope active testing from Kali (below), under a
+  bug-bounty programme the owner has personally joined.
 - **Agents draft; people publish.** Agent output is untrusted text until it passes the
   validator, the evidence verifier and owner review.
 
@@ -111,6 +114,45 @@ states it in USD.
 Every score is shown with its rubric version, per-criterion outcomes with evidence links,
 coverage, and the statement: "A rubric score, not a judgement of the company's conduct."
 
+**Letter grades.** Every computed score also gets a letter: A for 90–100, B for 80–89,
+C for 70–79, D for 50–69, F below 50. Security and Transaction Cost are graded on their
+score; Risk is graded on 100 − Risk Score, so A always means the best outcome (fewest risk
+indicators). A withheld or not-computable score has no letter. The letter is shown next to
+the number, never instead of it.
+
+## Active testing from Kali (in-scope only)
+
+The owner's Kali Linux machine (`kali`, reached only from m5 over Tailscale) may run
+automated security tests against a project **only** when all of these hold:
+
+1. The project runs a published bug-bounty or vulnerability-disclosure programme, and its
+   rules **explicitly permit automated testing**. A verbatim quote of that permission is
+   recorded.
+2. Every target host is listed in the programme's in-scope assets and not in its
+   out-of-scope list. Out-of-scope always wins.
+3. The owner has personally registered with the programme and accepted its terms. Agents
+   cannot accept terms on the owner's behalf. The scope record names the owner and the
+   acceptance date.
+4. The scope record is at most 30 days old, because programme rules change. Expired records
+   refuse to run.
+5. The run uses only tools the programme allows, from a fixed set (TLS configuration,
+   top-100-port connect scan, non-intrusive template scan excluding denial-of-service,
+   fuzzing, brute-force and intrusive templates). It stays within the programme's rate limit
+   (never above 10 requests per second) and sends any identification header the programme
+   requires.
+
+Scan output never enters the public repository or site. It is stored privately on m5 with
+owner-only permissions. Findings are triaged by the owner and reported **only** through the
+programme, under its disclosure rules. A profile may cite a finding only after the programme
+publishes it, and then only as evidence for the `incident-handling` criterion. Scans
+therefore never raise or lower a score directly.
+
+Many programmes, especially smart-contract programmes, forbid automated testing or limit
+it to contracts or test networks. Some or all of the 20 projects may be ineligible; that
+outcome is recorded rather than worked around. Prerequisite: Kali's SSH bootstrap
+(`ssh-host-control` skill) is complete and its identity is verified. As of 2026-11-22, port 22
+on `kali` was closed.
+
 ## Price modelling
 
 Normalise quotes into named reference workloads defined in the rubric file (v1: one
@@ -165,8 +207,13 @@ from one that documents less. Legal facts are informational, not legal advice.
   availability can change; the source is named per value.
 - **Agent error.** Mitigated by the evidence verifier, the literal reviewer and owner review;
   agent-written records disclose the model and harness.
+- **Active testing exceeds permission.** Mitigated by a machine-checked scope record
+  (permission quote, in/out-of-scope hosts, tool allowlist, rate limit, owner acceptance,
+  30-day expiry), a fixed command set and an SSH identity check before each run. Findings stay
+  private.
 
 ## Out of scope
 
-Scheduled automatic refresh, any paid data source, buying or testing services, scanning or
-probing infrastructure, investment or legal advice, an overall rating.
+Scheduled automatic refresh, any paid data source, buying or testing services, scanning
+outside an owner-accepted bug-bounty scope, publishing scan findings, investment or legal
+advice, an overall rating.
