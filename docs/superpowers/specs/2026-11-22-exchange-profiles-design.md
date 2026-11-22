@@ -169,7 +169,7 @@ Observed Markets observations, when available, appear separately at `observed` l
 2. **Agent team, in parallel, public sources only:** Identity & Legal, Usage & Market,
    Prices & Costs, Security & Risk. Each writes only its own sections and evidence.
 3. **Deterministic checks:** schema and cross-reference validation; a passive security
-   collector (certificate, headers, security.txt, DNS CAA) for the official domain; an
+   collector (certificate, headers, security.txt) for the official domain; an
    evidence verifier that refetches every URL and confirms each quote is present.
 4. **Independent literal review.** A separate reviewer agent checks every fact against its
    quote and fails any characterisation the source does not state.
