@@ -116,13 +116,18 @@ export function scoreRange(group: EvalGroup): string | null {
     : `${formatNumber(group.score_min)}–${formatNumber(group.score_max)}`;
 }
 
-/** What a repeat-run result adds under its score: the score's interval, pass@1 with its interval, and how far the runs spread. */
+/**
+ * What a repeat-run result adds under its score: the score's 95% interval, pass@1 with its
+ * 95% interval, and the per-run scores' range (one value when every run scored the same) and
+ * standard deviation in percentage points.
+ */
 export function repeatLines(repeat: RepeatResult, n: number): string[] {
-  const range = ([low, high]: readonly [number, number]) => `${formatNumber(low)}–${formatNumber(high)}`;
+  const range = ([low, high]: readonly [number, number]) => `${formatNumber(low)}–${formatNumber(high)}%`;
   const perRun = repeat.run_correct.map((correct) => (100 * correct) / n);
+  const [lowest, highest] = [formatNumber(Math.min(...perRun)), formatNumber(Math.max(...perRun))];
   return [
-    `all ${repeat.runs} runs: 95% CI ${range(repeat.pass_k_ci)}`,
-    `pass@1 ${formatNumber(repeat.pass_1)}% (${range(repeat.pass_1_ci)})`,
-    `per run ${range([Math.min(...perRun), Math.max(...perRun)])}, sd ${formatNumber(repeat.run_score_sd)}`,
+    `score 95% CI ${range(repeat.pass_k_ci)}`,
+    `pass@1 ${formatNumber(repeat.pass_1)}% (95% CI ${range(repeat.pass_1_ci)})`,
+    `per run ${lowest === highest ? lowest : `${lowest}–${highest}`}%, sd ${formatNumber(repeat.run_score_sd)} pts`,
   ];
 }

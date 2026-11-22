@@ -135,6 +135,7 @@ test('leaderboard and benchmark page render fixture results', { timeout: 120_000
   assert.match(detail, /--fixture-three/);
   assert.match(detail, /3{12}/);
   assert.match(detail, /<small>n = 200<\/small>/);
+  assert.doesNotMatch(page('evals/gsm8k-200/index.html'), /runs per item|answered correctly on all/);
   assert.match(detail, /<caption class="sr-only">Leaderboard for GSM8K \(first 200\)<\/caption>/);
   assert.match(detail, /<td class="rank num">1<\/td>/);
 
@@ -510,17 +511,30 @@ test('a repeat-run result shows its interval, pass@1 with its interval, and the 
   const file = result({ benchmark: 'canary-injection-v1', score: repeat.pass_k, date: '2026-11-20', hash: 'c' });
   file.content.n = 50;
   file.content.repeat = repeat;
-  const detail = buildScratch('repeat', [file])('evals/canary-injection-v1/index.html');
+  // A second run whose five runs all scored the same, built into the same site.
+  const steady = repeatSummary({ runs: 5, temperature: 0.7, top_p: 1 }, {
+    item_pass_histogram: [10, 0, 0, 0, 0, 40],
+    run_correct: [40, 40, 40, 40, 40],
+    seconds_total: 250,
+  });
+  const steadyFile = result({ benchmark: 'canary-injection-v1', score: steady.pass_k, date: '2026-11-21', hash: 'd', submitter: 'fixture-bot-2' });
+  steadyFile.content.n = 50;
+  steadyFile.content.repeat = steady;
+  const detail = buildScratch('repeat', [file, steadyFile])('evals/canary-injection-v1/index.html');
 
   assert.match(detail, /<span class="tag">5 runs per item at temperature 0\.7<\/span>/);
-  assert.match(leaderboardOf(detail), /The score is the share of items answered correctly on all 5 runs\./);
+  const note = leaderboardOf(detail);
+  assert.match(note, /The score is the share of items answered correctly on all 5 runs\./);
+  assert.ok(note.includes('<a href="#every-run">Every run</a>'));
   assert.ok(detail.includes(`<span class="score">${repeat.pass_k}%</span>`));
-  const range = ([low, high]) => `${low}–${high}`;
+  const range = ([low, high]) => `${low}–${high}%`;
   for (const text of [
-    `all 5 runs: 95% CI ${range(repeat.pass_k_ci)}`,
-    `pass@1 ${repeat.pass_1}% (${range(repeat.pass_1_ci)})`,
-    `per run 78–80, sd ${repeat.run_score_sd}`,
+    `score 95% CI ${range(repeat.pass_k_ci)}`,
+    `pass@1 ${repeat.pass_1}% (95% CI ${range(repeat.pass_1_ci)})`,
+    `per run 78–80%, sd ${repeat.run_score_sd} pts`,
+    `per run 80%, sd ${steady.run_score_sd} pts`,
   ]) {
     assert.ok(detail.includes(`<small>${text}</small>`), text);
   }
+  assert.ok(!detail.includes('per run 80–80'));
 });
