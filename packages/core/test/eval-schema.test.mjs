@@ -175,3 +175,36 @@ test('a benchmark version is one bounded line, and earlier versions are listed e
   assert.match(messages(benchmarkSchema, benchmark({ version: '1'.repeat(51) })), /^version: /m);
   assert.match(messages(benchmarkSchema, benchmark({ version: '' })), /^version: /m);
 });
+
+const METHOD = { runs: 5, temperature: 0.7, top_p: 1 };
+/** Shape only: whether the numbers agree is the validator's job (validate-evals.test.mjs). */
+const REPEAT = {
+  ...METHOD,
+  item_pass_histogram: [0, 0, 0, 0, 0, 200],
+  run_correct: [200, 200, 200, 200, 200],
+  pass_1: 100,
+  pass_1_ci: [100, 100],
+  pass_k: 100,
+  pass_k_ci: [98.12, 100],
+  run_score_sd: 0,
+  seconds_total: 1000,
+  seconds_per_success: 1,
+};
+
+test('a benchmark may fix a repeat-run method of 2 to 20 runs, and a measured benchmark may not', () => {
+  assert.equal(ok(benchmarkSchema, benchmark({ repeat: METHOD })), true);
+  assert.equal(ok(benchmarkSchema, benchmark({ repeat: { ...METHOD, runs: 1 } })), false);
+  assert.equal(ok(benchmarkSchema, benchmark({ repeat: { ...METHOD, runs: 21 } })), false);
+  assert.equal(ok(benchmarkSchema, benchmark({ repeat: { ...METHOD, top_p: 0 } })), false);
+  assert.equal(ok(benchmarkSchema, benchmark({ repeat: { ...METHOD, temperature: 2.5 } })), false);
+  assert.equal(ok(benchmarkSchema, benchmark({ repeat: { ...METHOD, seed: 1 } })), false);
+  assert.match(messages(benchmarkSchema, measuredBenchmark({ repeat: METHOD })), /^repeat: is only for benchmarks that score items/m);
+});
+
+test('a result may carry a repeat block; its rates are percentages and its intervals are pairs', () => {
+  assert.equal(ok(evalResultSchema, result({ repeat: REPEAT })), true);
+  assert.equal(ok(evalResultSchema, result({ repeat: { ...REPEAT, pass_1: 101 } })), false);
+  assert.equal(ok(evalResultSchema, result({ repeat: { ...REPEAT, pass_k_ci: [90] } })), false);
+  assert.equal(ok(evalResultSchema, result({ repeat: { ...REPEAT, run_correct: [200.5, 200, 200, 200, 200] } })), false);
+  assert.equal(ok(evalResultSchema, result({ repeat: { ...REPEAT, typo: 1 } })), false);
+});
