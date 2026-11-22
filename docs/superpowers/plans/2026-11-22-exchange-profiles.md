@@ -1477,6 +1477,8 @@ Expected: final JSON `{"status":"pass",...}`. Open a PR "Add exchange profile re
 
 ### Task 10: Kali in-scope active testing (gated)
 
+**Status 2026-11-22:** Step 7 (eligibility) was run first. Result: 0 eligible, 9 not eligible, 11 with no programme (`research_notes/exchange-profiles/scan-eligibility.md`). Steps 1–6 and 8–9 are deferred until a programme explicitly permits automated testing; do not build the runner before then. Re-run Step 7 on refresh. Owner to confirm two rows the agent could not read: Coinbase HackerOne policy (x402) and Golem's Sherlock rules.
+
 **Prerequisites:** Tasks 1–7 merged. Kali's SSH route is working (Step 1). For each programme, the owner has personally registered and accepted its terms. Can run in parallel with Tasks 8–9.
 
 **Files:**
