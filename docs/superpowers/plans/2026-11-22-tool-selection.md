@@ -1080,6 +1080,11 @@ test('a run sends every item five times as published and publishes a result the 
 
   assert.equal(stub.bodies.length, 500);
   assert.deepEqual(stub.bodies.map((body) => body.seed), Array.from({ length: 500 }, (_, position) => position));
+  // Seed p is item p mod 100: five passes over the file, in file order.
+  stub.bodies.forEach((body, position) => assert.ok(
+    body.messages[1].content.startsWith(`Request: ${ITEMS[position % 100].request}\n\n`),
+    `position ${position}`,
+  ));
   // The stub never declines, so exactly the 85 items with a call are right on every run.
   assert.deepEqual([outcome.n, outcome.runs, outcome.correct, outcome.score], [100, 5, 85, 85]);
   const result = JSON.parse(readFileSync(outcome.resultPath, 'utf8'));
@@ -1144,8 +1149,8 @@ updated: 2026-11-22
 
 Whether a model, given a request and a list of tools, picks the one right tool and fills in
 its arguments exactly, and whether it declines when no listed tool fits. This is the first
-step of almost every agent action, and the most common way agents fail: calling a tool that
-looks right but is not, inventing an argument, or acting when it should not.
+step of most agent actions, and a common way for them to go wrong: calling a tool that looks
+right but is not, inventing an argument, or acting when it should not.
 
 Every item offers all the tools of one domain, so the wrong answers are near misses:
 `write_file` beside `append_file`, `create_event` beside `update_event`, `send_message`
@@ -1162,9 +1167,9 @@ hundred:
 You choose and call tools for a user. You are given the user's request and a list of tools, each with a JSON Schema for its arguments. Reply with exactly one JSON object and nothing else, in this form: {"tool": "<tool name>", "arguments": {"<argument name>": <value>}}. Use only a listed tool and only its parameters. Give every required parameter, and give an optional parameter only when the request asks for a value other than its default. Copy names, paths, identifiers and other values exactly as the request gives them. If none of the listed tools can carry out the request in one call, reply {"tool": null, "arguments": {}}.
 ```
 
-The user message is `Request: `, the request, a blank line, `Tools:`, and the item's tools as
-JSON indented by two spaces. Each tool has a `name`, a `description` and a JSON Schema under
-`parameters`; optional parameters may carry a `default`.
+The user message is `Request: `, the request, a blank line, `Tools:`, a newline, and the
+item's tools as JSON indented by two spaces. Each tool has a `name`, a `description` and a
+JSON Schema under `parameters`; optional parameters may carry a `default`.
 
 1. An evaluation must use the pinned file at `source_url` and check it against
    `source_sha256`. It has 100 lines; each is one item with its `system` message, `request`,

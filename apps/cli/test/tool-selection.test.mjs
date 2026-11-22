@@ -348,6 +348,11 @@ test('a run sends every item five times as published and publishes a result the 
 
   assert.equal(stub.bodies.length, 500);
   assert.deepEqual(stub.bodies.map((body) => body.seed), Array.from({ length: 500 }, (_, position) => position));
+  // Seed p is item p mod 100: five passes over the file, in file order.
+  stub.bodies.forEach((body, position) => assert.ok(
+    body.messages[1].content.startsWith(`Request: ${ITEMS[position % 100].request}\n\n`),
+    `position ${position}`,
+  ));
   // The stub never declines, so exactly the 85 items with a call are right on every run.
   assert.deepEqual([outcome.n, outcome.runs, outcome.correct, outcome.score], [100, 5, 85, 85]);
   const result = JSON.parse(readFileSync(outcome.resultPath, 'utf8'));
