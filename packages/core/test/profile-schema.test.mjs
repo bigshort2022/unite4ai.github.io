@@ -36,6 +36,16 @@ test('fixed fees need a currency and amounts are decimal strings', () => {
   assert.equal(exchangeProfileSchema.safeParse(q).success, false);
 });
 
+test('a fee with an unpublished amount must cite evidence that the fee exists', () => {
+  const withdrawal = { kind: 'withdrawal', amount: null, appliesTo: 'seller', scope: 'Payouts', searched: ['https://fixture.example/fees'] };
+  const p = profile();
+  p.costComponents.push(withdrawal);
+  assert.equal(exchangeProfileSchema.safeParse(p).success, false);
+  const q = profile();
+  q.costComponents.push({ ...withdrawal, evidence: ['e1'] });
+  assert.equal(exchangeProfileSchema.safeParse(q).success, true);
+});
+
 test('unknown keys and HTML text are rejected', () => {
   const p = profile();
   p.meta.score = 99;

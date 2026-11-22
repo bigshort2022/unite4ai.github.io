@@ -14,9 +14,16 @@ test('published profiles render with scores and evidence; drafts never render', 
   const out = mkdtempSync(join(tmpdir(), 'u4ai-profile-site-'));
   try {
     for (const kind of ['exchange-profiles', 'hypotheses', 'findings', 'reviews']) mkdirSync(join(fixtures, kind));
-    writeFileSync(join(fixtures, 'exchange-profiles', 'akash.json'), JSON.stringify(profile()));
-    const draft = profile({ meta: { ...profile().meta, directoryId: 'vast-ai', status: 'draft' } });
-    writeFileSync(join(fixtures, 'exchange-profiles', 'vast-ai.json'), JSON.stringify(draft));
+    const akash = profile();
+    akash.identity.formedOn.value = 2018;
+    akash.costComponents.push({ kind: 'minimum-charge', amount: null, appliesTo: 'buyer', scope: 'Small leases', searched: ['https://fixture.example/search'], evidence: ['e3'] });
+    writeFileSync(join(fixtures, 'exchange-profiles', 'akash.json'), JSON.stringify(akash));
+    const vast = profile({ meta: { ...profile().meta, directoryId: 'vast-ai' } });
+    vast.priceQuotes = [{ ...vast.priceQuotes[0], amount: '2.10', sampleSize: 30 }];
+    writeFileSync(join(fixtures, 'exchange-profiles', 'vast-ai.json'), JSON.stringify(vast));
+    const draft = profile({ meta: { ...profile().meta, directoryId: 'golem', status: 'draft' } });
+    draft.priceQuotes = [{ ...draft.priceQuotes[0], amount: '9.99' }];
+    writeFileSync(join(fixtures, 'exchange-profiles', 'golem.json'), JSON.stringify(draft));
     const build = spawnSync('bun', ['run', 'astro', 'build', '--outDir', out], {
       cwd: root, encoding: 'utf8', timeout: 110_000,
       // Exchange dir isolates the build cache under fixtures/.astro-cache, removed below.
@@ -36,22 +43,32 @@ test('published profiles render with scores and evidence; drafts never render', 
     const quotes = page.match(/<h2 id="prices">[\s\S]*?<\/table>/)[0];
     assert.match(quotes, /<th>Level<\/th>/);
     assert.match(quotes, /<td>reported<\/td>/);
+    const comparable = page.match(/<h3 id="comparable">[\s\S]*?<\/table>/)[0];
+    assert.match(comparable, /same workload, currency, unit and statistic only; no conversion/);
+    assert.match(comparable, /<a href="\/global-exchange\/vast-ai">Vast\.ai<\/a><\/td><td>2\.10 USD per GPU-hour<\/td><td>30<\/td>/);
+    assert.doesNotMatch(page, /9\.99|global-exchange\/golem/, 'draft quotes never appear');
+    assert.match(page, /<li>Holds customer funds \(20\): present /);
+    assert.match(page, /<li>Operating entity not identifiable \(15\): absent /);
+    assert.match(page, /<li>Third-party security audit published \(20\): pass /);
+    assert.match(page, /minimum-charge \(buyer, Small leases\): amount not published\s*<a href="https:\/\/fixture\.example\/e3#:~:text=/);
     assert.match(page, /<dt>Market cap \(USD\)<\/dt><dd>1,000,000 /);
     assert.match(page, /<dt>Token price \(USD\)<\/dt><dd>0\.5 /);
+    assert.match(page, /<dt>Date of formation<\/dt><dd>2018 /);
+    assert.match(page, /<dt>Volume<\/dt><dd>1,200 USD/);
     assert.match(page, /<dt>KYC required<\/dt>/);
     assert.match(page, /2026-11-22\. Drafted by fixture-model/);
     assert.ok(page.includes('href="https://fixture.example/e2#:~:text='), 'facts link to highlighted evidence');
-    assert.equal(existsSync(join(out, 'global-exchange', 'vast-ai', 'index.html')), false, 'drafts are not rendered');
+    assert.equal(existsSync(join(out, 'global-exchange', 'golem', 'index.html')), false, 'drafts are not rendered');
 
     const directory = readFileSync(join(out, 'global-exchange', 'index.html'), 'utf8');
     const akashCard = directory.match(/data-project-id="akash"[\s\S]*?<\/article>/)[0];
     assert.ok(akashCard.includes('href="/global-exchange/akash"'));
-    const vastCard = directory.match(/data-project-id="vast-ai"[\s\S]*?<\/article>/)[0];
-    assert.doesNotMatch(vastCard, /Full profile/);
+    const golemCard = directory.match(/data-project-id="golem"[\s\S]*?<\/article>/)[0];
+    assert.doesNotMatch(golemCard, /Full profile/);
 
     const feed = JSON.parse(readFileSync(join(out, 'data', 'exchange-profiles.json'), 'utf8'));
     assert.equal(feed.untrusted, true);
-    assert.deepEqual(feed.profiles.map((p) => p.id), ['akash']);
+    assert.deepEqual(feed.profiles.map((p) => p.id), ['akash', 'vast-ai']);
     assert.equal(feed.profiles[0].scores.security.score, 94);
     assert.equal(feed.profiles[0].scores.transactionCost.costPercent, 4.3);
     assert.equal(feed.profiles[0].scores.risk.grade, 'D');

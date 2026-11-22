@@ -1,7 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
 import { readExchangeProfiles } from '@unite4ai/core/profiles';
-import { riskScore, securityScore, transactionCostScore } from '@unite4ai/core/profile-scores';
+import { quoteGroupKey, quotesByWorkload, riskScore, securityScore, transactionCostScore } from '@unite4ai/core/profile-scores';
 import { highlightUrl } from '@unite4ai/core/profile-checks';
 import type { ExchangeProfile } from '@unite4ai/schema';
 import directory from '../../data/global-exchange.json';
@@ -9,19 +9,29 @@ import directory from '../../data/global-exchange.json';
 export async function getStaticPaths() {
   const { profiles, errors } = await readExchangeProfiles(process.env.U4AI_PROFILES_DIR || './src/content');
   if (errors.length) throw new Error(errors.join('\n'));
-  return profiles.filter((p) => p.data.meta.status === 'published').map((p) => ({ params: { id: p.id }, props: { profile: p.data } }));
+  const published = profiles.filter((p) => p.data.meta.status === 'published');
+  return published.map((p) => ({ params: { id: p.id }, props: { profile: p.data, published } }));
 }
 
-const { profile } = Astro.props;
+const { profile, published } = Astro.props;
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const href = (p: string) => `${base}${p}` || '/';
+const projectName = (id: string) => directory.projects.find((p) => p.id === id)?.name ?? id;
 const entry = directory.projects.find((p) => p.id === profile.meta.directoryId)!;
 const evidence = new Map(profile.evidence.map((e) => [e.id, e]));
 const link = (id: string) => { const e = evidence.get(id)!; return highlightUrl(e.url, e.quote); };
+type Outcome = ReturnType<typeof securityScore>['breakdown'][number]['outcome'];
+// A risk `fail` means the indicator is present; `pass` means it is absent.
+const RISK_OUTCOMES: Record<Outcome, string> = { fail: 'present', pass: 'absent', 'not-applicable': 'not applicable', unknown: 'unknown' };
 const scores = [
-  { name: 'Security Score', note: 'Higher means more protective practices are evidenced.', s: securityScore(profile) },
-  { name: 'Risk Score', note: 'Higher means more risk indicators are present.', s: riskScore(profile) },
+  { name: 'Security Score', note: 'Higher means more protective practices are evidenced.', s: securityScore(profile), outcome: (o: Outcome): string => o },
+  { name: 'Risk Score', note: 'Higher means more risk indicators are present.', s: riskScore(profile), outcome: (o: Outcome) => RISK_OUTCOMES[o] },
 ];
+// Other published profiles' quotes in the same comparison group as each of this profile's quotes.
+const groups = quotesByWorkload(published);
+const comparable = profile.priceQuotes.flatMap((q) => (groups.get(quoteGroupKey(q)) ?? [])
+  .filter((r) => r.directoryId !== profile.meta.directoryId)
+  .map((r) => ({ q, r })));
 const cost = transactionCostScore(profile);
 type FactKey = keyof ExchangeProfile['identity'] | keyof ExchangeProfile['legal'] | keyof ExchangeProfile['marketData'] | keyof ExchangeProfile['usage'];
 const LABELS: Record<FactKey, string> = {
@@ -31,8 +41,12 @@ const LABELS: Record<FactKey, string> = {
   tokenSymbol: 'Token symbol', marketCapUsd: 'Market cap (USD)', tokenPriceUsd: 'Token price (USD)',
   weeklyActiveUsers: 'Average weekly active users', volume: 'Volume', traders: 'Traders',
 };
-const factRows = (section: Record<string, any>) => Object.entries(section).map(([k, f]) => ({ k: LABELS[k as FactKey], f }));
-const display = (v: unknown) => (typeof v === 'number' ? v.toLocaleString('en-US', { maximumFractionDigits: 8 }) : String(v));
+const GROUPED: ReadonlySet<string> = new Set<FactKey>(['marketCapUsd', 'tokenPriceUsd']);
+const grouped = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 8 });
+// Only money and usage figures get digit grouping; other numbers (a formation year) render as stated.
+const factRows = (section: Record<string, any>) => Object.entries(section).map(([key, f]) => ({
+  k: LABELS[key as FactKey], f, text: typeof f.value === 'number' && GROUPED.has(key) ? grouped(f.value) : String(f.value),
+}));
 ---
 <Base title={`${entry.name} profile`} description={`Researched profile of ${entry.name}: identity, legal facts, usage, prices, costs and rubric scores.`}>
   <section class="wrap section">
@@ -46,12 +60,12 @@ const display = (v: unknown) => (typeof v === 'number' ? v.toLocaleString('en-US
     <h2 id="scores">Scores</h2>
     <p>Rubric version {scores[0].s.rubricVersion}. A rubric score, not a judgement of the company's conduct.</p>
     <p>Letters: A 90+, B 80–89, C 70–79, D 50–69, F below 50. The Risk letter grades 100 − Risk Score, so A always means fewest risk indicators.</p>
-    {scores.map(({ name, note, s }) => (
+    {scores.map(({ name, note, s, outcome }) => (
       <article class="card">
         <h3>{name}: {s.score === null ? `insufficient evidence (${Math.round(s.coverage * 100)}% coverage)` : `${s.score} (grade ${s.grade})`}</h3>
         <p>{note} Evidence coverage {Math.round(s.coverage * 100)}%.</p>
         <ul>{s.breakdown.map((b) => (
-          <li>{b.label} ({b.weight}): {b.outcome}{b.evidence.map((id) => <> <a href={link(id)} rel="nofollow noopener">[{id}]</a></>)}</li>
+          <li>{b.label} ({b.weight}): {outcome(b.outcome)}{b.evidence.map((id) => <> <a href={link(id)} rel="nofollow noopener">[{id}]</a></>)}</li>
         ))}</ul>
       </article>
     ))}
@@ -70,8 +84,8 @@ const display = (v: unknown) => (typeof v === 'number' ? v.toLocaleString('en-US
   ].map((section) => (
     <section class="wrap section" aria-labelledby={section.id}>
       <h2 id={section.id}>{section.title}</h2>
-      <dl>{section.rows.map(({ k, f }) => (
-        <><dt>{k}</dt><dd>{f.value === null ? 'Not published' : <>{display(f.value)} <small>({f.level})</small>{f.evidence.map((id: string) => <> <a href={link(id)} rel="nofollow noopener">[{id}]</a></>)}</>}</dd></>
+      <dl>{section.rows.map(({ k, f, text }) => (
+        <><dt>{k}</dt><dd>{f.value === null ? 'Not published' : <>{text} <small>({f.level})</small>{f.evidence.map((id: string) => <> <a href={link(id)} rel="nofollow noopener">[{id}]</a></>)}</>}</dd></>
       ))}</dl>
     </section>
   ))}
@@ -79,7 +93,7 @@ const display = (v: unknown) => (typeof v === 'number' ? v.toLocaleString('en-US
   <section class="wrap section" aria-labelledby="usage">
     <h2 id="usage">Usage</h2>
     <dl>{factRows(profile.usage).map(({ k, f }) => (
-      <><dt>{k}</dt><dd>{f.value === null ? 'Not published' : <>{display(f.value)} {f.unit}, {f.window.start} to {f.window.end} <small>({f.level})</small>{f.evidence.map((id: string) => <> <a href={link(id)} rel="nofollow noopener">[{id}]</a></>)}</>}</dd></>
+      <><dt>{k}</dt><dd>{f.value === null ? 'Not published' : <>{grouped(f.value)} {f.unit}, {f.window.start} to {f.window.end} <small>({f.level})</small>{f.evidence.map((id: string) => <> <a href={link(id)} rel="nofollow noopener">[{id}]</a></>)}</>}</dd></>
     ))}</dl>
   </section>
 
@@ -92,13 +106,22 @@ const display = (v: unknown) => (typeof v === 'number' ? v.toLocaleString('en-US
             <td>{q.evidence.map((id) => <a href={link(id)} rel="nofollow noopener">[{id}]</a>)}</td></tr>
         ))}</tbody></table>
     )}
+    {comparable.length > 0 && (
+      <>
+        <h3 id="comparable">Comparable quotes from other profiles (same workload, currency, unit and statistic only; no conversion)</h3>
+        <table><thead><tr><th>Workload</th><th>Statistic</th><th>Project</th><th>Amount</th><th>Sample</th><th>Date</th><th>Level</th></tr></thead>
+          <tbody>{comparable.map(({ q, r }) => (
+            <tr><td>{q.workload}</td><td>{q.statistic}</td><td><a href={href(`/global-exchange/${r.directoryId}`)}>{projectName(r.directoryId)}</a></td><td>{r.amount} {q.currency} per {q.per}</td><td>{r.sampleSize ?? '—'}</td><td>{r.sampledAt}</td><td>{r.level}</td></tr>
+          ))}</tbody></table>
+      </>
+    )}
   </section>
 
   <section class="wrap section" aria-labelledby="costs">
     <h2 id="costs">Transaction cost components</h2>
     <ul>{profile.costComponents.map((c) => (
       <li>{c.kind} ({c.appliesTo}, {c.scope}): {c.amount === null ? 'amount not published' : c.basis === 'percent' ? `${c.amount}%` : `${c.amount} ${c.currency}${c.basis === 'per-unit' ? ' per unit' : ''}`}
-        {'evidence' in c && c.evidence.map((id) => <> <a href={link(id)} rel="nofollow noopener">[{id}]</a></>)}</li>
+        {c.evidence.map((id) => <> <a href={link(id)} rel="nofollow noopener">[{id}]</a></>)}</li>
     ))}</ul>
   </section>
 

@@ -40,7 +40,7 @@ test('a fee in another currency or with an unpublished amount makes the cost sco
   p.costComponents[1].currency = 'EUR';
   assert.equal(transactionCostScore(p).score, null);
   const q = profile();
-  q.costComponents.push({ kind: 'withdrawal', amount: null, appliesTo: 'seller', scope: 'Payouts', searched: ['https://fixture.example/fees'] });
+  q.costComponents.push({ kind: 'withdrawal', amount: null, appliesTo: 'seller', scope: 'Payouts', searched: ['https://fixture.example/fees'], evidence: ['e1'] });
   const r = transactionCostScore(q);
   assert.equal(r.score, null);
   assert.match(r.notComputable.join(' '), /withdrawal/);
@@ -67,7 +67,7 @@ test('quotes are compared only within the same workload, currency, unit and stat
   ];
   const groups = quotesByWorkload([{ id: 'akash', data: a }, { id: 'vast-ai', data: b }]);
   const usd = groups.get('gpu-hour-h100-80gb|USD|GPU-hour|median');
-  assert.deepEqual(usd.map((r) => [r.directoryId, r.amount]), [['akash', 1.8], ['vast-ai', 2.1]]);
+  assert.deepEqual(usd.map((r) => [r.directoryId, r.amount]), [['akash', '1.80'], ['vast-ai', '2.10']]);
   assert.equal(groups.get('gpu-hour-h100-80gb|EUR|GPU-hour|median').length, 1);
 });
 

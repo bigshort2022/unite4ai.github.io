@@ -87,19 +87,23 @@ export function transactionCostScore(p: ExchangeProfile): CostScore {
   return { rubricVersion: RUBRIC_VERSION, score, grade: letterGrade(score), costPercent, excluded, notComputable };
 }
 
-export interface QuoteRow { directoryId: string; amount: number; sampleSize?: number; sampledAt: string; level: (typeof PROFILE_LEVELS)[number] }
+/** `amount` is the published decimal string, shown as the source states it. */
+export interface QuoteRow { directoryId: string; amount: string; sampleSize?: number; sampledAt: string; level: (typeof PROFILE_LEVELS)[number] }
 
-/** Groups quotes that are directly comparable: same workload, currency, unit and statistic. Sorted cheapest first. */
+/** Quotes are directly comparable only within one key: same workload, currency, unit and statistic. */
+export const quoteGroupKey = (q: ExchangeProfile['priceQuotes'][number]): string => `${q.workload}|${q.currency}|${q.per}|${q.statistic}`;
+
+/** Groups directly comparable quotes by `quoteGroupKey`. Sorted cheapest first. */
 export function quotesByWorkload(profiles: { id: string; data: ExchangeProfile }[]): Map<string, QuoteRow[]> {
   const groups = new Map<string, QuoteRow[]>();
   for (const { id, data } of profiles) {
     for (const q of data.priceQuotes) {
-      const key = `${q.workload}|${q.currency}|${q.per}|${q.statistic}`;
+      const key = quoteGroupKey(q);
       const rows = groups.get(key) ?? [];
-      rows.push({ directoryId: id, amount: Number(q.amount), sampleSize: q.sampleSize, sampledAt: q.sampledAt, level: q.level });
+      rows.push({ directoryId: id, amount: q.amount, sampleSize: q.sampleSize, sampledAt: q.sampledAt, level: q.level });
       groups.set(key, rows);
     }
   }
-  for (const rows of groups.values()) rows.sort((a, b) => a.amount - b.amount || a.directoryId.localeCompare(b.directoryId));
+  for (const rows of groups.values()) rows.sort((a, b) => Number(a.amount) - Number(b.amount) || a.directoryId.localeCompare(b.directoryId));
   return groups;
 }

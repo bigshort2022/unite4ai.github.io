@@ -19,7 +19,7 @@ function root(files, directoryIds = ['akash', 'vast-ai']) {
   return join(r, 'content');
 }
 const ids = new Set(['akash', 'vast-ai']);
-const entry = (data, id = 'akash') => ({ id, data, sha256: '0'.repeat(64) });
+const entry = (data, id = 'akash') => ({ id, data });
 
 test('a valid profile has no cross-reference errors', () => {
   assert.deepEqual(validateProfiles([entry(profile())], ids), []);
@@ -38,6 +38,12 @@ test('every cited evidence id must exist, and every evidence item must be cited'
   const errors = validateProfiles([entry(p)], ids).join('\n');
   assert.match(errors, /e99/);
   assert.match(errors, /e8: not cited/);
+});
+
+test('evidence cited by a fee with an unpublished amount must exist', () => {
+  const p = profile();
+  p.costComponents.push({ kind: 'withdrawal', amount: null, appliesTo: 'seller', scope: 'Payouts', searched: ['https://fixture.example/fees'], evidence: ['e77'] });
+  assert.match(validateProfiles([entry(p)], ids).join('\n'), /cites evidence e77/);
 });
 
 test('criteria must belong to the right rubric and appear once', () => {

@@ -1,10 +1,9 @@
-import { createHash } from 'node:crypto';
 import { lstat, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { CONTENT_ID, PROFILE_MAX_BYTES, exchangeProfileSchema, type ExchangeProfile } from '@unite4ai/schema';
 import { REFERENCE_WORKLOADS, RISK_CRITERIA, SECURITY_CRITERIA } from './profile-rubrics.ts';
 
-export interface ProfileEntry { id: string; data: ExchangeProfile; sha256: string }
+export interface ProfileEntry { id: string; data: ExchangeProfile }
 
 /** Reads `exchange-profiles/*.json` under a content root. Missing directory means no profiles. */
 export async function readExchangeProfiles(root: string): Promise<{ profiles: ProfileEntry[]; errors: string[] }> {
@@ -36,17 +35,15 @@ export async function readExchangeProfiles(root: string): Promise<{ profiles: Pr
       continue;
     }
     let data: unknown;
-    let sha256: string;
     try {
       const bytes = await readFile(path);
-      sha256 = createHash('sha256').update(bytes).digest('hex');
       data = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
     } catch (error) {
       errors.push(`${file}: cannot parse record (${(error as Error).message})`);
       continue;
     }
     const parsed = exchangeProfileSchema.safeParse(data);
-    if (parsed.success) profiles.push({ id, data: parsed.data, sha256 });
+    if (parsed.success) profiles.push({ id, data: parsed.data });
     else errors.push(`${file}: ${parsed.error.message}`);
   }
   return { profiles, errors };
@@ -57,7 +54,7 @@ function citedEvidence(p: ExchangeProfile): string[] {
   const facts = [...Object.values(p.identity), ...Object.values(p.legal), ...Object.values(p.marketData), ...Object.values(p.usage)];
   for (const f of facts) if ('evidence' in f) ids.push(...f.evidence);
   for (const q of p.priceQuotes) ids.push(...q.evidence);
-  for (const c of p.costComponents) if ('evidence' in c) ids.push(...c.evidence);
+  for (const c of p.costComponents) ids.push(...c.evidence);
   for (const c of [...p.securityChecks, ...p.riskChecks]) ids.push(...c.evidence);
   return ids;
 }

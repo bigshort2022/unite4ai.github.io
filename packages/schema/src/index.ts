@@ -336,7 +336,7 @@ export type ReviewData = z.infer<typeof reviewSchema>;
 // ── Exchange profiles (docs/superpowers/specs/2026-11-22-exchange-profiles-design.md) ──
 
 export const PROFILE_MAX_BYTES = 32 * 1024;
-export const PROFILE_EVIDENCE_KINDS = ['official-docs', 'terms', 'registry', 'regulator', 'aggregator', 'explorer', 'certificate', 'dns', 'observation'] as const;
+export const PROFILE_EVIDENCE_KINDS = ['official-docs', 'terms', 'registry', 'regulator', 'aggregator', 'explorer', 'certificate', 'observation'] as const;
 export const PROFILE_LEVELS = ['stated', 'reported', 'observed'] as const;
 export const PROFILE_CHECK_OUTCOMES = ['pass', 'fail', 'not-applicable', 'unknown'] as const;
 export const PROFILE_COST_KINDS = ['platform-fee', 'take-rate', 'payment-processor', 'facilitator', 'network-gas', 'withdrawal', 'minimum-charge'] as const;
@@ -395,6 +395,8 @@ export const profileCostSchema = z.union([
     appliesTo: z.enum(['buyer', 'seller']),
     scope: exchangeText(200, true),
     searched: z.array(httpsUrl).min(1),
+    // Evidence that the fee exists; `searched` lists where its amount was looked for.
+    evidence: z.array(profileEvidenceId).min(1),
   }),
 ]);
 
