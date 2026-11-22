@@ -332,3 +332,110 @@ export type GraftData = z.infer<typeof graftSchema>;
 export type HypothesisData = z.infer<typeof hypothesisSchema>;
 export type FindingData = z.infer<typeof findingSchema>;
 export type ReviewData = z.infer<typeof reviewSchema>;
+
+// ── Exchange profiles (docs/superpowers/specs/2026-11-22-exchange-profiles-design.md) ──
+
+export const PROFILE_MAX_BYTES = 32 * 1024;
+export const PROFILE_EVIDENCE_KINDS = ['official-docs', 'terms', 'registry', 'regulator', 'aggregator', 'explorer', 'certificate', 'dns', 'observation'] as const;
+export const PROFILE_LEVELS = ['stated', 'reported', 'observed'] as const;
+export const PROFILE_CHECK_OUTCOMES = ['pass', 'fail', 'not-applicable', 'unknown'] as const;
+export const PROFILE_COST_KINDS = ['platform-fee', 'take-rate', 'payment-processor', 'facilitator', 'network-gas', 'withdrawal', 'minimum-charge'] as const;
+
+const profileEvidenceId = z.string().regex(/^e\d{1,3}$/, 'must be an evidence id like e7');
+const profileDecimal = z.string().regex(/^\d+(?:\.\d+)?$/, 'must be a non-negative decimal string');
+const profileCurrency = z.string().regex(/^[A-Z]{3,5}$/, 'must be an uppercase currency or asset code');
+const profileNotPublished = z.strictObject({ value: z.null(), level: z.literal('not-published'), searched: z.array(httpsUrl).min(1) });
+
+export const profileFactSchema = z.union([
+  z.strictObject({
+    value: z.union([exchangeText(300, true), z.number().finite()]),
+    level: z.enum(PROFILE_LEVELS),
+    evidence: z.array(profileEvidenceId).min(1),
+  }),
+  profileNotPublished,
+]);
+
+export const profileMetricSchema = z.union([
+  z.strictObject({
+    value: z.number().finite().nonnegative(),
+    unit: exchangeText(60, true),
+    window: z.strictObject({ start: exchangeDate, end: exchangeDate }),
+    level: z.enum(PROFILE_LEVELS),
+    evidence: z.array(profileEvidenceId).min(1),
+  }),
+  profileNotPublished,
+]);
+
+export const profileQuoteSchema = z.strictObject({
+  workload: z.string().regex(CONTENT_ID, 'must be a workload id like gpu-hour-h100-80gb'),
+  statistic: z.enum(['list', 'min', 'median', 'p90']),
+  amount: profileDecimal,
+  currency: profileCurrency,
+  per: exchangeText(60, true),
+  sampleSize: z.number().int().positive().optional(),
+  sampledAt: exchangeDate,
+  level: z.enum(PROFILE_LEVELS),
+  evidence: z.array(profileEvidenceId).min(1),
+});
+
+export const profileCostSchema = z.union([
+  z.strictObject({
+    kind: z.enum(PROFILE_COST_KINDS),
+    basis: z.enum(['percent', 'fixed', 'per-unit']),
+    amount: profileDecimal,
+    currency: profileCurrency.optional(),
+    appliesTo: z.enum(['buyer', 'seller']),
+    scope: exchangeText(200, true),
+    evidence: z.array(profileEvidenceId).min(1),
+  }).refine((c) => c.basis === 'percent' || c.currency !== undefined, 'fixed and per-unit costs need a currency'),
+  z.strictObject({
+    kind: z.enum(PROFILE_COST_KINDS),
+    amount: z.null(),
+    appliesTo: z.enum(['buyer', 'seller']),
+    scope: exchangeText(200, true),
+    searched: z.array(httpsUrl).min(1),
+  }),
+]);
+
+export const profileCheckSchema = z.strictObject({
+  criterion: contentId,
+  outcome: z.enum(PROFILE_CHECK_OUTCOMES),
+  evidence: z.array(profileEvidenceId),
+}).refine((c) => c.outcome === 'unknown' || c.evidence.length > 0, 'a known outcome must cite evidence');
+
+export const profileEvidenceSchema = z.strictObject({
+  id: profileEvidenceId,
+  url: httpsUrl,
+  retrievedAt: exchangeDate,
+  quote: exchangeText(500),
+  kind: z.enum(PROFILE_EVIDENCE_KINDS),
+});
+
+export const exchangeProfileSchema = z.strictObject({
+  meta: z.strictObject({
+    schemaVersion: z.literal(1),
+    directoryId: contentId,
+    researchedAt: exchangeDate,
+    author: exchangeIdentity,
+    agent: exchangeAgent.optional(),
+    status: z.enum(['draft', 'published']),
+    reviewedBy: exchangeIdentity.optional(),
+    reviewedAt: exchangeDate.optional(),
+  }).refine((m) => m.status === 'draft' || (m.reviewedBy !== undefined && m.reviewedAt !== undefined),
+    'a published profile needs reviewedBy and reviewedAt'),
+  identity: z.strictObject({
+    officialUrl: profileFactSchema, operatingEntity: profileFactSchema, headquarters: profileFactSchema, formedOn: profileFactSchema,
+  }),
+  legal: z.strictObject({
+    registeredJurisdiction: profileFactSchema, governingLaw: profileFactSchema, licenses: profileFactSchema,
+    restrictedJurisdictions: profileFactSchema, sanctionsScreening: profileFactSchema, kycRequired: profileFactSchema,
+  }),
+  marketData: z.strictObject({ tokenSymbol: profileFactSchema, marketCapUsd: profileFactSchema, tokenPriceUsd: profileFactSchema }),
+  usage: z.strictObject({ weeklyActiveUsers: profileMetricSchema, volume: profileMetricSchema, traders: profileMetricSchema }),
+  priceQuotes: z.array(profileQuoteSchema),
+  costComponents: z.array(profileCostSchema),
+  securityChecks: z.array(profileCheckSchema),
+  riskChecks: z.array(profileCheckSchema),
+  evidence: z.array(profileEvidenceSchema),
+});
+export type ExchangeProfile = z.infer<typeof exchangeProfileSchema>;
