@@ -127,6 +127,7 @@ test('the benchmark page pins both files and the method the suite runs', () => {
   assert.match(definition, new RegExp(`^source_sha256: ${QUESTIONS_SHA256}$`, 'm'));
   assert.match(definition, new RegExp(`^source_url: https://raw\\.githubusercontent\\.com/ShishirPatil/gorilla/${BFCL_COMMIT}/`, 'm'));
   assert.ok(definition.includes(ANSWERS.sha256), 'the page names the answers file\'s hash');
+  assert.ok(definition.includes(ANSWERS.url), 'the page names the answers file\'s address');
   assert.match(definition, /^items: 50$/m);
   assert.match(definition, /^license: apache-2\.0$/m);
   assert.match(definition, /^repeat:\n {2}runs: 5\n {2}temperature: 0\.7\n {2}top_p: 1$/m);
@@ -211,7 +212,8 @@ async function offline(fn) {
   }
 }
 
-test('a run reads both pinned files from the cache, sends each item five times, and publishes a result the gate accepts', { timeout: 120_000 }, async () => {
+/** A content root with the model card and the page, and a work dir whose cache holds both pinned files. */
+function workspace() {
   const root = mkdtempSync(join(tmpdir(), 'u4ai-bfcl-'));
   temps.push(root);
   const contentRoot = join(root, 'content');
@@ -222,24 +224,32 @@ test('a run reads both pinned files from the cache, sends each item five times, 
   mkdirSync(join(workDir, 'cache'), { recursive: true });
   copyFileSync(QUESTIONS_FILE, join(workDir, 'cache', `${QUESTIONS_SHA256}.txt`));
   copyFileSync(ANSWERS_FILE, join(workDir, 'cache', `${ANSWERS.sha256}.txt`));
+  return { contentRoot, workDir };
+}
+
+const runOptions = ({ contentRoot, workDir }, stub) => ({
+  benchmark: 'bfcl-multiple-50',
+  model: 'model-a',
+  servedModel: 'stub-model',
+  submitter: 'alice',
+  runtime: 'mlx-lm',
+  runtimeVersion: '0.32.2',
+  format: 'mlx',
+  quantization: '4bit',
+  baseUrl: stub.baseUrl,
+  contentRoot,
+  workDir,
+  command: 'bun run eval -- --benchmark bfcl-multiple-50 --model model-a',
+  hardware: { device: 'Test Box', accelerator: 'cpu', memory_gb: 16 },
+  today: '2026-11-22',
+});
+
+test('a run reads both pinned files from the cache, sends each item five times, and publishes a result the gate accepts', { timeout: 120_000 }, async () => {
+  const dirs = workspace();
+  const { contentRoot } = dirs;
   const stub = await stubServer();
 
-  const outcome = await offline(() => runEval({
-    benchmark: 'bfcl-multiple-50',
-    model: 'model-a',
-    servedModel: 'stub-model',
-    submitter: 'alice',
-    runtime: 'mlx-lm',
-    runtimeVersion: '0.32.2',
-    format: 'mlx',
-    quantization: '4bit',
-    baseUrl: stub.baseUrl,
-    contentRoot,
-    workDir,
-    command: 'bun run eval -- --benchmark bfcl-multiple-50 --model model-a',
-    hardware: { device: 'Test Box', accelerator: 'cpu', memory_gb: 16 },
-    today: '2026-11-22',
-  }));
+  const outcome = await offline(() => runEval(runOptions(dirs, stub)));
 
   assert.equal(stub.bodies.length, 250);
   assert.deepEqual(stub.bodies.map((body) => [body.seed, body.temperature, body.top_p, body.max_tokens]),
@@ -251,4 +261,15 @@ test('a run reads both pinned files from the cache, sends each item five times, 
   assert.deepEqual(result.repeat.item_pass_histogram, [25, 0, 0, 0, 0, 25]);
   assert.deepEqual(repeatProblems(result.repeat, result.n), []);
   assert.deepEqual((await validateContent(contentRoot)).errors, []);
+});
+
+test('a cached answers file that does not match its pin is refused, naming the file, before any request', async () => {
+  const dirs = workspace();
+  const cached = join(dirs.workDir, 'cache', `${ANSWERS.sha256}.txt`);
+  const bytes = readFileSync(cached);
+  bytes[10] ^= 1;
+  writeFileSync(cached, bytes);
+  const stub = await stubServer();
+  await offline(() => assert.rejects(runEval(runOptions(dirs, stub)), /answers file hash mismatch in .*244e00ce/));
+  assert.equal(stub.bodies.length, 0);
 });

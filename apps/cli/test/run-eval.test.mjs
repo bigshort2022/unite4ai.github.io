@@ -250,6 +250,8 @@ test('a complete run writes a result the content gate accepts, with evidence for
     [header.type, header.benchmark_version, header.prompt_version, header.max_tokens],
     ['header', '2', 'gsm8k-2', 2048],
   );
+  // Only a suite with a second pinned file names it, so single-source transcripts keep their names.
+  assert.equal('answers_sha256' in header, false);
 
   // The published speed, recomputed from the transcript with the runner's rounding: tokens
   // per second after the first token, and the median time to the first token.

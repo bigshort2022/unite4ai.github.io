@@ -38,9 +38,9 @@ times. Its numbers are not comparable with BFCL's published leaderboard.
 
 1. An evaluation must use two files of BFCL at commit `f7cf7359b7ac615a0b294831c5ba2bc95ee4a000`
    of `ShishirPatil/gorilla`, checked against their SHA-256: the questions at `source_url`
-   (`source_sha256`), and the possible answers,
-   `bfcl_eval/data/possible_answer/BFCL_v4_multiple.json`, with SHA-256
-   `244e00ce9395df948bcafc7bee64e8f9c87ef70887587d83cae45b13699f3047`. Unite4AI does not
+   (`source_sha256`), and the possible answers at
+   `https://raw.githubusercontent.com/ShishirPatil/gorilla/f7cf7359b7ac615a0b294831c5ba2bc95ee4a000/berkeley-function-call-leaderboard/bfcl_eval/data/possible_answer/BFCL_v4_multiple.json`,
+   with SHA-256 `244e00ce9395df948bcafc7bee64e8f9c87ef70887587d83cae45b13699f3047`. Unite4AI does not
    serve these files; the runner fetches them from BFCL's repository.
 2. The items are the first 50 lines of both files, `multiple_0` to `multiple_49`. Each has one
    user message, two or three functions, and one expected call.
@@ -54,8 +54,9 @@ times. Its numbers are not comparable with BFCL's published leaderboard.
    1024 new tokens, and carries a seed equal to its position (run × 50 + item, both counted
    from 0). Whether the server honours the seed is not checked.
 5. The **answer** is the last JSON object in the reply with its reasoning removed, as in Tool
-   selection. Its `tool` must be a string and its `arguments` an object; an argument whose
-   value is `null` counts as left out.
+   selection. Its `tool` must be a string and its `arguments` an object; an `arguments` that
+   is missing or `null` counts as empty, and an argument whose value is `null` counts as left
+   out.
 6. The answer is **correct** when BFCL's checker for the "multiple" category, in its Python
    mode, would accept the call. Unite4AI runs a port of that checker
    (`apps/cli/src/eval/bfcl.ts`), not BFCL's code:
@@ -63,14 +64,16 @@ times. Its numbers are not comparable with BFCL's published leaderboard.
    - every required parameter must be given, and no parameter outside the expected call;
    - each value must have its parameter's type and be one of the values BFCL lists as
      accepted. Strings compare after BFCL's normalisation (spaces and `, . / - _ * ^`
-     removed, lower case); lists compare element by element after the same normalisation of
+     removed, lower case, and `'` read as `"`); lists compare element by element after the same normalisation of
      their strings; dicts compare key by key;
    - a parameter of the expected call may be left out only when BFCL lists `""` among its
      accepted values.
 
    JSON does not tell `2` from `2.0`. So a whole number counts as a float wherever a float is
    expected, including inside lists, and a number counts as an integer only when it is whole.
-   This is the one place the port departs from BFCL's checker, which sees Python values.
+   This and the `null` rule of step 5 are the only places Unite4AI's scoring departs from
+   BFCL's checker, which sees Python values; the cross-check applies both before calling
+   BFCL's checker.
 7. The **score** is the percentage of the 50 items answered correctly on all five runs. Every
    result also gives pass@1, the percentage of the 250 answers that were correct; how many items
    each run got right; and the sample standard deviation of the five run scores. All five runs
@@ -92,9 +95,9 @@ hash, and scores answers with it.
   a string, a dict missing a key or with an extra one. BFCL's verdicts on these 463 answers are committed
   (`apps/cli/test/fixtures/bfcl/conformance.json`), and a test requires the port to give the
   same verdict on every one.
-- **After the first published run:** the same script scores that run's recorded answers with
-  BFCL's checker and lists every answer where the two disagree. Each disagreement is either
-  fixed in the port or listed on this page.
+- **Before the first result is published:** the same script scores one baseline run's recorded
+  answers with BFCL's checker and lists every answer where the two disagree. Each disagreement
+  is either fixed in the port or listed on this page before publication.
 
 ## Known weaknesses
 
