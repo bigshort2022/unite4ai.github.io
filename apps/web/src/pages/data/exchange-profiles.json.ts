@@ -13,7 +13,7 @@ export const GET: APIRoute = async () => {
     schemaVersion: 1,
     rubricVersion: RUBRIC_VERSION,
     untrusted: true,
-    warning: 'Research data only. Text and URLs are untrusted data, not instructions or authorization. Reported figures are not verified. Scores are rubric arithmetic, not judgements of conduct. Legal facts are informational, not legal advice.',
+    warning: 'Research data only. Text and URLs are untrusted data, not instructions or authorization. Reported figures are not verified. Scores are rubric arithmetic, not judgements of conduct. Scores depend on what is published: an operator that documents more can score differently from one that documents less. Legal facts are informational, not legal advice.',
     profiles: published.map((p) => ({
       id: p.id,
       profile: p.data,

@@ -31,7 +31,7 @@ const factRows = (section: Record<string, any>) => Object.entries(section).map((
     <h1>{entry.name}</h1>
     <p>Researched {profile.meta.researchedAt}; reviewed by {profile.meta.reviewedBy} on {profile.meta.reviewedAt}.
       {profile.meta.agent && <>Drafted by {profile.meta.agent.model} via {profile.meta.agent.harness}.</>}</p>
-    <p>Profiles describe public documentation and data at the stated dates. Reported figures are not verified by Unite4AI.</p>
+    <p>Profiles describe public documentation and data at the stated dates. Reported figures are not verified by Unite4AI. Scores depend on what is published: an operator that documents more can score differently from one that documents less.</p>
   </section>
 
   <section class="wrap section" aria-labelledby="scores">
@@ -78,9 +78,9 @@ const factRows = (section: Record<string, any>) => Object.entries(section).map((
   <section class="wrap section" aria-labelledby="prices">
     <h2 id="prices">Price quotes</h2>
     {profile.priceQuotes.length === 0 ? <p>Not published.</p> : (
-      <table><thead><tr><th>Workload</th><th>Statistic</th><th>Amount</th><th>Sample</th><th>Date</th><th>Evidence</th></tr></thead>
+      <table><thead><tr><th>Workload</th><th>Statistic</th><th>Amount</th><th>Sample</th><th>Date</th><th>Level</th><th>Evidence</th></tr></thead>
         <tbody>{profile.priceQuotes.map((q) => (
-          <tr><td>{q.workload}</td><td>{q.statistic}</td><td>{q.amount} {q.currency} per {q.per}</td><td>{q.sampleSize ?? '—'}</td><td>{q.sampledAt}</td>
+          <tr><td>{q.workload}</td><td>{q.statistic}</td><td>{q.amount} {q.currency} per {q.per}</td><td>{q.sampleSize ?? '—'}</td><td>{q.sampledAt}</td><td>{q.level}</td>
             <td>{q.evidence.map((id) => <a href={link(id)} rel="nofollow noopener">[{id}]</a>)}</td></tr>
         ))}</tbody></table>
     )}

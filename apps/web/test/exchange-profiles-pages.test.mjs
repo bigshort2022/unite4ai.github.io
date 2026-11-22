@@ -13,12 +13,14 @@ test('published profiles render with scores and evidence; drafts never render', 
   const fixtures = mkdtempSync(join(tmpdir(), 'u4ai-profile-fixtures-'));
   const out = mkdtempSync(join(tmpdir(), 'u4ai-profile-site-'));
   try {
-    mkdirSync(join(fixtures, 'exchange-profiles'));
+    for (const kind of ['exchange-profiles', 'hypotheses', 'findings', 'reviews']) mkdirSync(join(fixtures, kind));
     writeFileSync(join(fixtures, 'exchange-profiles', 'akash.json'), JSON.stringify(profile()));
     const draft = profile({ meta: { ...profile().meta, directoryId: 'vast-ai', status: 'draft' } });
     writeFileSync(join(fixtures, 'exchange-profiles', 'vast-ai.json'), JSON.stringify(draft));
     const build = spawnSync('bun', ['run', 'astro', 'build', '--outDir', out], {
-      cwd: root, encoding: 'utf8', timeout: 110_000, env: { ...process.env, U4AI_PROFILES_DIR: fixtures },
+      cwd: root, encoding: 'utf8', timeout: 110_000,
+      // Exchange dir isolates the build cache under fixtures/.astro-cache, removed below.
+      env: { ...process.env, U4AI_PROFILES_DIR: fixtures, U4AI_EXCHANGE_DIR: fixtures },
     });
     assert.equal(build.status, 0, `${build.stdout}\n${build.stderr}`);
 
@@ -30,6 +32,10 @@ test('published profiles render with scores and evidence; drafts never render', 
     assert.match(page, /not a judgement of the company/);
     assert.match(page, /informational, not legal advice/i);
     assert.match(page, /Not published/);
+    assert.match(page, /Scores depend on what is published: an operator that documents more can score differently from one that documents less\./);
+    const quotes = page.match(/<h2 id="prices">[\s\S]*?<\/table>/)[0];
+    assert.match(quotes, /<th>Level<\/th>/);
+    assert.match(quotes, /<td>reported<\/td>/);
     assert.ok(page.includes('href="https://fixture.example/e2#:~:text='), 'facts link to highlighted evidence');
     assert.equal(existsSync(join(out, 'global-exchange', 'vast-ai', 'index.html')), false, 'drafts are not rendered');
 
