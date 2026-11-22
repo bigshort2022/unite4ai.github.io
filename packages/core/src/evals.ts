@@ -2,6 +2,7 @@
  * Aggregation of evaluation runs. Pure functions over plain data, so pages, the feed and
  * tests share one definition of "a group" and "a ranking".
  */
+import type { RepeatResult } from '@unite4ai/schema';
 
 export interface EvalRun {
   id: string;
@@ -25,6 +26,8 @@ export interface EvalRun {
     peak_memory_gb?: number;
     energy_wh_per_1k_tokens?: number;
   };
+  /** Present on results of repeat-run benchmark versions. */
+  repeat?: RepeatResult;
   evidence: { sha256: string; url?: string; bytes?: number };
 }
 

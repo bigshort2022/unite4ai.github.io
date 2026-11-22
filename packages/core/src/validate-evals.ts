@@ -11,6 +11,7 @@ import {
   type BenchmarkData,
   type EvalResult,
 } from '@unite4ai/schema';
+import { repeatProblems } from './repeat.ts';
 
 interface SchemaIssue {
   path: PropertyKey[];
@@ -231,6 +232,9 @@ export async function validateEvals(
       errors.push(`${rel}: benchmark "${result.benchmark}" is not defined (or failed validation) in benchmarks/`);
       continue;
     }
+    if (result.repeat !== undefined) {
+      for (const problem of repeatProblems(result.repeat, result.n)) errors.push(`${rel}: ${problem}`);
+    }
     if (result.benchmark_version === benchmark.version) {
       const { min, max } = benchmark.metric;
       if (min !== undefined && result.score < min) {
@@ -243,6 +247,23 @@ export async function validateEvals(
         errors.push(
           `${rel}: n ${result.n} must equal the benchmark's ${benchmark.items} items; partial runs are not accepted`,
         );
+      }
+      const method = benchmark.repeat;
+      const version = `version ${benchmark.version} of ${result.benchmark}`;
+      if (method === undefined && result.repeat !== undefined) {
+        errors.push(`${rel}: repeat is set, but ${version} answers every item once`);
+      } else if (method !== undefined && result.repeat === undefined) {
+        errors.push(`${rel}: ${version} answers every item ${method.runs} times; the result has no repeat block`);
+      } else if (method !== undefined && result.repeat !== undefined) {
+        for (const key of ['runs', 'temperature', 'top_p'] as const) {
+          if (result.repeat[key] !== method[key]) errors.push(`${rel}: repeat.${key} is ${result.repeat[key]}; ${version} sets ${method[key]}`);
+        }
+        if (result.score !== result.repeat.pass_k) {
+          errors.push(
+            `${rel}: score ${result.score} must equal repeat.pass_k (${result.repeat.pass_k}); `
+            + 'a repeat-run benchmark scores the share of items answered correctly on every run',
+          );
+        }
       }
     } else if (benchmark.previous_versions.includes(result.benchmark_version)) {
       // The definition describes only the current version, so an older run's score range and item count cannot be checked.
