@@ -1,0 +1,103 @@
+---
+import Base from '../../layouts/Base.astro';
+import { readExchangeProfiles } from '@unite4ai/core/profiles';
+import { riskScore, securityScore, transactionCostScore } from '@unite4ai/core/profile-scores';
+import { highlightUrl } from '@unite4ai/core/profile-checks';
+import directory from '../../data/global-exchange.json';
+
+export async function getStaticPaths() {
+  const { profiles, errors } = await readExchangeProfiles(process.env.U4AI_PROFILES_DIR || './src/content');
+  if (errors.length) throw new Error(errors.join('\n'));
+  return profiles.filter((p) => p.data.meta.status === 'published').map((p) => ({ params: { id: p.id }, props: { profile: p.data } }));
+}
+
+const { profile } = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (p: string) => `${base}${p}` || '/';
+const entry = directory.projects.find((p) => p.id === profile.meta.directoryId)!;
+const evidence = new Map(profile.evidence.map((e) => [e.id, e]));
+const link = (id: string) => { const e = evidence.get(id)!; return highlightUrl(e.url, e.quote); };
+const scores = [
+  { name: 'Security Score', note: 'Higher means more protective practices are evidenced.', s: securityScore(profile) },
+  { name: 'Risk Score', note: 'Higher means more risk indicators are present.', s: riskScore(profile) },
+];
+const cost = transactionCostScore(profile);
+const label = (k: string) => k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
+const factRows = (section: Record<string, any>) => Object.entries(section).map(([k, f]) => ({ k: label(k), f }));
+---
+<Base title={`${entry.name} profile`} description={`Researched profile of ${entry.name}: identity, legal facts, usage, prices, costs and rubric scores.`}>
+  <section class="wrap section">
+    <p><a href={href('/global-exchange')}>Back to the Global Exchange</a></p>
+    <h1>{entry.name}</h1>
+    <p>Researched {profile.meta.researchedAt}; reviewed by {profile.meta.reviewedBy} on {profile.meta.reviewedAt}.
+      {profile.meta.agent && <>Drafted by {profile.meta.agent.model} via {profile.meta.agent.harness}.</>}</p>
+    <p>Profiles describe public documentation and data at the stated dates. Reported figures are not verified by Unite4AI.</p>
+  </section>
+
+  <section class="wrap section" aria-labelledby="scores">
+    <h2 id="scores">Scores</h2>
+    <p>Rubric version {scores[0].s.rubricVersion}. A rubric score, not a judgement of the company's conduct.</p>
+    <p>Letters: A 90+, B 80–89, C 70–79, D 50–69, F below 50. The Risk letter grades 100 − Risk Score, so A always means fewest risk indicators.</p>
+    {scores.map(({ name, note, s }) => (
+      <article class="card">
+        <h3>{name}: {s.score === null ? `insufficient evidence (${Math.round(s.coverage * 100)}% coverage)` : `${s.score} (grade ${s.grade})`}</h3>
+        <p>{note} Evidence coverage {Math.round(s.coverage * 100)}%.</p>
+        <ul>{s.breakdown.map((b) => (
+          <li>{b.label} ({b.weight}): {b.outcome}{b.evidence.map((id) => <> <a href={link(id)} rel="nofollow noopener">[{id}]</a></>)}</li>
+        ))}</ul>
+      </article>
+    ))}
+    <article class="card">
+      <h3>Transaction Cost Score: {cost.score === null ? 'not computable' : `${cost.score} (grade ${cost.grade})`}</h3>
+      <p>Higher means cheaper; compare within the same directory category only. Reference: a USD 100 purchase and, where applicable, a USD 100 seller payout.</p>
+      {cost.costPercent !== null && <p>Effective cost {cost.costPercent}% excluding {cost.excluded.join(', ') || 'nothing'}.</p>}
+      {cost.notComputable.length > 0 && <ul>{cost.notComputable.map((r) => <li>{r}</li>)}</ul>}
+    </article>
+  </section>
+
+  {[
+    { id: 'identity', title: 'Identity', rows: factRows(profile.identity) },
+    { id: 'legal', title: 'Legal jurisdiction (informational, not legal advice)', rows: factRows(profile.legal) },
+    { id: 'market', title: 'Reported market data', rows: factRows(profile.marketData) },
+  ].map((section) => (
+    <section class="wrap section" aria-labelledby={section.id}>
+      <h2 id={section.id}>{section.title}</h2>
+      <dl>{section.rows.map(({ k, f }) => (
+        <><dt>{k}</dt><dd>{f.value === null ? 'Not published' : <>{String(f.value)} <small>({f.level})</small>{f.evidence.map((id: string) => <> <a href={link(id)} rel="nofollow noopener">[{id}]</a></>)}</>}</dd></>
+      ))}</dl>
+    </section>
+  ))}
+
+  <section class="wrap section" aria-labelledby="usage">
+    <h2 id="usage">Usage</h2>
+    <dl>{factRows(profile.usage).map(({ k, f }) => (
+      <><dt>{k}</dt><dd>{f.value === null ? 'Not published' : <>{f.value.toLocaleString('en-US')} {f.unit}, {f.window.start} to {f.window.end} <small>({f.level})</small>{f.evidence.map((id: string) => <> <a href={link(id)} rel="nofollow noopener">[{id}]</a></>)}</>}</dd></>
+    ))}</dl>
+  </section>
+
+  <section class="wrap section" aria-labelledby="prices">
+    <h2 id="prices">Price quotes</h2>
+    {profile.priceQuotes.length === 0 ? <p>Not published.</p> : (
+      <table><thead><tr><th>Workload</th><th>Statistic</th><th>Amount</th><th>Sample</th><th>Date</th><th>Evidence</th></tr></thead>
+        <tbody>{profile.priceQuotes.map((q) => (
+          <tr><td>{q.workload}</td><td>{q.statistic}</td><td>{q.amount} {q.currency} per {q.per}</td><td>{q.sampleSize ?? '—'}</td><td>{q.sampledAt}</td>
+            <td>{q.evidence.map((id) => <a href={link(id)} rel="nofollow noopener">[{id}]</a>)}</td></tr>
+        ))}</tbody></table>
+    )}
+  </section>
+
+  <section class="wrap section" aria-labelledby="costs">
+    <h2 id="costs">Transaction cost components</h2>
+    <ul>{profile.costComponents.map((c) => (
+      <li>{c.kind} ({c.appliesTo}, {c.scope}): {c.amount === null ? 'amount not published' : c.basis === 'percent' ? `${c.amount}%` : `${c.amount} ${c.currency}${c.basis === 'per-unit' ? ' per unit' : ''}`}
+        {'evidence' in c && c.evidence.map((id) => <> <a href={link(id)} rel="nofollow noopener">[{id}]</a></>)}</li>
+    ))}</ul>
+  </section>
+
+  <section class="wrap section" aria-labelledby="sources">
+    <h2 id="sources">Evidence</h2>
+    <ol>{profile.evidence.map((e) => (
+      <li id={e.id}>[{e.id}] {e.kind}, retrieved {e.retrievedAt}: “{e.quote}” <a href={highlightUrl(e.url, e.quote)} rel="nofollow noopener">source</a></li>
+    ))}</ol>
+  </section>
+</Base>
