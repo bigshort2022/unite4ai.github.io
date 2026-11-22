@@ -8,6 +8,10 @@
     "./evals": "./src/evals.ts",
     "./exchange": "./src/exchange.ts",
     "./read-exchange": "./src/read-exchange.ts",
+    "./profile-rubrics": "./src/profile-rubrics.ts",
+    "./profile-scores": "./src/profile-scores.ts",
+    "./profiles": "./src/profiles.ts",
+    "./profile-checks": "./src/profile-checks.ts",
     "./validate-evals": "./src/validate-evals.ts",
     "./validate": "./src/validate.ts"
   },
