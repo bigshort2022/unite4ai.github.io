@@ -1,0 +1,627 @@
+{
+  "meta": {
+    "schemaVersion": 1,
+    "directoryId": "olas",
+    "researchedAt": "2026-11-22",
+    "author": "bigshort2022",
+    "status": "draft",
+    "agent": {
+      "model": "claude-opus-5-5",
+      "harness": "omp"
+    }
+  },
+  "identity": {
+    "officialUrl": {
+      "value": "https://marketplace.olas.network/",
+      "level": "reported",
+      "evidence": [
+        "e1"
+      ]
+    },
+    "operatingEntity": {
+      "value": "Olas DAO",
+      "level": "reported",
+      "evidence": [
+        "e2",
+        "e3"
+      ]
+    },
+    "headquarters": {
+      "value": null,
+      "level": "not-published",
+      "searched": [
+        "https://olas.network/about",
+        "https://olas.network/faq",
+        "https://olas.network/disclaimer",
+        "https://olas.network/mech-marketplace",
+        "https://marketplace.olas.network/ethereum/ai-agents",
+        "https://www.valory.xyz/mech-terms.pdf",
+        "https://gateway.autonolas.tech/ipfs/bafybeibrhz6hnxsxcbv7dkzerq4chssotexb276pidzwclbytzj7m4t47u"
+      ]
+    },
+    "formedOn": {
+      "value": "2022",
+      "level": "stated",
+      "evidence": [
+        "e4"
+      ]
+    }
+  },
+  "legal": {
+    "registeredJurisdiction": {
+      "value": null,
+      "level": "not-published",
+      "searched": [
+        "https://olas.network/about",
+        "https://olas.network/faq",
+        "https://olas.network/disclaimer",
+        "https://olas.network/mech-marketplace",
+        "https://marketplace.olas.network/ethereum/ai-agents",
+        "https://www.valory.xyz/mech-terms.pdf",
+        "https://gateway.autonolas.tech/ipfs/bafybeibrhz6hnxsxcbv7dkzerq4chssotexb276pidzwclbytzj7m4t47u",
+        "https://find-and-update.company-information.service.gov.uk/search/companies?q=autonolas",
+        "https://find-and-update.company-information.service.gov.uk/search/companies?q=olas+dao",
+        "https://www.zefix.ch/en/search/entity/list?name=autonolas",
+        "https://opencorporates.com/companies?q=autonolas"
+      ]
+    },
+    "governingLaw": {
+      "value": "Substantive laws of Switzerland, excluding the CISG",
+      "level": "stated",
+      "evidence": [
+        "e5"
+      ]
+    },
+    "licenses": {
+      "value": null,
+      "level": "not-published",
+      "searched": [
+        "https://www.esma.europa.eu/esmas-activities/digital-finance-and-innovation/markets-crypto-assets-regulation-mica",
+        "https://www.esma.europa.eu/sites/default/files/2024-12/CASPS.csv",
+        "https://www.esma.europa.eu/sites/default/files/2024-12/OTHER.csv",
+        "https://www.esma.europa.eu/sites/default/files/2024-12/NCASP.csv",
+        "https://olas.network/disclaimer"
+      ]
+    },
+    "restrictedJurisdictions": {
+      "value": null,
+      "level": "not-published",
+      "searched": [
+        "https://olas.network/disclaimer",
+        "https://www.valory.xyz/mech-terms.pdf",
+        "https://marketplace.olas.network/ethereum/ai-agents",
+        "https://stack.olas.network/mech-client/"
+      ]
+    },
+    "sanctionsScreening": {
+      "value": null,
+      "level": "not-published",
+      "searched": [
+        "https://olas.network/about",
+        "https://olas.network/faq",
+        "https://olas.network/disclaimer",
+        "https://olas.network/mech-marketplace",
+        "https://marketplace.olas.network/ethereum/ai-agents",
+        "https://www.valory.xyz/mech-terms.pdf",
+        "https://gateway.autonolas.tech/ipfs/bafybeibrhz6hnxsxcbv7dkzerq4chssotexb276pidzwclbytzj7m4t47u",
+        "https://stack.olas.network/mech-client/",
+        "https://www.valory.xyz/terms.pdf"
+      ]
+    },
+    "kycRequired": {
+      "value": null,
+      "level": "not-published",
+      "searched": [
+        "https://olas.network/about",
+        "https://olas.network/faq",
+        "https://olas.network/disclaimer",
+        "https://olas.network/mech-marketplace",
+        "https://marketplace.olas.network/ethereum/ai-agents",
+        "https://www.valory.xyz/mech-terms.pdf",
+        "https://gateway.autonolas.tech/ipfs/bafybeibrhz6hnxsxcbv7dkzerq4chssotexb276pidzwclbytzj7m4t47u",
+        "https://stack.olas.network/mech-client/",
+        "https://www.valory.xyz/terms.pdf"
+      ]
+    }
+  },
+  "marketData": {
+    "tokenSymbol": {
+      "value": "OLAS",
+      "level": "stated",
+      "evidence": [
+        "e30"
+      ]
+    },
+    "marketCapUsd": {
+      "value": 11035985,
+      "level": "reported",
+      "evidence": [
+        "e32"
+      ]
+    },
+    "tokenPriceUsd": {
+      "value": 0.036875,
+      "level": "reported",
+      "evidence": [
+        "e31"
+      ]
+    }
+  },
+  "usage": {
+    "weeklyActiveUsers": {
+      "value": null,
+      "level": "not-published",
+      "searched": [
+        "https://olas.network/",
+        "https://olas.network/data",
+        "https://olas.network/agent-economies/mech",
+        "https://olas.network/mech-marketplace",
+        "https://marketplace.olas.network/"
+      ]
+    },
+    "volume": {
+      "value": null,
+      "level": "not-published",
+      "searched": [
+        "https://olas.network/",
+        "https://olas.network/mech-marketplace",
+        "https://olas.network/agent-economies/mech",
+        "https://olas.network/data"
+      ]
+    },
+    "traders": {
+      "value": null,
+      "level": "not-published",
+      "searched": [
+        "https://olas.network/",
+        "https://olas.network/data",
+        "https://olas.network/agent-economies/mech",
+        "https://olas.network/mech-marketplace",
+        "https://marketplace.olas.network/"
+      ]
+    }
+  },
+  "priceQuotes": [],
+  "costComponents": [
+    {
+      "kind": "take-rate",
+      "basis": "percent",
+      "amount": "15",
+      "appliesTo": "seller",
+      "scope": "Olas Marketplace protocol fee on agent-to-agent payments; taken as a DAO fee from a Mech's accumulated payments when the Mech transfers them from the balance tracker contract.",
+      "evidence": [
+        "e60",
+        "e61",
+        "e62"
+      ]
+    },
+    {
+      "kind": "network-gas",
+      "basis": "per-unit",
+      "amount": "0.0115",
+      "currency": "USD",
+      "appliesTo": "buyer",
+      "scope": "Roughly, requester-side gas per on-chain Mech request on Polygon: 400 sampled request transactions, mean 488,421 gas; gas sampled July 13 to August 28 on Polygon.",
+      "evidence": [
+        "e63",
+        "e65"
+      ]
+    },
+    {
+      "kind": "network-gas",
+      "basis": "per-unit",
+      "amount": "0.0012",
+      "currency": "USD",
+      "appliesTo": "buyer",
+      "scope": "Roughly, requester-side gas per off-chain Mech request, from balance top-ups (about one per 3.15 requests, mean 150,568 gas); gas sampled July 13 to August 28 on Polygon.",
+      "evidence": [
+        "e64",
+        "e65"
+      ]
+    }
+  ],
+  "securityChecks": [
+    {
+      "criterion": "third-party-audit",
+      "outcome": "pass",
+      "evidence": [
+        "e95"
+      ]
+    },
+    {
+      "criterion": "bug-bounty",
+      "outcome": "pass",
+      "evidence": [
+        "e96",
+        "e97"
+      ]
+    },
+    {
+      "criterion": "security-contact",
+      "outcome": "pass",
+      "evidence": [
+        "e98"
+      ]
+    },
+    {
+      "criterion": "open-source-core",
+      "outcome": "pass",
+      "evidence": [
+        "e99"
+      ]
+    },
+    {
+      "criterion": "verified-contracts",
+      "outcome": "pass",
+      "evidence": [
+        "e100",
+        "e123",
+        "e124",
+        "e125",
+        "e126",
+        "e127"
+      ]
+    },
+    {
+      "criterion": "incident-handling",
+      "outcome": "unknown",
+      "evidence": []
+    },
+    {
+      "criterion": "custody-documented",
+      "outcome": "pass",
+      "evidence": [
+        "e103",
+        "e107",
+        "e104"
+      ]
+    },
+    {
+      "criterion": "https-certificate",
+      "outcome": "pass",
+      "evidence": [
+        "e118",
+        "e119"
+      ]
+    },
+    {
+      "criterion": "security-headers",
+      "outcome": "pass",
+      "evidence": [
+        "e120",
+        "e121",
+        "e122"
+      ]
+    },
+    {
+      "criterion": "account-protection",
+      "outcome": "not-applicable",
+      "evidence": [
+        "e117"
+      ]
+    }
+  ],
+  "riskChecks": [
+    {
+      "criterion": "custodial-funds",
+      "outcome": "pass",
+      "evidence": [
+        "e117"
+      ]
+    },
+    {
+      "criterion": "entity-unidentified",
+      "outcome": "pass",
+      "evidence": [
+        "e2",
+        "e3"
+      ]
+    },
+    {
+      "criterion": "jurisdiction-unstated",
+      "outcome": "pass",
+      "evidence": [
+        "e110"
+      ]
+    },
+    {
+      "criterion": "unresolved-incident",
+      "outcome": "unknown",
+      "evidence": []
+    },
+    {
+      "criterion": "regulatory-action",
+      "outcome": "unknown",
+      "evidence": []
+    },
+    {
+      "criterion": "conflicting-terms",
+      "outcome": "fail",
+      "evidence": [
+        "e112",
+        "e113",
+        "e114"
+      ]
+    },
+    {
+      "criterion": "single-operator-control",
+      "outcome": "unknown",
+      "evidence": []
+    },
+    {
+      "criterion": "no-terms-of-service",
+      "outcome": "pass",
+      "evidence": [
+        "e110"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "e1",
+      "url": "https://www.valory.xyz/mech-terms.pdf",
+      "retrievedAt": "2026-11-22",
+      "quote": "Valory Mechs are facilitated by the permissionless Olas Marketplace, made up of the Olas Marketplace smart contracts (“Olas Marketplace Contracts”, see https://github.com/valory-xyz/autonolas-marketplace) and Olas Marketplace frontend (“Olas Marketplace Frontend”, see https://marketplace.olas.network/).",
+      "kind": "terms"
+    },
+    {
+      "id": "e2",
+      "url": "https://www.valory.xyz/mech-terms.pdf",
+      "retrievedAt": "2026-11-22",
+      "quote": "2.2 The Olas Marketplace — operated by the Olas DAO, not by Valory",
+      "kind": "terms"
+    },
+    {
+      "id": "e3",
+      "url": "https://www.valory.xyz/mech-terms.pdf",
+      "retrievedAt": "2026-11-22",
+      "quote": "The Olas Marketplace and the underlying Olas Protocol (see https://olas.network/protocol) are open-source, permissionless and are owned and governed by the Olas DAO (see https://olas.network/faq), not Valory.",
+      "kind": "terms"
+    },
+    {
+      "id": "e4",
+      "url": "https://olas.network/faq",
+      "retrievedAt": "2026-11-22",
+      "quote": "In 2022, Olas DAO was founded with ~50 participants.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e5",
+      "url": "https://olas.network/disclaimer",
+      "retrievedAt": "2026-11-22",
+      "quote": "This Disclaimer & Privacy Policy shall be governed by and construed in accordance with the substantive laws of Switzerland, excluding the United Nations Convention on Contracts for the International Sale of Goods dated 11 April 1980 (CISG), as amended from time to time.",
+      "kind": "terms"
+    },
+    {
+      "id": "e30",
+      "url": "https://olas.network/olas-token",
+      "retrievedAt": "2026-11-22",
+      "quote": "OLAS token provides access to the core functions of the network.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e31",
+      "url": "https://coinmarketcap.com/currencies/autonolas/",
+      "retrievedAt": "2026-11-22",
+      "quote": "The live Autonolas price today is $0.036875 USD with a 24-hour trading volume of $90,146.82 USD.",
+      "kind": "aggregator"
+    },
+    {
+      "id": "e32",
+      "url": "https://coinmarketcap.com/currencies/autonolas/",
+      "retrievedAt": "2026-11-22",
+      "quote": "The current CoinMarketCap ranking is #812, with a live market cap of $11,035,985 USD.",
+      "kind": "aggregator"
+    },
+    {
+      "id": "e60",
+      "url": "https://olas.network/data",
+      "retrievedAt": "2026-11-22",
+      "quote": "A 15% fee is taken on agent-to-agent payments and accrues in each chain's balance tracker contract until the DAO drains it.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e61",
+      "url": "https://olas.network/blog/q2-2026",
+      "retrievedAt": "2026-11-22",
+      "quote": "The Olas Marketplace protocol fee went live. A 15% fee now applies to agent-to-agent payments across supported EVM chains. Fees collected in OLAS are burned on Ethereum; fees in other tokens go to the Olas Treasury.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e62",
+      "url": "https://olas.network/agent-economies/mech",
+      "retrievedAt": "2026-11-22",
+      "quote": "The Mech Marketplace handles the collection of fees from the delivery of tasks. A Mech triggers the transfer of its accumulated payments from the balance tracker contract, typically at various intervals. Upon this transfer, a percentage of the payment is taken as a DAO fee, later distributed by the DAO — non-OLAS fees to the Olas Treasury and OLAS fees burned.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e63",
+      "url": "https://olas.network/blog/cheaper-faster-off-chain-requests-mech-marketplace",
+      "retrievedAt": "2026-11-22",
+      "quote": "On the on-chain path, the requester sends a transaction for every request. Across 400 sampled request transactions on Polygon over the same window, each used a mean of 488,421 gas. At the gas prices paid and the POL prices over that period, that came to roughly $0.0115 per request.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e64",
+      "url": "https://olas.network/blog/cheaper-faster-off-chain-requests-mech-marketplace",
+      "retrievedAt": "2026-11-22",
+      "quote": "On the off-chain path, the requester sends no transaction per request and tops up its balance periodically instead. Measured across the agents that had migrated, top-ups ran at about one per 3.15 requests and used a mean of 150,568 gas, which works out to roughly $0.0012 per request.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e65",
+      "url": "https://olas.network/blog/cheaper-faster-off-chain-requests-mech-marketplace",
+      "retrievedAt": "2026-11-22",
+      "quote": "Gas sampled July 13 to August 28 on Polygon.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e95",
+      "url": "https://github.com/valory-xyz/autonolas-marketplace",
+      "retrievedAt": "2026-11-22",
+      "quote": "The latest external audit is the Cantina January 2025 audit. All internal and external audit materials are in the audits folder.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e96",
+      "url": "https://olas.network/blog/registries-update",
+      "retrievedAt": "2026-11-22",
+      "quote": "If you believe you've found a vulnerability in Olas, please report it through Immunefi.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e97",
+      "url": "https://github.com/valory-xyz/autonolas-marketplace/security/policy",
+      "retrievedAt": "2026-11-22",
+      "quote": "Vulnerabilities in the deployed contracts are covered by the Autonolas bug bounty programme on Immunefi:",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e98",
+      "url": "https://github.com/valory-xyz/autonolas-marketplace/security/policy",
+      "retrievedAt": "2026-11-22",
+      "quote": "Report security bugs by emailing to security@valory.xyz.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e99",
+      "url": "https://www.valory.xyz/mech-terms.pdf",
+      "retrievedAt": "2026-11-22",
+      "quote": "The Olas Marketplace and the underlying Olas Protocol (see https://olas.network/protocol) are open-source, permissionless and are owned and governed by the Olas DAO (see https://olas.network/faq), not Valory.",
+      "kind": "terms"
+    },
+    {
+      "id": "e100",
+      "url": "https://etherscan.io/address/0x3d6494CE09a9f40c0B5a92BdBD7c7A9b0e3912b1#code",
+      "retrievedAt": "2026-11-22",
+      "quote": "Source Code Verified",
+      "kind": "explorer"
+    },
+    {
+      "id": "e103",
+      "url": "https://www.valory.xyz/mech-terms.pdf",
+      "retrievedAt": "2026-11-22",
+      "quote": "Payments you make pass through Olas Marketplace Contracts, including an escrow contract (\"BalanceTracker\"), before any part reaches Valory.",
+      "kind": "terms"
+    },
+    {
+      "id": "e104",
+      "url": "https://raw.githubusercontent.com/valory-xyz/autonolas-marketplace/main/docs/Vulnerabilities_marketplace.md",
+      "retrievedAt": "2026-11-22",
+      "quote": "There is no withdraw function, and none is planned. A deposited balance can be spent on requests to mechs using that payment type; no function returns it to the depositor.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e107",
+      "url": "https://www.valory.xyz/mech-terms.pdf",
+      "retrievedAt": "2026-11-22",
+      "quote": "As above, the Olas Marketplace is the venue where Mechs are listed, requests are routed, and payments are held in escrow and released.",
+      "kind": "terms"
+    },
+    {
+      "id": "e110",
+      "url": "https://olas.network/disclaimer",
+      "retrievedAt": "2026-11-22",
+      "quote": "This Disclaimer & Privacy Policy shall be governed by and construed in accordance with the substantive laws of Switzerland",
+      "kind": "terms"
+    },
+    {
+      "id": "e112",
+      "url": "https://stack.olas.network/mech-client/",
+      "retrievedAt": "2026-11-22",
+      "quote": "maxDeliveryRate on the Mech contract is the most it can charge per request, and what your deposit must cover",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e113",
+      "url": "https://raw.githubusercontent.com/valory-xyz/autonolas-marketplace/main/docs/Vulnerabilities_marketplace.md",
+      "retrievedAt": "2026-11-22",
+      "quote": "The two can therefore diverge — a settlement above the published maxDeliveryRate, on a mech that still advertises the lower figure.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e114",
+      "url": "https://raw.githubusercontent.com/valory-xyz/autonolas-marketplace/main/docs/Vulnerabilities_marketplace.md",
+      "retrievedAt": "2026-11-22",
+      "quote": "maxDeliveryRate cannot be relied on off-chain as an upper bound on what a mech will charge",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e117",
+      "url": "https://raw.githubusercontent.com/valory-xyz/autonolas-marketplace/main/docs/Vulnerabilities_marketplace.md",
+      "retrievedAt": "2026-11-22",
+      "quote": "no owner, governance action, or upgrade can seize, freeze, or redirect requester deposits held by a balance tracker",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e118",
+      "url": "https://marketplace.olas.network/",
+      "retrievedAt": "2026-11-22",
+      "quote": "\"https-certificate\": \"pass\",",
+      "kind": "certificate"
+    },
+    {
+      "id": "e119",
+      "url": "https://marketplace.olas.network/",
+      "retrievedAt": "2026-11-22",
+      "quote": "\"authorized\": true,",
+      "kind": "certificate"
+    },
+    {
+      "id": "e120",
+      "url": "https://marketplace.olas.network/",
+      "retrievedAt": "2026-11-22",
+      "quote": "\"security-headers\": \"pass\",",
+      "kind": "certificate"
+    },
+    {
+      "id": "e121",
+      "url": "https://marketplace.olas.network/",
+      "retrievedAt": "2026-11-22",
+      "quote": "\"strict-transport-security\": \"max-age=31536000; includeSubDomains\",",
+      "kind": "certificate"
+    },
+    {
+      "id": "e122",
+      "url": "https://marketplace.olas.network/",
+      "retrievedAt": "2026-11-22",
+      "quote": "\"x-content-type-options\": \"nosniff\",",
+      "kind": "certificate"
+    },
+    {
+      "id": "e123",
+      "url": "https://etherscan.io/address/0x6B149a00E40cC6C148992C6AADd232d958C35Fa3#code",
+      "retrievedAt": "2026-11-22",
+      "quote": "Source Code Verified",
+      "kind": "explorer"
+    },
+    {
+      "id": "e124",
+      "url": "https://etherscan.io/address/0x528befb0F8c6a988C9F42345DA6d053d66b3B9B6#code",
+      "retrievedAt": "2026-11-22",
+      "quote": "Source Code Verified",
+      "kind": "explorer"
+    },
+    {
+      "id": "e125",
+      "url": "https://raw.githubusercontent.com/valory-xyz/autonolas-marketplace/main/docs/configuration.json",
+      "retrievedAt": "2026-11-22",
+      "quote": "\"address\": \"0x3d6494CE09a9f40c0B5a92BdBD7c7A9b0e3912b1\"",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e126",
+      "url": "https://raw.githubusercontent.com/valory-xyz/autonolas-marketplace/main/docs/configuration.json",
+      "retrievedAt": "2026-11-22",
+      "quote": "\"address\": \"0x6B149a00E40cC6C148992C6AADd232d958C35Fa3\"",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e127",
+      "url": "https://raw.githubusercontent.com/valory-xyz/autonolas-marketplace/main/docs/configuration.json",
+      "retrievedAt": "2026-11-22",
+      "quote": "\"address\": \"0x528befb0F8c6a988C9F42345DA6d053d66b3B9B6\"",
+      "kind": "official-docs"
+    }
+  ]
+}

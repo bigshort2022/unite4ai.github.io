@@ -1,0 +1,89 @@
+<!-- Pilot record for Task 8 of docs/superpowers/plans/2026-11-22-exchange-profiles.md. Written by omp agents (claude-opus-5-5); generated from the draft after fixes. -->
+
+# Owner review: olas
+
+Draft researched 2026-11-22 by claude-opus-5-5 via omp; literal-reviewed and fixed. Accept, edit or mark each row not-published.
+
+## Identity
+
+| Field | Value | Level | Evidence |
+|---|---|---|---|
+| officialUrl | https://marketplace.olas.network/ | reported | [e1](https://www.valory.xyz/mech-terms.pdf#:~:text=Valory%20Mechs%20are%20facilitated%20by%20the%20permissionless%20Olas%20Marketplace%2C%20made) “Valory Mechs are facilitated by the permissionless Olas Marketplace, made up of the Olas Marketplace smart contracts (“Olas Marketplace Contracts”, see https://github.com/valory-xyz/autonolas-marketplace) and Olas Marketplace frontend (“Olas Marketplace Frontend”, see https://marketplace.olas.network/).” |
+| operatingEntity | Olas DAO | reported | [e2](https://www.valory.xyz/mech-terms.pdf#:~:text=2.2%20The%20Olas%20Marketplace%20%E2%80%94%20operated%20by%20the%20Olas%20DAO%2C) “2.2 The Olas Marketplace — operated by the Olas DAO, not by Valory”<br>[e3](https://www.valory.xyz/mech-terms.pdf#:~:text=The%20Olas%20Marketplace%20and%20the%20underlying%20Olas%20Protocol%20(see%20https%3A%2F%2Folas.network%2Fprotocol)) “The Olas Marketplace and the underlying Olas Protocol (see https://olas.network/protocol) are open-source, permissionless and are owned and governed by the Olas DAO (see https://olas.network/faq), not Valory.” |
+| headquarters | **Not published** | — | searched: https://olas.network/about, https://olas.network/faq, https://olas.network/disclaimer, https://olas.network/mech-marketplace, https://marketplace.olas.network/ethereum/ai-agents, https://www.valory.xyz/mech-terms.pdf, https://gateway.autonolas.tech/ipfs/bafybeibrhz6hnxsxcbv7dkzerq4chssotexb276pidzwclbytzj7m4t47u |
+| formedOn | 2022 | stated | [e4](https://olas.network/faq#:~:text=In%202022%2C%20Olas%20DAO%20was%20founded%20with%20~50%20participants.) “In 2022, Olas DAO was founded with ~50 participants.” |
+
+## Legal (informational, not legal advice)
+
+| Field | Value | Level | Evidence |
+|---|---|---|---|
+| registeredJurisdiction | **Not published** | — | searched: https://olas.network/about, https://olas.network/faq, https://olas.network/disclaimer, https://olas.network/mech-marketplace, https://marketplace.olas.network/ethereum/ai-agents, https://www.valory.xyz/mech-terms.pdf, https://gateway.autonolas.tech/ipfs/bafybeibrhz6hnxsxcbv7dkzerq4chssotexb276pidzwclbytzj7m4t47u, https://find-and-update.company-information.service.gov.uk/search/companies?q=autonolas, https://find-and-update.company-information.service.gov.uk/search/companies?q=olas+dao, https://www.zefix.ch/en/search/entity/list?name=autonolas, https://opencorporates.com/companies?q=autonolas |
+| governingLaw | Substantive laws of Switzerland, excluding the CISG | stated | [e5](https://olas.network/disclaimer#:~:text=This%20Disclaimer%20%26%20Privacy%20Policy%20shall%20be%20governed%20by%20and) “This Disclaimer & Privacy Policy shall be governed by and construed in accordance with the substantive laws of Switzerland, excluding the United Nations Convention on Contracts for the International Sale of Goods dated 11 April 1980 (CISG), as amended from time to time.” |
+| licenses | **Not published** | — | searched: https://www.esma.europa.eu/esmas-activities/digital-finance-and-innovation/markets-crypto-assets-regulation-mica, https://www.esma.europa.eu/sites/default/files/2024-12/CASPS.csv, https://www.esma.europa.eu/sites/default/files/2024-12/OTHER.csv, https://www.esma.europa.eu/sites/default/files/2024-12/NCASP.csv, https://olas.network/disclaimer |
+| restrictedJurisdictions | **Not published** | — | searched: https://olas.network/disclaimer, https://www.valory.xyz/mech-terms.pdf, https://marketplace.olas.network/ethereum/ai-agents, https://stack.olas.network/mech-client/ |
+| sanctionsScreening | **Not published** | — | searched: https://olas.network/about, https://olas.network/faq, https://olas.network/disclaimer, https://olas.network/mech-marketplace, https://marketplace.olas.network/ethereum/ai-agents, https://www.valory.xyz/mech-terms.pdf, https://gateway.autonolas.tech/ipfs/bafybeibrhz6hnxsxcbv7dkzerq4chssotexb276pidzwclbytzj7m4t47u, https://stack.olas.network/mech-client/, https://www.valory.xyz/terms.pdf |
+| kycRequired | **Not published** | — | searched: https://olas.network/about, https://olas.network/faq, https://olas.network/disclaimer, https://olas.network/mech-marketplace, https://marketplace.olas.network/ethereum/ai-agents, https://www.valory.xyz/mech-terms.pdf, https://gateway.autonolas.tech/ipfs/bafybeibrhz6hnxsxcbv7dkzerq4chssotexb276pidzwclbytzj7m4t47u, https://stack.olas.network/mech-client/, https://www.valory.xyz/terms.pdf |
+
+## Reported market data
+
+| Field | Value | Level | Evidence |
+|---|---|---|---|
+| tokenSymbol | OLAS | stated | [e30](https://olas.network/olas-token#:~:text=OLAS%20token%20provides%20access%20to%20the%20core%20functions%20of%20the) “OLAS token provides access to the core functions of the network.” |
+| marketCapUsd | 11035985 | reported | [e32](https://coinmarketcap.com/currencies/autonolas/#:~:text=The%20current%20CoinMarketCap%20ranking%20is%20%23812%2C%20with%20a%20live%20market) “The current CoinMarketCap ranking is #812, with a live market cap of $11,035,985 USD.” |
+| tokenPriceUsd | 0.036875 | reported | [e31](https://coinmarketcap.com/currencies/autonolas/#:~:text=The%20live%20Autonolas%20price%20today%20is%20%240.036875%20USD%20with%20a) “The live Autonolas price today is $0.036875 USD with a 24-hour trading volume of $90,146.82 USD.” |
+
+## Usage
+
+| Field | Value | Level | Evidence |
+|---|---|---|---|
+| weeklyActiveUsers | **Not published** | — | searched: https://olas.network/, https://olas.network/data, https://olas.network/agent-economies/mech, https://olas.network/mech-marketplace, https://marketplace.olas.network/ |
+| volume | **Not published** | — | searched: https://olas.network/, https://olas.network/mech-marketplace, https://olas.network/agent-economies/mech, https://olas.network/data |
+| traders | **Not published** | — | searched: https://olas.network/, https://olas.network/data, https://olas.network/agent-economies/mech, https://olas.network/mech-marketplace, https://marketplace.olas.network/ |
+
+## Price quotes
+
+None published.
+
+## Cost components
+
+| Kind | Pays | Amount | Scope | Evidence |
+|---|---|---|---|---|
+| take-rate | seller | 15% | Olas Marketplace protocol fee on agent-to-agent payments; taken as a DAO fee from a Mech's accumulated payments when the Mech transfers them from the balance tracker contract. | [e60](https://olas.network/data#:~:text=A%2015%25%20fee%20is%20taken%20on%20agent%2Dto%2Dagent%20payments%20and%20accrues) “A 15% fee is taken on agent-to-agent payments and accrues in each chain's balance tracker contract until the DAO drains it.”<br>[e61](https://olas.network/blog/q2-2026#:~:text=The%20Olas%20Marketplace%20protocol%20fee%20went%20live.%20A%2015%25%20fee) “The Olas Marketplace protocol fee went live. A 15% fee now applies to agent-to-agent payments across supported EVM chains. Fees collected in OLAS are burned on Ethereum; fees in other tokens go to the Olas Treasury.”<br>[e62](https://olas.network/agent-economies/mech#:~:text=The%20Mech%20Marketplace%20handles%20the%20collection%20of%20fees%20from%20the) “The Mech Marketplace handles the collection of fees from the delivery of tasks. A Mech triggers the transfer of its accumulated payments from the balance tracker contract, typically at various intervals. Upon this transfer, a percentage of the payment is taken as a DAO fee, later distributed by the DAO — non-OLAS fees to the Olas Treasury and OLAS fees burned.” |
+| network-gas | buyer | 0.0115 USD per unit | Roughly, requester-side gas per on-chain Mech request on Polygon: 400 sampled request transactions, mean 488,421 gas; gas sampled July 13 to August 28 on Polygon. | [e63](https://olas.network/blog/cheaper-faster-off-chain-requests-mech-marketplace#:~:text=On%20the%20on%2Dchain%20path%2C%20the%20requester%20sends%20a%20transaction%20for) “On the on-chain path, the requester sends a transaction for every request. Across 400 sampled request transactions on Polygon over the same window, each used a mean of 488,421 gas. At the gas prices paid and the POL prices over that period, that came to roughly $0.0115 per request.”<br>[e65](https://olas.network/blog/cheaper-faster-off-chain-requests-mech-marketplace#:~:text=Gas%20sampled%20July%2013%20to%20August%2028%20on%20Polygon.) “Gas sampled July 13 to August 28 on Polygon.” |
+| network-gas | buyer | 0.0012 USD per unit | Roughly, requester-side gas per off-chain Mech request, from balance top-ups (about one per 3.15 requests, mean 150,568 gas); gas sampled July 13 to August 28 on Polygon. | [e64](https://olas.network/blog/cheaper-faster-off-chain-requests-mech-marketplace#:~:text=On%20the%20off%2Dchain%20path%2C%20the%20requester%20sends%20no%20transaction%20per) “On the off-chain path, the requester sends no transaction per request and tops up its balance periodically instead. Measured across the agents that had migrated, top-ups ran at about one per 3.15 requests and used a mean of 150,568 gas, which works out to roughly $0.0012 per request.”<br>[e65](https://olas.network/blog/cheaper-faster-off-chain-requests-mech-marketplace#:~:text=Gas%20sampled%20July%2013%20to%20August%2028%20on%20Polygon.) “Gas sampled July 13 to August 28 on Polygon.” |
+
+## Scores (computed, rubric v1)
+
+| Score | Value | Grade | Coverage |
+|---|---|---|---|
+| Security | 100 | A | 84% |
+| Risk (higher = more risk) | withheld | — | 65% |
+| Transaction cost | 25 | F | 15% effective |
+
+### Security criteria
+
+| Criterion | Weight | Outcome | Evidence |
+|---|---|---|---|
+| Third-party security audit published | 20 | pass | [e95](https://github.com/valory-xyz/autonolas-marketplace#:~:text=The%20latest%20external%20audit%20is%20the%20Cantina%20January%202025%20audit.) “The latest external audit is the Cantina January 2025 audit. All internal and external audit materials are in the audits folder.” |
+| Bug bounty or vulnerability disclosure programme | 10 | pass | [e96](https://olas.network/blog/registries-update#:~:text=If%20you%20believe%20you've%20found%20a%20vulnerability%20in%20Olas%2C%20please) “If you believe you've found a vulnerability in Olas, please report it through Immunefi.”<br>[e97](https://github.com/valory-xyz/autonolas-marketplace/security/policy#:~:text=Vulnerabilities%20in%20the%20deployed%20contracts%20are%20covered%20by%20the%20Autonolas) “Vulnerabilities in the deployed contracts are covered by the Autonolas bug bounty programme on Immunefi:” |
+| Security contact or disclosure policy | 10 | pass | [e98](https://github.com/valory-xyz/autonolas-marketplace/security/policy#:~:text=Report%20security%20bugs%20by%20emailing%20to%20security%40valory.xyz.) “Report security bugs by emailing to security@valory.xyz.” |
+| Core code is open source | 10 | pass | [e99](https://www.valory.xyz/mech-terms.pdf#:~:text=The%20Olas%20Marketplace%20and%20the%20underlying%20Olas%20Protocol%20(see%20https%3A%2F%2Folas.network%2Fprotocol)) “The Olas Marketplace and the underlying Olas Protocol (see https://olas.network/protocol) are open-source, permissionless and are owned and governed by the Olas DAO (see https://olas.network/faq), not Valory.” |
+| Deployed contracts verified on an explorer | 10 | pass | [e100](https://etherscan.io/address/0x3d6494CE09a9f40c0B5a92BdBD7c7A9b0e3912b1#:~:text=Source%20Code%20Verified) “Source Code Verified”<br>[e123](https://etherscan.io/address/0x6B149a00E40cC6C148992C6AADd232d958C35Fa3#:~:text=Source%20Code%20Verified) “Source Code Verified”<br>[e124](https://etherscan.io/address/0x528befb0F8c6a988C9F42345DA6d053d66b3B9B6#:~:text=Source%20Code%20Verified) “Source Code Verified”<br>[e125](https://raw.githubusercontent.com/valory-xyz/autonolas-marketplace/main/docs/configuration.json#:~:text=%22address%22%3A%20%220x3d6494CE09a9f40c0B5a92BdBD7c7A9b0e3912b1%22) “"address": "0x3d6494CE09a9f40c0B5a92BdBD7c7A9b0e3912b1"”<br>[e126](https://raw.githubusercontent.com/valory-xyz/autonolas-marketplace/main/docs/configuration.json#:~:text=%22address%22%3A%20%220x6B149a00E40cC6C148992C6AADd232d958C35Fa3%22) “"address": "0x6B149a00E40cC6C148992C6AADd232d958C35Fa3"”<br>[e127](https://raw.githubusercontent.com/valory-xyz/autonolas-marketplace/main/docs/configuration.json#:~:text=%22address%22%3A%20%220x528befb0F8c6a988C9F42345DA6d053d66b3B9B6%22) “"address": "0x528befb0F8c6a988C9F42345DA6d053d66b3B9B6"” |
+| No unresolved incident in 24 months, or post-mortem published | 15 | unknown |  |
+| Custody model documented | 10 | pass | [e103](https://www.valory.xyz/mech-terms.pdf#:~:text=Payments%20you%20make%20pass%20through%20Olas%20Marketplace%20Contracts%2C%20including%20an) “Payments you make pass through Olas Marketplace Contracts, including an escrow contract ("BalanceTracker"), before any part reaches Valory.”<br>[e107](https://www.valory.xyz/mech-terms.pdf#:~:text=As%20above%2C%20the%20Olas%20Marketplace%20is%20the%20venue%20where%20Mechs) “As above, the Olas Marketplace is the venue where Mechs are listed, requests are routed, and payments are held in escrow and released.”<br>[e104](https://raw.githubusercontent.com/valory-xyz/autonolas-marketplace/main/docs/Vulnerabilities_marketplace.md#:~:text=There%20is%20no%20withdraw%20function%2C%20and%20none%20is%20planned.%20A) “There is no withdraw function, and none is planned. A deposited balance can be spent on requests to mechs using that payment type; no function returns it to the depositor.” |
+| Valid HTTPS certificate for the official domain | 5 | pass | [e118](https://marketplace.olas.network/#:~:text=%22https%2Dcertificate%22%3A%20%22pass%22%2C) “"https-certificate": "pass",”<br>[e119](https://marketplace.olas.network/#:~:text=%22authorized%22%3A%20true%2C) “"authorized": true,” |
+| HSTS and baseline security headers | 5 | pass | [e120](https://marketplace.olas.network/#:~:text=%22security%2Dheaders%22%3A%20%22pass%22%2C) “"security-headers": "pass",”<br>[e121](https://marketplace.olas.network/#:~:text=%22strict%2Dtransport%2Dsecurity%22%3A%20%22max%2Dage%3D31536000%3B%20includeSubDomains%22%2C) “"strict-transport-security": "max-age=31536000; includeSubDomains",”<br>[e122](https://marketplace.olas.network/#:~:text=%22x%2Dcontent%2Dtype%2Doptions%22%3A%20%22nosniff%22%2C) “"x-content-type-options": "nosniff",” |
+| 2FA or equivalent for custodial accounts | 5 | not-applicable | [e117](https://raw.githubusercontent.com/valory-xyz/autonolas-marketplace/main/docs/Vulnerabilities_marketplace.md#:~:text=no%20owner%2C%20governance%20action%2C%20or%20upgrade%20can%20seize%2C%20freeze%2C%20or) “no owner, governance action, or upgrade can seize, freeze, or redirect requester deposits held by a balance tracker” |
+
+### Risk indicators
+
+| Indicator | Weight | Present? | Evidence |
+|---|---|---|---|
+| Holds customer funds | 20 | absent | [e117](https://raw.githubusercontent.com/valory-xyz/autonolas-marketplace/main/docs/Vulnerabilities_marketplace.md#:~:text=no%20owner%2C%20governance%20action%2C%20or%20upgrade%20can%20seize%2C%20freeze%2C%20or) “no owner, governance action, or upgrade can seize, freeze, or redirect requester deposits held by a balance tracker” |
+| Operating entity not identifiable | 15 | absent | [e2](https://www.valory.xyz/mech-terms.pdf#:~:text=2.2%20The%20Olas%20Marketplace%20%E2%80%94%20operated%20by%20the%20Olas%20DAO%2C) “2.2 The Olas Marketplace — operated by the Olas DAO, not by Valory”<br>[e3](https://www.valory.xyz/mech-terms.pdf#:~:text=The%20Olas%20Marketplace%20and%20the%20underlying%20Olas%20Protocol%20(see%20https%3A%2F%2Folas.network%2Fprotocol)) “The Olas Marketplace and the underlying Olas Protocol (see https://olas.network/protocol) are open-source, permissionless and are owned and governed by the Olas DAO (see https://olas.network/faq), not Valory.” |
+| Governing law or jurisdiction not stated | 10 | absent | [e110](https://olas.network/disclaimer#:~:text=This%20Disclaimer%20%26%20Privacy%20Policy%20shall%20be%20governed%20by%20and) “This Disclaimer & Privacy Policy shall be governed by and construed in accordance with the substantive laws of Switzerland” |
+| Unresolved security incident | 15 | unknown |  |
+| Public regulatory action on record | 10 | unknown |  |
+| Conflicting payment or refund terms in official docs | 10 | present | [e112](https://stack.olas.network/mech-client/#:~:text=maxDeliveryRate%20on%20the%20Mech%20contract%20is%20the%20most%20it%20can) “maxDeliveryRate on the Mech contract is the most it can charge per request, and what your deposit must cover”<br>[e113](https://raw.githubusercontent.com/valory-xyz/autonolas-marketplace/main/docs/Vulnerabilities_marketplace.md#:~:text=The%20two%20can%20therefore%20diverge%20%E2%80%94%20a%20settlement%20above%20the) “The two can therefore diverge — a settlement above the published maxDeliveryRate, on a mech that still advertises the lower figure.”<br>[e114](https://raw.githubusercontent.com/valory-xyz/autonolas-marketplace/main/docs/Vulnerabilities_marketplace.md#:~:text=maxDeliveryRate%20cannot%20be%20relied%20on%20off%2Dchain%20as%20an%20upper%20bound) “maxDeliveryRate cannot be relied on off-chain as an upper bound on what a mech will charge” |
+| A single operator controls a critical component | 10 | unknown |  |
+| No published terms of service | 10 | absent | [e110](https://olas.network/disclaimer#:~:text=This%20Disclaimer%20%26%20Privacy%20Policy%20shall%20be%20governed%20by%20and) “This Disclaimer & Privacy Policy shall be governed by and construed in accordance with the substantive laws of Switzerland” |

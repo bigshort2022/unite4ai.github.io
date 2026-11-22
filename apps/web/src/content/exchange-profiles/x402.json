@@ -1,0 +1,684 @@
+{
+  "meta": {
+    "schemaVersion": 1,
+    "directoryId": "x402",
+    "researchedAt": "2026-11-22",
+    "author": "bigshort2022",
+    "status": "draft",
+    "agent": {
+      "model": "claude-opus-5-5",
+      "harness": "omp"
+    }
+  },
+  "identity": {
+    "officialUrl": {
+      "value": "https://x402.org/",
+      "level": "stated",
+      "evidence": [
+        "e1"
+      ]
+    },
+    "operatingEntity": {
+      "value": "x402 a Series of LF Projects, LLC",
+      "level": "stated",
+      "evidence": [
+        "e2",
+        "e3"
+      ]
+    },
+    "headquarters": {
+      "value": null,
+      "level": "not-published",
+      "searched": [
+        "https://x402.org/",
+        "https://x402.org/contact/",
+        "https://x402.org/linux-foundation-announces-operational-launch-of-x402-foundation-to-standardize-internet-native-payments-for-ai-agents-and-applications/",
+        "https://lfprojects.org/",
+        "https://raw.githubusercontent.com/x402-foundation/x402/main/foundation/x402%20Technical%20Charter%20March%2031%2C%202026.pdf",
+        "https://api.github.com/orgs/x402-foundation"
+      ]
+    },
+    "formedOn": {
+      "value": null,
+      "level": "not-published",
+      "searched": [
+        "https://raw.githubusercontent.com/x402-foundation/x402/main/foundation/x402%20Technical%20Charter%20March%2031%2C%202026.pdf",
+        "https://x402.org/linux-foundation-announces-operational-launch-of-x402-foundation-to-standardize-internet-native-payments-for-ai-agents-and-applications/",
+        "https://www.linuxfoundation.org/press/linux-foundation-is-launching-the-x402-foundation-and-welcoming-the-contribution-of-the-x402-protocol",
+        "https://www.linuxfoundation.org/x402foundation",
+        "https://opencorporates.com/companies?q=LF+Projects%2C+LLC&jurisdiction_code=us_de"
+      ]
+    }
+  },
+  "legal": {
+    "registeredJurisdiction": {
+      "value": "Delaware (LF Projects, LLC is a Delaware series limited liability company)",
+      "level": "stated",
+      "evidence": [
+        "e3",
+        "e4"
+      ]
+    },
+    "governingLaw": {
+      "value": null,
+      "level": "not-published",
+      "searched": [
+        "https://x402.org/",
+        "https://lfprojects.org/policies/terms-of-use/",
+        "https://lfprojects.org/",
+        "https://raw.githubusercontent.com/x402-foundation/x402/main/foundation/x402%20Technical%20Charter%20March%2031%2C%202026.pdf",
+        "https://docs.x402.org/introduction"
+      ]
+    },
+    "licenses": {
+      "value": null,
+      "level": "not-published",
+      "searched": [
+        "https://x402.org/",
+        "https://docs.x402.org/introduction",
+        "https://docs.x402.org/faq",
+        "https://docs.x402.org/dev-tools/facilitators",
+        "https://lfprojects.org/policies/terms-of-use/"
+      ]
+    },
+    "restrictedJurisdictions": {
+      "value": null,
+      "level": "not-published",
+      "searched": [
+        "https://x402.org/",
+        "https://docs.x402.org/introduction",
+        "https://docs.x402.org/faq",
+        "https://docs.x402.org/dev-tools/facilitators",
+        "https://lfprojects.org/policies/terms-of-use/",
+        "https://raw.githubusercontent.com/x402-foundation/x402/main/foundation/x402%20Technical%20Charter%20March%2031%2C%202026.pdf"
+      ]
+    },
+    "sanctionsScreening": {
+      "value": null,
+      "level": "not-published",
+      "searched": [
+        "https://x402.org/",
+        "https://docs.x402.org/introduction",
+        "https://docs.x402.org/faq",
+        "https://docs.x402.org/dev-tools/facilitators",
+        "https://lfprojects.org/policies/terms-of-use/"
+      ]
+    },
+    "kycRequired": {
+      "value": "No accounts or personal information needed",
+      "level": "stated",
+      "evidence": [
+        "e5"
+      ]
+    }
+  },
+  "marketData": {
+    "tokenSymbol": {
+      "value": null,
+      "level": "not-published",
+      "searched": [
+        "https://x402.org/",
+        "https://docs.x402.org/introduction",
+        "https://docs.x402.org/faq",
+        "https://api.coingecko.com/api/v3/search?query=x402",
+        "https://www.coingecko.com/en/search?query=x402",
+        "https://coinmarketcap.com/currencies/x402/"
+      ]
+    },
+    "marketCapUsd": {
+      "value": null,
+      "level": "not-published",
+      "searched": [
+        "https://x402.org/",
+        "https://docs.x402.org/introduction",
+        "https://docs.x402.org/faq",
+        "https://api.coingecko.com/api/v3/search?query=x402",
+        "https://www.coingecko.com/en/search?query=x402",
+        "https://coinmarketcap.com/currencies/x402/"
+      ]
+    },
+    "tokenPriceUsd": {
+      "value": null,
+      "level": "not-published",
+      "searched": [
+        "https://x402.org/",
+        "https://docs.x402.org/introduction",
+        "https://docs.x402.org/faq",
+        "https://api.coingecko.com/api/v3/search?query=x402",
+        "https://www.coingecko.com/en/search?query=x402",
+        "https://coinmarketcap.com/currencies/x402/"
+      ]
+    }
+  },
+  "usage": {
+    "weeklyActiveUsers": {
+      "value": null,
+      "level": "not-published",
+      "searched": [
+        "https://www.x402scan.com/"
+      ]
+    },
+    "volume": {
+      "value": null,
+      "level": "not-published",
+      "searched": [
+        "https://www.x402scan.com/"
+      ]
+    },
+    "traders": {
+      "value": null,
+      "level": "not-published",
+      "searched": [
+        "https://www.x402scan.com/",
+        "https://x402.org/",
+        "https://x402.org/linux-foundation-announces-operational-launch-of-x402-foundation-to-standardize-internet-native-payments-for-ai-agents-and-applications/",
+        "https://docs.x402.org/introduction",
+        "https://docs.x402.org/faq",
+        "https://docs.cdp.coinbase.com/x402/welcome"
+      ]
+    }
+  },
+  "priceQuotes": [],
+  "costComponents": [
+    {
+      "kind": "platform-fee",
+      "basis": "percent",
+      "amount": "0",
+      "appliesTo": "buyer",
+      "scope": "x402 protocol standard itself: no fee built into the standard for the customer (buyer); network fees separate",
+      "evidence": [
+        "e60",
+        "e61"
+      ]
+    },
+    {
+      "kind": "platform-fee",
+      "basis": "percent",
+      "amount": "0",
+      "appliesTo": "seller",
+      "scope": "x402 protocol standard itself: no fee built into the standard for the merchant (seller); network fees separate",
+      "evidence": [
+        "e60",
+        "e61"
+      ]
+    },
+    {
+      "kind": "facilitator",
+      "basis": "per-unit",
+      "amount": "0.001",
+      "currency": "USD",
+      "appliesTo": "seller",
+      "scope": "Coinbase CDP Facilitator: per onchain transaction above the first 1,000 each month (first 1,000 free); payment verification free",
+      "evidence": [
+        "e62",
+        "e63",
+        "e67"
+      ]
+    },
+    {
+      "kind": "facilitator",
+      "basis": "percent",
+      "amount": "0",
+      "appliesTo": "seller",
+      "scope": "Dexter public facilitator (third party listed in x402 docs facilitator table): no fees, no account required",
+      "evidence": [
+        "e68"
+      ]
+    },
+    {
+      "kind": "payment-processor",
+      "basis": "percent",
+      "amount": "0",
+      "appliesTo": "seller",
+      "scope": "Coinbase CDP Facilitator path: no processor fees or chargeback fees",
+      "evidence": [
+        "e64"
+      ]
+    },
+    {
+      "kind": "network-gas",
+      "basis": "percent",
+      "amount": "0",
+      "appliesTo": "buyer",
+      "scope": "Coinbase CDP Facilitator, EIP-3009 tokens (e.g. USDC, EURC): facilitator pays settlement gas; buyer signs an authorization and needs no gas token",
+      "evidence": [
+        "e65",
+        "e66"
+      ]
+    },
+    {
+      "kind": "network-gas",
+      "amount": null,
+      "appliesTo": "buyer",
+      "scope": "Coinbase CDP Facilitator, Permit2 ERC-20 tokens not implementing EIP-2612: buyer pays gas once for the one-time approval; amount not published",
+      "evidence": [
+        "e69"
+      ],
+      "searched": [
+        "https://docs.cdp.coinbase.com/x402/support/faq",
+        "https://docs.cdp.coinbase.com/x402/seller/facilitator",
+        "https://docs.cdp.coinbase.com/x402/seller/production-configuration",
+        "https://docs.x402.org/faq"
+      ]
+    },
+    {
+      "kind": "network-gas",
+      "amount": null,
+      "appliesTo": "seller",
+      "scope": "Self-settlement (verifying and settling x402 payments yourself): seller manages settlement gas; amount not published",
+      "evidence": [
+        "e70"
+      ],
+      "searched": [
+        "https://x402.org/",
+        "https://docs.x402.org/introduction",
+        "https://docs.x402.org/faq",
+        "https://docs.x402.org/core-concepts/facilitator",
+        "https://docs.cdp.coinbase.com/x402/seller/facilitator"
+      ]
+    }
+  ],
+  "securityChecks": [
+    {
+      "criterion": "third-party-audit",
+      "outcome": "pass",
+      "evidence": [
+        "e94",
+        "e95"
+      ]
+    },
+    {
+      "criterion": "bug-bounty",
+      "outcome": "unknown",
+      "evidence": []
+    },
+    {
+      "criterion": "security-contact",
+      "outcome": "pass",
+      "evidence": [
+        "e92"
+      ]
+    },
+    {
+      "criterion": "open-source-core",
+      "outcome": "pass",
+      "evidence": [
+        "e96",
+        "e95"
+      ]
+    },
+    {
+      "criterion": "verified-contracts",
+      "outcome": "pass",
+      "evidence": [
+        "e97",
+        "e109",
+        "e110",
+        "e111",
+        "e112",
+        "e113",
+        "e114",
+        "e115",
+        "e116",
+        "e117"
+      ]
+    },
+    {
+      "criterion": "incident-handling",
+      "outcome": "unknown",
+      "evidence": []
+    },
+    {
+      "criterion": "custody-documented",
+      "outcome": "pass",
+      "evidence": [
+        "e99"
+      ]
+    },
+    {
+      "criterion": "https-certificate",
+      "outcome": "pass",
+      "evidence": [
+        "e90"
+      ]
+    },
+    {
+      "criterion": "security-headers",
+      "outcome": "fail",
+      "evidence": [
+        "e91"
+      ]
+    },
+    {
+      "criterion": "account-protection",
+      "outcome": "not-applicable",
+      "evidence": [
+        "e99",
+        "e5"
+      ]
+    }
+  ],
+  "riskChecks": [
+    {
+      "criterion": "custodial-funds",
+      "outcome": "pass",
+      "evidence": [
+        "e99",
+        "e105",
+        "e107"
+      ]
+    },
+    {
+      "criterion": "entity-unidentified",
+      "outcome": "pass",
+      "evidence": [
+        "e2",
+        "e102"
+      ]
+    },
+    {
+      "criterion": "jurisdiction-unstated",
+      "outcome": "pass",
+      "evidence": [
+        "e2",
+        "e103"
+      ]
+    },
+    {
+      "criterion": "unresolved-incident",
+      "outcome": "unknown",
+      "evidence": []
+    },
+    {
+      "criterion": "regulatory-action",
+      "outcome": "unknown",
+      "evidence": []
+    },
+    {
+      "criterion": "conflicting-terms",
+      "outcome": "unknown",
+      "evidence": []
+    },
+    {
+      "criterion": "single-operator-control",
+      "outcome": "unknown",
+      "evidence": []
+    },
+    {
+      "criterion": "no-terms-of-service",
+      "outcome": "pass",
+      "evidence": [
+        "e2",
+        "e104"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "e1",
+      "url": "https://x402.org/linux-foundation-announces-operational-launch-of-x402-foundation-to-standardize-internet-native-payments-for-ai-agents-and-applications/",
+      "retrievedAt": "2026-11-22",
+      "quote": "To learn more about the x402 Foundation and membership opportunities, visit https://x402.org/.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e2",
+      "url": "https://x402.org/",
+      "retrievedAt": "2026-11-22",
+      "quote": "Copyright © x402 a Series of LF Projects, LLC For web site terms of use, trademark policy and other project policies please see https://lfprojects.org.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e3",
+      "url": "https://raw.githubusercontent.com/x402-foundation/x402/main/foundation/x402%20Technical%20Charter%20March%2031%2C%202026.pdf",
+      "retrievedAt": "2026-11-22",
+      "quote": "This Charter sets forth the responsibilities and procedures for technical contribution to, and oversight of, the x402 open source project, which has been established as x402 a Series of LF Projects, LLC (the “Project”). LF Projects, LLC (“LF Projects”) is a Delaware series limited liability company.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e4",
+      "url": "https://lfprojects.org/",
+      "retrievedAt": "2026-11-22",
+      "quote": "LF Projects, LLC is a Delaware series limited liability company (“LF Projects”). Projects of LF Projects (“Projects”) are established as separate ‘series’ of LF Projects.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e5",
+      "url": "https://x402.org/",
+      "retrievedAt": "2026-11-22",
+      "quote": "No accounts or personal information needed",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e60",
+      "url": "https://docs.x402.org/introduction",
+      "retrievedAt": "2026-11-22",
+      "quote": "x402 as a standard has 0 fees built in.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e61",
+      "url": "https://x402.org/",
+      "retrievedAt": "2026-11-22",
+      "quote": "x402 is free for the customer and the merchant—just pay nominal payment network fees",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e62",
+      "url": "https://docs.cdp.coinbase.com/x402/seller/facilitator",
+      "retrievedAt": "2026-11-22",
+      "quote": "The first 1,000 onchain Facilitator transactions each month are free, then each additional onchain transaction costs $0.001.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e63",
+      "url": "https://docs.cdp.coinbase.com/x402/seller/facilitator",
+      "retrievedAt": "2026-11-22",
+      "quote": "Facilitator fees are based on onchain activity, not payment requests. Payment verification is always free.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e64",
+      "url": "https://docs.cdp.coinbase.com/x402/support/faq",
+      "retrievedAt": "2026-11-22",
+      "quote": "The first 1,000 facilitator transactions each month are free, and each one after that costs $0.001. There are no processor fees or chargeback fees, and neither you nor the buyer submits an onchain transaction in the common path.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e65",
+      "url": "https://docs.cdp.coinbase.com/x402/support/faq",
+      "retrievedAt": "2026-11-22",
+      "quote": "The facilitator submits the settlement transaction and pays the gas, which is what the per-transaction price covers.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e66",
+      "url": "https://docs.cdp.coinbase.com/x402/support/faq",
+      "retrievedAt": "2026-11-22",
+      "quote": "Buyers paying with EIP-3009 tokens such as USDC and EURC sign an authorization rather than a transaction, so they never need a gas token.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e67",
+      "url": "https://docs.cdp.coinbase.com/x402/support/faq",
+      "retrievedAt": "2026-11-22",
+      "quote": "Price above your own cost per call: the facilitator charges $0.001 per transaction after the first 1,000 each month, so a $0.001 endpoint nets nothing.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e68",
+      "url": "https://docs.x402.org/dev-tools/facilitators",
+      "retrievedAt": "2026-11-22",
+      "quote": "Free public x402 facilitator across Solana and EVM chains with no fees and no account required",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e69",
+      "url": "https://docs.cdp.coinbase.com/x402/support/faq",
+      "retrievedAt": "2026-11-22",
+      "quote": "There is one exception. Tokens that settle through Permit2 need a one-time approval, and the CDP Facilitator sponsors that approval only for tokens implementing EIP-2612. For any other ERC-20, the buyer submits that first approval themselves and pays gas for it once.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e70",
+      "url": "https://docs.cdp.coinbase.com/x402/seller/facilitator",
+      "retrievedAt": "2026-11-22",
+      "quote": "Verifying and settling x402 payments yourself means validating signatures, interacting with blockchains, screening transactions, and managing settlement gas.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e90",
+      "url": "https://x402.org/",
+      "retrievedAt": "2026-11-22",
+      "quote": "\"https-certificate\": \"pass\",",
+      "kind": "certificate"
+    },
+    {
+      "id": "e91",
+      "url": "https://x402.org/",
+      "retrievedAt": "2026-11-22",
+      "quote": "\"security-headers\": \"fail\",",
+      "kind": "certificate"
+    },
+    {
+      "id": "e92",
+      "url": "https://github.com/x402-foundation/x402/security",
+      "retrievedAt": "2026-11-22",
+      "quote": "If you discover a potential vulnerability or other sensitive security issue, do not open a public GitHub issue or post the details in a public Slack channel. Instead, join the x402 Slack workspace and privately contact a member of the x402 Technical Steering Committee or a primary x402 maintainer.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e94",
+      "url": "https://raw.githubusercontent.com/x402-foundation/x402/main/contracts/evm/audits/cantina_x402_may2026.pdf",
+      "retrievedAt": "2026-11-22",
+      "quote": "From Apr 27th to Apr 29th the Cantina team conducted a review of x402 on commit hash ca60063c.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e95",
+      "url": "https://www.x402.org/",
+      "retrievedAt": "2026-11-22",
+      "quote": "Yes, x402 is production-ready and has processed millions of transactions. The protocol is open-source and has been audited for security.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e96",
+      "url": "https://docs.x402.org/faq",
+      "retrievedAt": "2026-11-22",
+      "quote": "While Coinbase Developer Platform provides tooling and are the creators of the standard, it is an open protocol (Apache-2.0 license) and a credibly neutral payment standard, and you don't need any Coinbase products to use it.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e97",
+      "url": "https://basescan.org/address/0x402085c248EeA27D92E8b30b2C58ed07f9E20001#code",
+      "retrievedAt": "2026-11-22",
+      "quote": "Source Code Verified",
+      "kind": "explorer"
+    },
+    {
+      "id": "e99",
+      "url": "https://docs.x402.org/core-concepts/facilitator",
+      "retrievedAt": "2026-11-22",
+      "quote": "The facilitator does not hold funds or act as a custodian - it performs verification and execution of onchain transactions based on signed payloads provided by clients.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e102",
+      "url": "https://x402.org/linux-foundation-announces-operational-launch-of-x402-foundation-to-standardize-internet-native-payments-for-ai-agents-and-applications/",
+      "retrievedAt": "2026-11-22",
+      "quote": "The Linux Foundation today announced the operational launch of the x402 Foundation, a new open-governance body formed to steward the x402 protocol – the open standard for internet-native payments over HTTP.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e103",
+      "url": "https://lfprojects.org/policies/terms-of-use/",
+      "retrievedAt": "2026-11-22",
+      "quote": "LF Projects is a Delaware series limited liability company, with each Project established as an individual series of LF Projects.",
+      "kind": "terms"
+    },
+    {
+      "id": "e104",
+      "url": "https://lfprojects.org/policies/terms-of-use/",
+      "retrievedAt": "2026-11-22",
+      "quote": "These terms of use apply to your use of the web sites of LF Project and the Projects.",
+      "kind": "terms"
+    },
+    {
+      "id": "e105",
+      "url": "https://raw.githubusercontent.com/x402-foundation/x402/main/contracts/evm/README.md",
+      "retrievedAt": "2026-11-22",
+      "quote": "No upgrade mechanism, no owner, no admin functions",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e107",
+      "url": "https://raw.githubusercontent.com/x402-foundation/x402/main/contracts/evm/audits/cantina_x402_may2026.pdf",
+      "retrievedAt": "2026-11-22",
+      "quote": "There's no admin, no rescue function, no way to redirect a payout, and no setReceiver or claimTo.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e109",
+      "url": "https://raw.githubusercontent.com/x402-foundation/x402/main/contracts/evm/README.md",
+      "retrievedAt": "2026-11-22",
+      "quote": "x402ExactPermit2Proxy | 0x402085c248EeA27D92E8b30b2C58ed07f9E20001",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e110",
+      "url": "https://raw.githubusercontent.com/x402-foundation/x402/main/contracts/evm/README.md",
+      "retrievedAt": "2026-11-22",
+      "quote": "x402UptoPermit2Proxy | 0x4020A4f3b7b90ccA423B9fabCc0CE57C6C240002",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e111",
+      "url": "https://raw.githubusercontent.com/x402-foundation/x402/main/contracts/evm/README.md",
+      "retrievedAt": "2026-11-22",
+      "quote": "x402BatchSettlement | 0x4020074e9dF2ce1deE5A9C1b5c3f541D02a10003",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e112",
+      "url": "https://raw.githubusercontent.com/x402-foundation/x402/main/contracts/evm/README.md",
+      "retrievedAt": "2026-11-22",
+      "quote": "ERC3009DepositCollector | 0x4020806089470a89826cB9fB1f4059150b550004",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e113",
+      "url": "https://raw.githubusercontent.com/x402-foundation/x402/main/contracts/evm/README.md",
+      "retrievedAt": "2026-11-22",
+      "quote": "Permit2DepositCollector | 0x4020425FAf3B746C082C2f942b4E5159887B0005",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e114",
+      "url": "https://basescan.org/address/0x4020A4f3b7b90ccA423B9fabCc0CE57C6C240002#code",
+      "retrievedAt": "2026-11-22",
+      "quote": "Source Code Verified",
+      "kind": "explorer"
+    },
+    {
+      "id": "e115",
+      "url": "https://basescan.org/address/0x4020074e9dF2ce1deE5A9C1b5c3f541D02a10003#code",
+      "retrievedAt": "2026-11-22",
+      "quote": "Source Code Verified",
+      "kind": "explorer"
+    },
+    {
+      "id": "e116",
+      "url": "https://basescan.org/address/0x4020806089470a89826cB9fB1f4059150b550004#code",
+      "retrievedAt": "2026-11-22",
+      "quote": "Source Code Verified",
+      "kind": "explorer"
+    },
+    {
+      "id": "e117",
+      "url": "https://basescan.org/address/0x4020425FAf3B746C082C2f942b4E5159887B0005#code",
+      "retrievedAt": "2026-11-22",
+      "quote": "Source Code Verified",
+      "kind": "explorer"
+    }
+  ]
+}
