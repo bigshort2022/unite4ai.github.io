@@ -33,6 +33,7 @@ The spec fixed the item counts, domains, prompt shape and scoring rule. Where it
 | Token limit | 1024 new tokens, reasoning included. A reply cut off before its JSON object has no answer and is wrong, so the suite does not need the end signal. |
 | Where the answer is | The last JSON object in the visible reply, taken as wide as it parses; reasoning blocks are removed first, with the canary suite's rule moved into a shared `reply.ts`. |
 | Category, scoring kind | `quality`, `exact-match`. |
+| Argument names | Checked as own properties (`Object.hasOwn`), so `constructor` or `__proto__` is an unknown argument. |
 
 ## Before you start
 
@@ -615,6 +616,7 @@ const domainOf = (name) => Object.entries(TOOLS).find(([, tools]) => tools.some(
 and append at the end of the file:
 
 ````js
+
 // ─── Suite ───────────────────────────────────────────────────────────────────
 
 test('the suite reads its vendored copy of the data', () => {
@@ -715,6 +717,23 @@ test('with no correct call, only a null tool with no arguments is correct', () =
   assert.equal(correct('I cannot do that with these tools.', NONE), false);
   // And a null answer to an item that has a call is wrong.
   assert.equal(correct(reply({ tool: null, arguments: {} })), false);
+});
+
+test('an argument named like a built-in object property is still an unknown argument', () => {
+  for (const name of ['constructor', 'toString', '__proto__']) {
+    assert.equal(correct(`{"tool": "search_files", "arguments": {"query": "invoice", "directory": "docs", "${name}": "x"}}`), false, name);
+  }
+});
+
+test('braces inside a string value do not move the answer, and a boolean written as a string is wrong', () => {
+  const braces = { ...ITEM, expected: { tool: 'search_files', arguments: { query: 'a}b{c' } } };
+  assert.equal(correct(reply({ tool: 'search_files', arguments: { query: 'a}b{c' } }), braces), true);
+  assert.equal(correct(reply({ tool: 'list_directory', arguments: { path: 'docs', include_hidden: 'false' } }), LIST), false);
+});
+
+test('with no correct call, null arguments count as left out', () => {
+  assert.equal(correct(reply({ tool: null, arguments: { query: null } }), NONE), true);
+  assert.equal(correct(reply({ tool: null, arguments: null }), NONE), true);
 });
 ````
 
@@ -855,11 +874,11 @@ function matches(answer: Record<string, unknown>, item: ToolItem): boolean {
   if (answer.tool !== item.expected.tool) return false;
 
   const { properties } = (item.tools.find((tool) => tool.name === item.expected.tool) as ToolDefinition).parameters;
-  if (Object.keys(given).some((name) => !(name in properties))) return false;
+  if (Object.keys(given).some((name) => !Object.hasOwn(properties, name))) return false;
   return Object.entries(properties).every(([name, schema]) => {
     const expected = item.expected.arguments[name];
-    if (expected !== undefined) return name in given && same(schema, given[name], expected);
-    return !(name in given) || (schema.default !== undefined && same(schema, given[name], schema.default));
+    if (expected !== undefined) return Object.hasOwn(given, name) && same(schema, given[name], expected);
+    return !Object.hasOwn(given, name) || (schema.default !== undefined && same(schema, given[name], schema.default));
   });
 }
 
@@ -897,7 +916,7 @@ and add `'tool-selection-v1': toolSelectionSuite,` as the last entry of `SUITES`
 - [ ] **Step 5: Run the tests and the type check**
 
 Run: `bun test apps/cli/test/tool-selection.test.mjs && bun run typecheck`
-Expected: 16 pass, 0 fail; 0 type errors.
+Expected: 19 pass, 0 fail; 0 type errors.
 
 - [ ] **Step: Commit**
 
@@ -1157,19 +1176,22 @@ JSON indented by two spaces. Each tool has a `name`, a `description` and a JSON 
 3. The **visible reply** is the reply with the model's reasoning removed: a `<think>` block,
    whether or not it is closed, and anything before a `</think>` that has no opening tag.
 4. The **answer** is the last JSON object in the visible reply: of the spans from `{` to `}`
-   that parse as an object, the one that ends last, taken as wide as it parses. Text and code
-   fences around it do not matter. A reply with no JSON object is wrong.
+   that parse as an object under strict JSON (no single quotes, trailing commas or comments),
+   the one that ends last, taken as wide as it parses. Text, code fences or an enclosing array
+   around it do not matter, and keys other than `tool` and `arguments` are ignored. A reply
+   with no JSON object is wrong.
 5. An answer to an item with a correct call is **correct** when all of these hold:
    - its `tool` is the expected tool's name, exactly;
    - its `arguments` name only that tool's parameters;
    - every argument the request sets is present with its value: strings equal after trimming
-     spaces at either end, integers equal as numbers (a number written as a string is wrong),
+     whitespace at either end, integers equal as numbers (a number written as a string is wrong),
      booleans equal;
    - every parameter the request does not set is left out or given its default.
-
-   An argument whose value is `null` counts as left out.
 6. An answer to an item with no correct call is correct when its `tool` is `null` and its
    `arguments` are left out or empty.
+
+   In rules 5 and 6, an argument whose value is `null`, and an `arguments` of `null`, count as
+   left out.
 7. The **score** is the percentage of the 100 items answered correctly on all five runs.
    Every result also gives pass@1, the percentage of the 500 answers that were correct; how
    many items each run got right; and the sample standard deviation of the five run scores.
@@ -1191,7 +1213,8 @@ the items with no call. The data file is generated from the script and checked i
   show that a model will choose well among a real server's tools.
 - **One prompted format.** Tools are given as JSON in the prompt and the answer is a JSON
   object in the text. Models trained for native tool calling may do better or worse through
-  their server's tool interface, which this version does not test.
+  their server's tool interface, which this version does not test. `arguments` must be a JSON
+  object; a JSON-encoded string, as some tool-calling formats use, is wrong.
 - **Exact values.** Values must be copied exactly. A model that writes `14:15:00` for
   `14:15` or `"3"` for `3` is wrong, even though a forgiving tool might accept it.
 - **Small and templated.** With 100 items the score's 95% interval spans about 16 points
@@ -1221,7 +1244,7 @@ In `.github/ISSUE_TEMPLATE/submit-eval-result.yml`, add `        - tool-selectio
 - [ ] **Step 5: Run the tests and the content gate**
 
 Run: `bun test apps/cli/test/tool-selection.test.mjs apps/web/test/evals-pages.test.mjs apps/web/test/issue-templates.test.mjs && bun run validate && bun run check`
-Expected: all pass (18 in `tool-selection.test.mjs`); `validate` 0 errors; `astro check` 0 errors.
+Expected: all pass (21 in `tool-selection.test.mjs`); `validate` 0 errors; `astro check` 0 errors.
 
 - [ ] **Step: Commit**
 
