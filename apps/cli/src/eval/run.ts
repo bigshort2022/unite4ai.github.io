@@ -379,7 +379,11 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
     throw new Error(`this run could not be published: ${problems.join('; ')}`);
   }
   const source = await loadSource(options, definition.source_url, definition.source_sha256, suite.localSource);
-  const items = suite.items(source, definition.items);
+  // A file the caller names stands in for the source only; the answers come from the cache or the network.
+  const answers = suite.answers === undefined
+    ? undefined
+    : await loadSource({ ...options, sourceFile: undefined }, suite.answers.url, suite.answers.sha256, undefined);
+  const items = suite.items(source, definition.items, answers);
   const method = definition.repeat;
   const runs = method?.runs ?? 1;
   const unit = method === undefined ? 'items' : 'answers';
@@ -398,6 +402,8 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
     benchmark: options.benchmark,
     benchmark_version: definition.version,
     source_sha256: definition.source_sha256,
+    // Only a suite with an answers file adds this, so other transcripts keep their names and resume.
+    ...(suite.answers === undefined ? {} : { answers_sha256: suite.answers.sha256 }),
     prompt_version: suite.promptVersion,
     model: options.model,
     served_model: options.servedModel,

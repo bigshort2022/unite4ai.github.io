@@ -276,13 +276,16 @@ test('model page lists its evaluations and local setups; the feed publishes the 
     'Groups include runs of previous benchmark versions; compare only groups whose benchmark_version equals the benchmark\'s version.',
   );
   assert.deepEqual(feed.benchmarks.map((b) => [b.id, b.version, b.previous_versions]), [
+    ['bfcl-multiple-50', '1', []],
     ['gsm8k-200', '2', ['1']],
     ['tool-selection-v1', '1', []],
     ['canary-injection-v1', '2', ['1']],
     ['decode-speed-gsm8k-200', '2', ['1']],
   ]);
-  assert.equal(feed.benchmarks[0].higher_is_better, true);
+  const gsm8k = feed.benchmarks.find((b) => b.id === 'gsm8k-200');
+  assert.equal(gsm8k.higher_is_better, true);
   assert.deepEqual(Object.fromEntries(feed.benchmarks.map((b) => [b.id, b.repeat])), {
+    'bfcl-multiple-50': { runs: 5, temperature: 0.7, top_p: 1 },
     'gsm8k-200': null,
     'tool-selection-v1': { runs: 5, temperature: 0.7, top_p: 1 },
     'canary-injection-v1': { runs: 5, temperature: 0.7, top_p: 1 },
@@ -302,7 +305,7 @@ test('model page lists its evaluations and local setups; the feed publishes the 
       ['1', 'mlx-lm', ['0.0.0'], 'Fixture Laptop', 32, 12.5],
     ],
   );
-  const current = quality.filter((g) => g.benchmark_version === feed.benchmarks[0].version);
+  const current = quality.filter((g) => g.benchmark_version === gsm8k.version);
   assert.equal(current.length, 2);
   const mlx = current.find((g) => g.format === 'mlx');
   assert.equal(mlx.score, 62);
