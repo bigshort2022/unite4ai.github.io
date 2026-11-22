@@ -54,7 +54,7 @@ never impute, reported and observed kept separate, no referral links, honest abo
   documentation or terms), `reported` (an operator dashboard, a regulator, or a named public
   data aggregator), `observed` (a measurement produced by the Observed Markets collector).
 - **Public, passive research by default.** Reading public pages, registries, APIs, block
-  explorers, certificate and DNS records. No credential use, purchases or wallet
+  explorers and certificate records. No credential use, purchases or wallet
   connections. The only exception is in-scope active testing from Kali (below), under a
   bug-bounty programme the owner has personally joined.
 - **Agents draft; people publish.** Agent output is untrusted text until it passes the
@@ -74,8 +74,8 @@ at most 32 KiB. The id must match an entry in `apps/web/src/data/global-exchange
 | `usage` | Metrics: average weekly users, trading/transaction volume, number of traders/buyers — each with unit, window, level and evidence, or `not-published` |
 | `priceQuotes` | Workload-specific quotes in their own currency and unit (e.g. USD per GPU-hour for a named GPU, EUR per 400 OctaneBench-hours, USDC per API call) |
 | `costComponents` | Fees by kind (platform fee, take rate, payment processor, facilitator, network gas, withdrawal, minimum charge), basis (percent, fixed, per-unit), currency, who pays, evidence |
-| `securityChecks` / `riskChecks` | One outcome per rubric criterion: `pass`, `fail`, `not-applicable` or `unknown`, with evidence |
-| `evidence` | `{id, url, retrievedAt, quote, kind}` where kind is `official-docs`, `terms`, `registry`, `regulator`, `aggregator`, `explorer`, `certificate`, `dns` or `observation` |
+| `securityChecks` / `riskChecks` | One outcome per rubric criterion: `pass`, `fail`, `not-applicable` or `unknown`, with evidence. For risk criteria `fail` means the indicator is present and `pass` means it is absent |
+| `evidence` | `{id, url, retrievedAt, quote, kind}` where kind is `official-docs`, `terms`, `registry`, `regulator`, `aggregator`, `explorer`, `certificate` or `observation` |
 
 A **fact** is `{value, level, evidence[]}` or `{value: null, level: "not-published",
 searched[]}`, where `searched` lists the pages checked. Every evidence id must exist; every
@@ -164,7 +164,7 @@ Observed Markets observations, when available, appear separately at `observed` l
 
 ## Research workflow (autonomous, reviewed)
 
-1. **Plan the brief.** `bun run profile -- new <id>` writes a draft skeleton with the
+1. **Plan the brief.** `bun run profile:new <id> <github-handle>` writes a draft skeleton with the
    rubric's criteria and the directory entry's URLs.
 2. **Agent team, in parallel, public sources only:** Identity & Legal, Usage & Market,
    Prices & Costs, Security & Risk. Each writes only its own sections and evidence.

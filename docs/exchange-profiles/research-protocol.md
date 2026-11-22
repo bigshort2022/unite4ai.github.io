@@ -1,7 +1,7 @@
 # Exchange profile research protocol
 
 Run by a maintainer's agent session. Public, passive sources only: official docs, terms of
-service, company registries, regulator databases, block explorers, certificate/DNS records,
+service, company registries, regulator databases, block explorers, certificate records,
 and named free public data aggregators. Never sign up, log in, connect a wallet, buy, scan,
 probe, or use paid data. Never invent a value; a value not found is `not-published` with
 the URLs searched.
@@ -25,16 +25,20 @@ with the directory source page; replace every `searched` list with the pages act
 - **Usage & Market:** average weekly active users, transaction/trading volume, number of
   traders/buyers — only where the operator, an official dashboard or a named aggregator
   publishes them, with exact unit and window. Token symbol, market cap (USD) and token price
-  (USD) from a named free aggregator, level `reported`, with the retrieval timestamp. Projects
+  (USD) from a named free aggregator, level `reported`, with the retrieval date. Projects
   without a token: all three `not-published`. Never compute, sum or convert.
 - **Prices & Costs:** quotes for the reference workloads in `packages/core/src/profile-rubrics.ts`,
   in their own currency and unit, with statistic and sample size; public offer listings or
   price pages only. Fee components: platform fee, take rate, payment processor, facilitator,
   network gas, withdrawal, minimum charge — basis, amount, currency, who pays, scope. A fee that
-  exists but whose amount is unpublished is recorded with `amount: null`. Record network gas as
+  exists but whose amount is unpublished is recorded with `amount: null`, evidence that the fee
+  exists, and `searched` listing the pages checked for its amount. Record network gas as
   the operator states it: only gas stated as a fixed USD amount counts in the cost score; other
   gas and minimum charges are shown but excluded.
-- **Security & Risk:** one outcome per rubric criterion with evidence. Run
+- **Security & Risk:** one outcome per rubric criterion with evidence. For risk criteria `fail`
+  means the indicator is present and `pass` means it is absent. Custodial means the operator
+  (company, foundation or admin key) holds or can control customer funds; immutable contract
+  escrow that no owner can seize is not custodial. Run
   `bun run profile:passive <official-url>`; record its certificate/header/security.txt results
   as evidence kind `certificate`. Audits and bounties from official pages or the
   auditor's site; incidents from the operator's post-mortems or regulator sources; regulatory
