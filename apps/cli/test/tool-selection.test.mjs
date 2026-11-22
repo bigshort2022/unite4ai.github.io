@@ -207,3 +207,20 @@ test('with no correct call, only a null tool with no arguments is correct', () =
   // And a null answer to an item that has a call is wrong.
   assert.equal(correct(reply({ tool: null, arguments: {} })), false);
 });
+
+test('an argument named like a built-in object property is still an unknown argument', () => {
+  for (const name of ['constructor', 'toString', '__proto__']) {
+    assert.equal(correct(`{"tool": "search_files", "arguments": {"query": "invoice", "directory": "docs", "${name}": "x"}}`), false, name);
+  }
+});
+
+test('braces inside a string value do not move the answer, and a boolean written as a string is wrong', () => {
+  const braces = { ...ITEM, expected: { tool: 'search_files', arguments: { query: 'a}b{c' } } };
+  assert.equal(correct(reply({ tool: 'search_files', arguments: { query: 'a}b{c' } }), braces), true);
+  assert.equal(correct(reply({ tool: 'list_directory', arguments: { path: 'docs', include_hidden: 'false' } }), LIST), false);
+});
+
+test('with no correct call, null arguments count as left out', () => {
+  assert.equal(correct(reply({ tool: null, arguments: { query: null } }), NONE), true);
+  assert.equal(correct(reply({ tool: null, arguments: null }), NONE), true);
+});

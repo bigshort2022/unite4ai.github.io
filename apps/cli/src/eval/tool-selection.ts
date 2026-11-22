@@ -125,11 +125,11 @@ function matches(answer: Record<string, unknown>, item: ToolItem): boolean {
   if (answer.tool !== item.expected.tool) return false;
 
   const { properties } = (item.tools.find((tool) => tool.name === item.expected.tool) as ToolDefinition).parameters;
-  if (Object.keys(given).some((name) => !(name in properties))) return false;
+  if (Object.keys(given).some((name) => !Object.hasOwn(properties, name))) return false;
   return Object.entries(properties).every(([name, schema]) => {
     const expected = item.expected.arguments[name];
-    if (expected !== undefined) return name in given && same(schema, given[name], expected);
-    return !(name in given) || (schema.default !== undefined && same(schema, given[name], schema.default));
+    if (expected !== undefined) return Object.hasOwn(given, name) && same(schema, given[name], expected);
+    return !Object.hasOwn(given, name) || (schema.default !== undefined && same(schema, given[name], schema.default));
   });
 }
 
