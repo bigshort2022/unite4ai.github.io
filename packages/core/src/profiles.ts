@@ -72,14 +72,29 @@ export function validateProfiles(profiles: ProfileEntry[], directoryIds: Readonl
     const file = `exchange-profiles/${id}.json`;
     if (p.meta.directoryId !== id) errors.push(`${file}: meta.directoryId must equal the file name`);
     if (!directoryIds.has(p.meta.directoryId)) errors.push(`${file}: ${p.meta.directoryId} is not in the Global Exchange directory`);
-    const evidenceIds = new Set<string>();
+    const evidenceKinds = new Map<string, string>();
     for (const e of p.evidence) {
-      if (evidenceIds.has(e.id)) errors.push(`${file}: evidence ${e.id} appears more than once`);
-      evidenceIds.add(e.id);
+      if (evidenceKinds.has(e.id)) errors.push(`${file}: evidence ${e.id} appears more than once`);
+      evidenceKinds.set(e.id, e.kind);
     }
+    const citesKind = (ids: string[], kind: string) => ids.some((e) => evidenceKinds.get(e) === kind);
     const cited = new Set(citedEvidence(p));
-    for (const c of cited) if (!evidenceIds.has(c)) errors.push(`${file}: cites evidence ${c}, which does not exist`);
-    for (const e of evidenceIds) if (!cited.has(e)) errors.push(`${file}: evidence ${e}: not cited by any fact or check`);
+    for (const c of cited) if (!evidenceKinds.has(c)) errors.push(`${file}: cites evidence ${c}, which does not exist`);
+    for (const e of evidenceKinds.keys()) if (!cited.has(e)) errors.push(`${file}: evidence ${e}: not cited by any fact or check`);
+    const sections = { identity: p.identity, legal: p.legal, marketData: p.marketData, usage: p.usage };
+    for (const [section, facts] of Object.entries(sections)) {
+      for (const [key, fact] of Object.entries(facts)) {
+        if (fact.level === 'observed' && !citesKind(fact.evidence, 'observation')) errors.push(`${file}: ${section}.${key} is observed and must cite observation evidence`);
+      }
+    }
+    p.priceQuotes.forEach((q, i) => {
+      if (q.level === 'observed' && !citesKind(q.evidence, 'observation')) errors.push(`${file}: priceQuotes[${i}] is observed and must cite observation evidence`);
+    });
+    for (const c of p.riskChecks) {
+      if (c.criterion === 'regulatory-action' && c.outcome === 'fail' && !citesKind(c.evidence, 'regulator')) {
+        errors.push(`${file}: regulatory-action is triggered and must cite regulator evidence`);
+      }
+    }
     for (const [key, fact] of Object.entries(p.marketData)) {
       if (fact.level !== 'not-published' && fact.level !== 'reported') errors.push(`${file}: marketData.${key} must be reported market data`);
     }

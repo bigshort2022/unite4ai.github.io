@@ -359,7 +359,8 @@ export const profileMetricSchema = z.union([
   z.strictObject({
     value: z.number().finite().nonnegative(),
     unit: exchangeText(60, true),
-    window: z.strictObject({ start: exchangeDate, end: exchangeDate }),
+    window: z.strictObject({ start: exchangeDate, end: exchangeDate })
+      .refine((w) => w.start <= w.end, 'window must not end before it starts'),
     level: z.enum(PROFILE_LEVELS),
     evidence: z.array(profileEvidenceId).min(1),
   }),

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { cp, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, cp, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -113,6 +113,11 @@ export async function processPullRequest({ api, number, repository, trustedBase,
       const candidate = join(temporary, 'candidate');
       // Only trusted base content and allowlisted bytes enter this data-only scratch tree.
       await cp(contentRoot, candidate, { recursive: true, dereference: false });
+      // Exchange profiles are checked against the trusted directory data that sits beside the content root.
+      await mkdir(join(temporary, 'data'));
+      try {
+        await copyFile(join(contentRoot, '..', 'data', 'global-exchange.json'), join(temporary, 'data', 'global-exchange.json'));
+      } catch (error) { if (error.code !== 'ENOENT') throw error; }
       for (const file of additions) {
         const relative = file.filename.slice(PREFIX.length);
         try {

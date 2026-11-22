@@ -84,3 +84,14 @@ test('security and cost are graded on their score; risk is graded on 100 minus i
   assert.equal(riskScore(profile()).grade, 'D'); // 100 - 33 = 67
   assert.equal(transactionCostScore(profile()).grade, 'C'); // 79
 });
+
+test('fixed USD network gas counts like any fixed USD fee; other gas stays excluded', () => {
+  // 4% + 0.30% + 5/100*100 = 9.3% -> 100*(20-9.3)/20 = 53.5 -> 54 (computed in basis points, not 53.4999)
+  const p = profile();
+  p.costComponents.push({ kind: 'network-gas', basis: 'fixed', amount: '5', currency: 'USD', appliesTo: 'buyer', scope: 'Settlement', evidence: ['e1'] });
+  const c = transactionCostScore(p);
+  assert.equal(c.costPercent, 9.3);
+  assert.equal(c.score, 54);
+  assert.equal(c.grade, 'D');
+  assert.deepEqual(c.excluded, ['network-gas']);
+});

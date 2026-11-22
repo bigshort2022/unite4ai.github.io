@@ -1,4 +1,4 @@
-import type { ExchangeProfile } from '@unite4ai/schema';
+import type { ExchangeProfile, PROFILE_CHECK_OUTCOMES, PROFILE_LEVELS } from '@unite4ai/schema';
 import { COST_CAP_PERCENT, GRADE_BANDS, MIN_COVERAGE, REFERENCE_USD, RISK_CRITERIA, RUBRIC_VERSION, SECURITY_CRITERIA, type Criterion } from './profile-rubrics.ts';
 
 export type Grade = 'A' | 'B' | 'C' | 'D' | 'F';
@@ -15,7 +15,7 @@ export interface RubricScore {
   /** Letter for the score; for risk it grades 100 − score so A is always best. */
   grade: Grade | null;
   coverage: number;
-  breakdown: { criterion: string; label: string; weight: number; outcome: string; evidence: string[] }[];
+  breakdown: { criterion: string; label: string; weight: number; outcome: (typeof PROFILE_CHECK_OUTCOMES)[number]; evidence: string[] }[];
 }
 
 function rubricScore(criteria: readonly Criterion[], checks: ExchangeProfile['securityChecks'], counted: 'pass' | 'fail', higherIsWorse: boolean): RubricScore {
@@ -65,7 +65,9 @@ export function transactionCostScore(p: ExchangeProfile): CostScore {
   let percent = 0;
   let fees = 0;
   for (const c of p.costComponents) {
-    if (c.kind === 'network-gas' || c.kind === 'minimum-charge') {
+    // Gas counts only as a fixed USD amount; any other gas is priced in another asset or varies per transaction.
+    const fixedUsdGas = c.kind === 'network-gas' && c.amount !== null && c.basis === 'fixed' && c.currency === 'USD';
+    if (c.kind === 'minimum-charge' || (c.kind === 'network-gas' && !fixedUsdGas)) {
       excluded.push(c.kind);
       continue;
     }
@@ -77,12 +79,15 @@ export function transactionCostScore(p: ExchangeProfile): CostScore {
   }
   if (fees === 0) notComputable.push('no fee components published');
   if (notComputable.length > 0) return { rubricVersion: RUBRIC_VERSION, score: null, grade: null, costPercent: null, excluded, notComputable };
-  const costPercent = Math.round(percent * 100) / 100;
-  const score = Math.round(100 * (1 - Math.min(costPercent, COST_CAP_PERCENT) / COST_CAP_PERCENT));
+  // Basis points keep the arithmetic exact: 100 * (1 - 9.3 / 20) is 53.4999… in floating point.
+  const costBp = Math.round(percent * 100);
+  const capBp = COST_CAP_PERCENT * 100;
+  const costPercent = costBp / 100;
+  const score = Math.round((100 * (capBp - Math.min(costBp, capBp))) / capBp);
   return { rubricVersion: RUBRIC_VERSION, score, grade: letterGrade(score), costPercent, excluded, notComputable };
 }
 
-export interface QuoteRow { directoryId: string; amount: number; sampleSize?: number; sampledAt: string; level: string }
+export interface QuoteRow { directoryId: string; amount: number; sampleSize?: number; sampledAt: string; level: (typeof PROFILE_LEVELS)[number] }
 
 /** Groups quotes that are directly comparable: same workload, currency, unit and statistic. Sorted cheapest first. */
 export function quotesByWorkload(profiles: { id: string; data: ExchangeProfile }[]): Map<string, QuoteRow[]> {

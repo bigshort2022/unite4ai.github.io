@@ -74,3 +74,28 @@ test('reading skips nothing silently: oversize files are errors', async () => {
   const { errors } = await readExchangeProfiles(root({ 'akash.json': padded }));
   assert.match(errors.join('\n'), /byte record limit/);
 });
+
+test('a triggered regulatory-action indicator must cite regulator evidence', () => {
+  const p = profile();
+  p.riskChecks.find((c) => c.criterion === 'regulatory-action').outcome = 'fail';
+  assert.match(validateProfiles([entry(p)], ids).join('\n'), /regulatory-action.*regulator/);
+  p.evidence.push({ ...p.evidence[0], id: 'e8', kind: 'regulator' });
+  p.riskChecks.find((c) => c.criterion === 'regulatory-action').evidence = ['e8'];
+  assert.deepEqual(validateProfiles([entry(p)], ids), []);
+});
+
+test('observed facts, metrics and quotes must cite observation evidence', () => {
+  const p = profile();
+  p.identity.officialUrl.level = 'observed';
+  p.usage.volume.level = 'observed';
+  p.priceQuotes[0].level = 'observed';
+  const errors = validateProfiles([entry(p)], ids).join('\n');
+  assert.match(errors, /identity\.officialUrl.*observation/);
+  assert.match(errors, /usage\.volume.*observation/);
+  assert.match(errors, /priceQuotes\[0\].*observation/);
+  p.evidence.push({ ...p.evidence[0], id: 'e8', kind: 'observation' });
+  p.identity.officialUrl.evidence = ['e1', 'e8'];
+  p.usage.volume.evidence = ['e5', 'e8'];
+  p.priceQuotes[0].evidence = ['e5', 'e8'];
+  assert.deepEqual(validateProfiles([entry(p)], ids), []);
+});

@@ -7,7 +7,16 @@ function normalize(text: string): string {
     .replace(/\\([\\`*_{}[\]()#+\-.!$~])/g, '$1')
     .replace(/[*_`]+/g, '')
     .replace(/\s+/g, ' ')
+    // Removed inline tags leave a space before punctuation: `<b>credits</b>, then`.
+    .replace(/ ([,.;:!?%)\]])/g, '$1')
     .trim();
+}
+
+function decodeEntity(entity: string): string {
+  const numeric = /^&#(?:(\d+)|x([0-9a-f]+));$/i.exec(entity);
+  if (!numeric) return ENTITIES[entity.toLowerCase()] ?? ' ';
+  const code = numeric[1] !== undefined ? Number(numeric[1]) : parseInt(numeric[2], 16);
+  return code <= 0x10ffff ? String.fromCodePoint(code) : ' ';
 }
 
 /** Visible text of a fetched page: tags and scripts removed for HTML, markdown kept as text. */
@@ -16,17 +25,18 @@ export function pageText(body: string, contentType: string): string {
   return body
     .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
     .replace(/<[^>]+>/g, ' ')
-    .replace(/&[a-z#0-9]+;/gi, (e) => ENTITIES[e.toLowerCase()] ?? ' ');
+    .replace(/&[a-z#0-9]+;/gi, decodeEntity);
 }
 
 /** True when the whole quote appears in the page after whitespace and formatting normalization. */
 export function quotePresent(body: string, contentType: string, quote: string): boolean {
-  return normalize(pageText(body, contentType)).includes(normalize(quote));
+  const needle = normalize(quote);
+  return needle.length > 0 && normalize(pageText(body, contentType)).includes(needle);
 }
 
 /** A link that opens the page and highlights the start of the quote (Chrome, Edge, Safari). */
 export function highlightUrl(url: string, quote: string): string {
-  const start = normalize(quote).split(' ').slice(0, 10).join(' ');
+  const start = quote.replace(/\s+/g, ' ').trim().split(' ').slice(0, 10).join(' ');
   return `${url.split('#')[0]}#:~:text=${encodeURIComponent(start).replace(/-/g, '%2D')}`;
 }
 
@@ -49,9 +59,10 @@ function hostMatches(host: string, san: string): boolean {
 
 /** Evaluates passive observations for three security criteria. Only collected evidence produces pass or fail. */
 export function evaluatePassive(o: PassiveObservation, now: Date): Record<'https-certificate' | 'security-headers' | 'security-contact', PassiveOutcome> {
-  const host = new URL(o.url).hostname.toLowerCase();
-  const certificate: PassiveOutcome = o.tls === null ? 'unknown'
-    : o.tls.authorized && new Date(o.tls.validTo) > now && o.tls.subjectAltNames.some((s) => hostMatches(host, s)) ? 'pass' : 'fail';
+  const host = new URL(o.url).hostname.toLowerCase().replace(/\.$/, '');
+  const expires = o.tls === null ? NaN : new Date(o.tls.validTo).valueOf();
+  const certificate: PassiveOutcome = o.tls === null || Number.isNaN(expires) ? 'unknown'
+    : o.tls.authorized && expires > now.valueOf() && o.tls.subjectAltNames.some((s) => hostMatches(host, s)) ? 'pass' : 'fail';
   const h = o.headers;
   const headers: PassiveOutcome = h === null ? 'unknown'
     : h['strict-transport-security'] && (h['content-security-policy'] || h['x-content-type-options']) ? 'pass' : 'fail';

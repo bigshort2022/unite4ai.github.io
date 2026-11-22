@@ -13,10 +13,28 @@ test('a quote that is not on the page, or only partly there, does not match', ()
   assert.equal(quotePresent('<p>Fees are</p>', 'text/html', 'Fees are 2%.'), false);
 });
 
+test('a quote that normalizes to nothing never matches', () => {
+  assert.equal(quotePresent('<p>Anything at all.</p>', 'text/html', '***'), false);
+  assert.equal(quotePresent('Anything at all.', 'text/markdown', '  `_` '), false);
+});
+
+test('numeric entities decode and tags before punctuation do not leave a stray space', () => {
+  assert.equal(quotePresent('<p>It&#8217;s billed hourly.</p>', 'text/html', "It's billed hourly."), true);
+  assert.equal(quotePresent('<p>It&#x27;s billed hourly.</p>', 'text/html', "It's billed hourly."), true);
+  assert.equal(quotePresent('<p>You add <strong>credits</strong>, then pay.</p>', 'text/html', 'You add credits, then pay.'), true);
+});
+
 test('highlight links use a text fragment of the first words of the quote', () => {
   assert.equal(
     highlightUrl('https://docs.example/fees', 'Buyers pay a 2% fee on every lease, billed monthly in arrears.'),
     'https://docs.example/fees#:~:text=Buyers%20pay%20a%202%25%20fee%20on%20every%20lease%2C%20billed%20monthly',
+  );
+});
+
+test('highlight links keep the quote text as written, only collapsing whitespace', () => {
+  assert.equal(
+    highlightUrl('https://docs.example/fees#top', 'It’s  **free**\nfor buyers'),
+    'https://docs.example/fees#:~:text=It%E2%80%99s%20**free**%20for%20buyers',
   );
 });
 
@@ -46,4 +64,9 @@ test('missing observations stay unknown; absent security.txt is unknown, not a f
 
 test('HSTS without another baseline header fails the header check', () => {
   assert.equal(evaluatePassive(observation({ headers: { 'strict-transport-security': 'max-age=1' } }), now)['security-headers'], 'fail');
+});
+
+test('an unparseable certificate expiry is unknown; a trailing dot in the host still matches', () => {
+  assert.equal(evaluatePassive(observation({ tls: { authorized: true, validTo: 'not a date', subjectAltNames: ['DNS:docs.example'] } }), now)['https-certificate'], 'unknown');
+  assert.equal(evaluatePassive(observation({ url: 'https://docs.example./' }), now)['https-certificate'], 'pass');
 });

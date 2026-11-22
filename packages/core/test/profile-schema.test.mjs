@@ -44,3 +44,13 @@ test('unknown keys and HTML text are rejected', () => {
   q.evidence[0].quote = '<b>bold</b>';
   assert.equal(exchangeProfileSchema.safeParse(q).success, false);
 });
+
+test('a usage window must not end before it starts', () => {
+  const p = profile();
+  p.usage.volume.window = { start: '2026-11-17', end: '2026-11-10' };
+  const r = exchangeProfileSchema.safeParse(p);
+  assert.equal(r.success, false);
+  assert.match(r.error.message, /window must not end before it starts/);
+  p.usage.volume.window = { start: '2026-11-17', end: '2026-11-17' };
+  assert.equal(exchangeProfileSchema.safeParse(p).success, true);
+});

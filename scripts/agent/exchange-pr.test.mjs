@@ -1,12 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { rmSync, readFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 const { parse } = createRequire(new URL('../../packages/core/package.json', import.meta.url))('yaml');
 import { makeExchangeRoot, hypothesis, finding, review, markdown, RESULT_ID } from '../../packages/core/test/fixtures/exchange.mjs';
 import { result } from '../../packages/core/test/fixtures/evals.mjs';
+import { profile } from '../../packages/core/test/fixtures/profile.mjs';
 
 // Public consumer tests: invented records live only in OS temporary directories.
 import { processPullRequest } from './exchange-pr.mjs';
@@ -231,4 +233,19 @@ test('same-kind moves of existing records are maintenance, cross-kind renames ar
   const crossLabelled = fixture(t, { 'hypotheses/fixture-new.md': markdown(hypothesis({ author: 'impostor' })) }, maintainer);
   move(crossLabelled, 'reviews/fixture-old.json'); crossLabelled.pr.labels = label;
   await assert.rejects(crossLabelled.run(), /identity/);
+});
+
+test('trusted base exchange profiles validate against the directory data beside the content root', async t => {
+  const f = fixture(t);
+  const outer = mkdtempSync(join(tmpdir(), 'u4ai-pr-profile-fixture-'));
+  t.after(() => rmSync(outer, { recursive: true, force: true }));
+  const content = join(outer, 'content');
+  cpSync(f.root, content, { recursive: true });
+  mkdirSync(join(content, 'exchange-profiles'));
+  writeFileSync(join(content, 'exchange-profiles/akash.json'), JSON.stringify(profile()));
+  mkdirSync(join(outer, 'data'));
+  writeFileSync(join(outer, 'data/global-exchange.json'), JSON.stringify({ projects: [{ id: 'akash' }] }));
+  const out = await f.run({ contentRoot: content });
+  assert.equal(out.eligible, true);
+  assert.equal(out.merged, false);
 });
