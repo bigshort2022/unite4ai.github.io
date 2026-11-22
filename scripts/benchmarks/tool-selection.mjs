@@ -39,7 +39,7 @@ function tool(name, description, properties, required) {
 
 /**
  * Six domains of tools. Tools in one domain are near misses of each other: an item offers all
- * tools of its own domain, so the model must tell `search_files` from `search_web`'s cousins,
+ * tools of its own domain, so the model must tell `search_web` from `search_news`,
  * `create_event` from `update_event`, `send_message` from `reply_message`, and so on.
  */
 export const TOOLS = {
@@ -69,7 +69,7 @@ export const TOOLS = {
     tool('git_commit', 'Record the staged changes in the current repository with a message.', { message: str('Commit message.') }, ['message']),
     tool('git_create_branch', 'Create a new branch from the current one and switch to it.', { name: str('Name of the new branch.') }, ['name']),
     tool('git_checkout', 'Switch to a branch that already exists.', { branch: str('Name of the branch.') }, ['branch']),
-    tool('git_push', 'Push a branch to a remote repository.', { branch: str('Name of the branch.'), remote: str('Name of the remote.') }, ['branch']),
+    tool('git_push', 'Push a branch to a remote repository.', { branch: str('Name of the branch.'), remote: { type: 'string', description: 'Name of the remote.', default: 'origin' } }, ['branch']),
     tool('git_status', 'Show which files have changed in the current repository.', {}, []),
     tool('git_log', 'Show the most recent commits of the current branch.', { limit: int('How many commits to show.', 10) }, []),
   ],
@@ -115,7 +115,7 @@ export const POOLS = {
   priority: ['low', 'medium', 'high'],
   ticketId: ['TCK-17', 'TCK-205', 'TCK-388', 'TCK-940'],
   status: ['open', 'in_progress', 'closed'],
-  statusWords: { open: 'open', in_progress: 'in progress', closed: 'closed' },
+  statusWords: { open: 'open', in_progress: 'in-progress', closed: 'closed' },
 };
 
 /**
@@ -127,10 +127,10 @@ export const TEMPLATES = {
     (pick) => { const path = pick('path'); return { request: `Show me what is written in the file ${path}.`, arguments: { path } }; },
   ],
   write_file: [
-    (pick) => { const path = pick('path'); const content = pick('line'); return { request: `Replace everything in ${path} with this single line: ${content}`, arguments: { path, content } }; },
+    (pick) => { const path = pick('path'); const content = pick('line'); return { request: `Replace everything in ${path} with this single line: "${content}"`, arguments: { path, content } }; },
   ],
   append_file: [
-    (pick) => { const path = pick('path'); const content = pick('line'); return { request: `Add this line to the end of ${path}, keeping what is already there: ${content}`, arguments: { path, content } }; },
+    (pick) => { const path = pick('path'); const content = pick('line'); return { request: `Add this line to the end of ${path}, keeping what is already there: "${content}"`, arguments: { path, content } }; },
   ],
   delete_file: [
     (pick) => { const path = pick('path'); return { request: `Delete the file ${path}.`, arguments: { path } }; },
@@ -201,13 +201,13 @@ export const TEMPLATES = {
     () => ({ request: 'What has been committed here recently?', arguments: {} }),
   ],
   send_message: [
-    (pick) => { const recipient = pick('username'); const text = pick('text'); return { request: `Send ${recipient} a chat message saying: ${text}`, arguments: { recipient, text } }; },
+    (pick) => { const recipient = pick('username'); const text = pick('text'); return { request: `Send ${recipient} a chat message saying: "${text}"`, arguments: { recipient, text } }; },
   ],
   reply_message: [
-    (pick) => { const id = pick('messageId'); const text = pick('text'); return { request: `Answer message ${id} in its thread with: ${text}`, arguments: { message_id: id, text } }; },
+    (pick) => { const id = pick('messageId'); const text = pick('text'); return { request: `Answer message ${id} in its thread with: "${text}"`, arguments: { message_id: id, text } }; },
   ],
   send_email: [
-    (pick) => { const to = pick('email'); const subject = pick('title'); const body = pick('text'); return { request: `Email ${to} with the subject "${subject}" and the text: ${body}`, arguments: { to, subject, body } }; },
+    (pick) => { const to = pick('email'); const subject = pick('title'); const body = pick('text'); return { request: `Email ${to} with the subject "${subject}" and the text: "${body}"`, arguments: { to, subject, body } }; },
   ],
   search_messages: [
     (pick) => { const query = pick('phrase'); return { request: `Find the chat messages where someone mentioned "${query}".`, arguments: { query } }; },
@@ -223,7 +223,7 @@ export const TEMPLATES = {
     (pick) => { const id = pick('ticketId'); const assignee = pick('username'); return { request: `Give ticket ${id} to ${assignee}.`, arguments: { ticket_id: id, assignee } }; },
   ],
   comment_ticket: [
-    (pick) => { const id = pick('ticketId'); const text = pick('text'); return { request: `Leave a note on ticket ${id}: ${text}`, arguments: { ticket_id: id, text } }; },
+    (pick) => { const id = pick('ticketId'); const text = pick('text'); return { request: `Leave a note on ticket ${id}: "${text}"`, arguments: { ticket_id: id, text } }; },
   ],
   search_tickets: [
     (pick) => { const query = pick('phrase'); return { request: `Find tickets about "${query}".`, arguments: { query } }; },
@@ -320,6 +320,7 @@ export function toJsonl(items) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   mkdirSync(dirname(OUTPUT), { recursive: true });
-  writeFileSync(OUTPUT, toJsonl(buildItems()));
-  console.log(`wrote ${buildItems().length} items to ${OUTPUT}`);
+  const items = buildItems();
+  writeFileSync(OUTPUT, toJsonl(items));
+  console.log(`wrote ${items.length} items to ${OUTPUT}`);
 }
