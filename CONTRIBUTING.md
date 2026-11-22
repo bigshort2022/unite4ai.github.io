@@ -87,9 +87,9 @@ and a maintainer turns it into a pull request.
   `decode-speed-gsm8k-200` row, copy its device, accelerator, memory and runtime exactly
   (`--device`, `--accelerator`, `--memory-gb`, `--runtime`); anything else is a new row.
 
-The runner does the bookkeeping for you. Runnable benchmarks today: `gsm8k-200` and
-`tool-selection-v1` (quality) and `canary-injection-v1` (security). Point it at any
-OpenAI-compatible local server (mlx-lm, Ollama, llama.cpp, vLLM):
+The runner does the bookkeeping for you. Runnable benchmarks today: `gsm8k-200`,
+`tool-selection-v1` and `bfcl-multiple-50` (quality) and `canary-injection-v1` (security).
+Point it at any OpenAI-compatible local server (mlx-lm, Ollama, llama.cpp, vLLM):
 
 ```bash
 bun run eval -- --benchmark gsm8k-200 --model <model-card-id> \
@@ -130,6 +130,14 @@ run resumes like any other, at the answer where it stopped.
 answered five times at temperature 0.7 (500 replies, up to 1024 new tokens each). Every prompt
 carries its tools as JSON, so prompts run to roughly 1,000 to 2,000 tokens and a run takes
 longer than the canary's.
+
+`bfcl-multiple-50` asks 50 items of the Berkeley Function Calling Leaderboard in the same
+format, five times each (250 replies). The runner downloads BFCL's question and answer files
+from GitHub on the first run, checks both against their pinned hashes and keeps them in
+`.agent/evals/cache/`; later runs work offline. Its scorer is a port of BFCL's checker. To
+compare a run's verdicts with BFCL's own checker, run
+`python3 scripts/benchmarks/bfcl_crosscheck.py transcript <the run's transcript>` (Python 3,
+standard library only); it lists every answer where the two disagree.
 
 A 2048-token benchmark can take hours on a slow machine. One invocation runs for at most
 14400 seconds (four hours); change that with `--max-seconds`. The limit is checked between
