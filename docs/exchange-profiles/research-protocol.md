@@ -14,7 +14,8 @@ Each agent edits only its own sections of `apps/web/src/content/exchange-profile
 and appends evidence items with ids from its block (Identity & Legal e1–e29, Usage & Market
 e30–e59, Prices & Costs e60–e89, Security & Risk e90–e129). Every non-null value must cite a
 verbatim quote (≤500 chars) that states it, from the page at `url`, retrieved today. Write
-values close to the source's own words; do not characterise.
+values close to the source's own words; do not characterise. The scaffold pre-fills `searched`
+with the directory source page; replace every `searched` list with the pages actually checked.
 
 - **Identity & Legal:** official URL; operating entity; headquarters; date of formation
   (registry first, then official "about"/terms); registered jurisdiction; governing law clause
@@ -35,11 +36,11 @@ values close to the source's own words; do not characterise.
   gas and minimum charges are shown but excluded.
 - **Security & Risk:** one outcome per rubric criterion with evidence. Run
   `bun run profile:passive <official-url>`; record its certificate/header/security.txt results
-  as evidence kinds `certificate`/`dns`. Audits and bounties from official pages or the
+  as evidence kind `certificate`. Audits and bounties from official pages or the
   auditor's site; incidents from the operator's post-mortems or regulator sources; regulatory
   action from regulator sites only. Use `unknown` when evidence is not found. Active testing
-  happens only under plan Task 10 and is currently deferred because no project's bug-bounty
-  programme permits automated testing (`research_notes/exchange-profiles/scan-eligibility.md`).
+  happens only under plan Task 10 and is currently deferred because no programme checked so
+  far explicitly permits automated testing (`research_notes/exchange-profiles/scan-eligibility.md`).
 
 Each agent's brief must include: the directory entry, the design and this protocol, its
 section list and evidence-id block, the literal-sourcing rule, and "report gaps; never guess".
@@ -47,7 +48,8 @@ section list and evidence-id block, the literal-sourcing rule, and "report gaps;
 ## 3. Deterministic checks
 `bun run validate` (schema and cross-references) and `bun run profile:verify <id>` (every
 quote still on its page). Fix or remove failing evidence; JavaScript-rendered pages may need a
-manual confirmation note for the review.
+manual confirmation note for the review. Certificate and header evidence is re-confirmed by
+rerunning `bun run profile:passive <official-url>`, not by `profile:verify`.
 
 ## 4. Independent literal review
 Dispatch one reviewer agent with only the profile and the evidence URLs. It fails any value
@@ -57,7 +59,8 @@ converted number, and any market data not marked `reported`. Apply its fixes; re
 ## 5. Owner review
 Present each section to the owner with values, quotes and highlight links; the owner accepts,
 edits or marks values `not-published`. On approval set `status: "published"`, `reviewedBy`
-and `reviewedAt`, and record the agent model and harness in `meta.agent`. Open a pull request.
+(the owner's GitHub handle) and `reviewedAt`, and record the agent model and harness in
+`meta.agent`; agents never set `reviewedBy` or `status: "published"`. Open a pull request.
 
 ## 6. Refresh
 Repeat steps 2–5 on the existing record; replace values and evidence; update `researchedAt`
