@@ -105,7 +105,7 @@ const hasRows = boards.some((b) => b.rows.length > 0);
                   <tbody>
                     {rows.map((row, index) => (
                       <tr data-runtimes={row.runtimes.join(',')} data-accelerators={row.accelerators.join(',')}>
-                        {!measured && <td class="rank num">{index + 1}{rankNotes[index] && <small>{rankNotes[index]}</small>}</td>}
+                        {!measured && <td class="rank num">{index + 1}{rankNotes[index] && <small title="Its 95% score interval overlaps that row's">{rankNotes[index]}</small>}</td>}
                         <td><a href={href(`/registry/models/${row.model}`)}>{modelNames.get(row.model) ?? row.model}</a></td>
                         <td class="num">
                           <span class="score">{withUnit(formatNumber(row.score), benchmark.data.metric.unit)}</span>

@@ -54,7 +54,7 @@ const modelName = (id: string) => modelNames.get(id) ?? id;
         <p style="margin-top:1rem;color:var(--u-text-dim)">Grouped per machine and runtime. Compare rows on the same machine only.</p>
       )}
       {d.repeat && (
-        <p style="margin-top:1rem;color:var(--u-text-dim)">The score is the share of items answered correctly on all {d.repeat.runs} runs. Its interval, pass@1 and the spread between runs are under <a href="#every-run">Every run</a>.</p>
+        <p style="margin-top:1rem;color:var(--u-text-dim)">The score is the share of items answered correctly on all {d.repeat.runs} runs. Its interval, pass@1 and the spread between runs are under <a href="#every-run">Every run</a>. A row marked "not distinguishable from #N" has a 95% score interval that overlaps row N's.</p>
       )}
       <div class="eval-scroll" tabindex="0" role="region" aria-label={`Leaderboard for ${d.name}`}>
         <table class="eval-table">

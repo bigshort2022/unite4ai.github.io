@@ -547,6 +547,8 @@ test('a repeat-run result shows its interval, pass@1 with its interval, and the 
   const note = leaderboardOf(detail);
   assert.match(note, /The score is the share of items answered correctly on all 5 runs\./);
   assert.ok(note.includes('<a href="#every-run">Every run</a>'));
+  // The label is defined where it appears.
+  assert.match(note, /A row marked (?:"|&quot;)not distinguishable from #N(?:"|&quot;) has a 95% score interval that overlaps row N(?:'|&#39;)s\./);
   assert.ok(detail.includes(`<span class="score">${repeat.pass_k}%</span>`));
   const range = ([low, high]) => `${low}–${high}%`;
   for (const text of [
@@ -563,12 +565,14 @@ test('a repeat-run result shows its interval, pass@1 with its interval, and the 
   assert.ok(Math.max(repeat.pass_k_ci[1], steady.pass_k_ci[1]) >= other.pass_k_ci[0]);
   const board = site('evals/index.html');
   const canaryBoard = board.slice(board.indexOf('Leaderboard for Prompt-injection canary'));
-  for (const leaderboard of [leaderboardOf(detail), canaryBoard.slice(0, canaryBoard.indexOf('</table>'))]) {
+  const canaryRows = canaryBoard.slice(0, canaryBoard.indexOf('</table>'));
+  assert.match(canaryRows, /<small title="Its 95% score interval overlaps that row(?:'|&#39;)s">not distinguishable from #1<\/small>/);
+  for (const leaderboard of [leaderboardOf(detail), canaryRows]) {
     const [first, second] = leaderboard.split('<tbody>')[1].split('<tr').slice(1);
     assert.ok(first.includes(`/registry/models/${MODEL}"`), 'the higher score ranks first');
     assert.doesNotMatch(first, /not distinguishable/);
     assert.ok(second.includes(`/registry/models/${OTHER}"`));
-    assert.match(second, /<td class="rank num">2<small>not distinguishable from #1<\/small><\/td>/);
+    assert.match(second, /<td class="rank num">2<small[^>]*>not distinguishable from #1<\/small><\/td>/);
     // Each result of a repeat-run benchmark is five runs, so the Runs cell counts results.
     assert.match(first, /<small>2 results/);
     assert.match(second, /<small>1 result[ <]/);

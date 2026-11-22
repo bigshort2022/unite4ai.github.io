@@ -187,8 +187,8 @@ export function leaderboard(groups: EvalGroup[], benchmark: BenchmarkRef): EvalG
 /**
  * For leaderboard rows in rank order, the index of the highest-ranked earlier row whose 95%
  * interval overlaps each row's own; null when none does or either row has no interval.
- * Overlapping 95% intervals do not support an order between two rows, so such a row is not
- * distinguishable from the one ranked above it.
+ * By the site's rule, rows whose 95% intervals overlap are shown as not distinguishable. This
+ * is conservative: two intervals can overlap while the difference is still significant.
  */
 export function indistinguishableFrom(rows: EvalGroup[]): (number | null)[] {
   return rows.map(({ pass_k_ci: own }, index) => {
