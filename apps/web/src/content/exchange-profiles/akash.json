@@ -1,0 +1,518 @@
+{
+  "meta": {
+    "schemaVersion": 1,
+    "directoryId": "akash",
+    "researchedAt": "2026-11-22",
+    "author": "bigshort2022",
+    "status": "draft",
+    "agent": {
+      "model": "claude-opus-5-5",
+      "harness": "omp"
+    }
+  },
+  "identity": {
+    "officialUrl": {
+      "value": "https://akash.network",
+      "level": "stated",
+      "evidence": [
+        "e1"
+      ]
+    },
+    "operatingEntity": {
+      "value": "Overclock Labs Inc.",
+      "level": "stated",
+      "evidence": [
+        "e1"
+      ]
+    },
+    "headquarters": {
+      "value": null,
+      "level": "not-published",
+      "searched": [
+        "https://www.sec.gov/Archives/edgar/data/1734871/000173487118000003/xslFormDX01/primary_doc.xml",
+        "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0001734871&owner=include&count=40",
+        "https://console.akash.network/terms-of-service",
+        "https://ovrclk.com/company",
+        "https://akash.network/privacy/",
+        "https://akash.network/"
+      ]
+    },
+    "formedOn": {
+      "value": "2015",
+      "level": "reported",
+      "evidence": [
+        "e5",
+        "e6"
+      ]
+    }
+  },
+  "legal": {
+    "registeredJurisdiction": {
+      "value": "DELAWARE",
+      "level": "reported",
+      "evidence": [
+        "e2",
+        "e3"
+      ]
+    },
+    "governingLaw": {
+      "value": "the laws of Texas",
+      "level": "stated",
+      "evidence": [
+        "e7"
+      ]
+    },
+    "licenses": {
+      "value": null,
+      "level": "not-published",
+      "searched": [
+        "https://console.akash.network/terms-of-service",
+        "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0001734871&owner=include&count=40",
+        "https://www.sec.gov/Archives/edgar/data/1734871/000173487118000003/xslFormDX01/primary_doc.xml",
+        "https://ovrclk.com/company",
+        "https://akash.network/privacy/"
+      ]
+    },
+    "restrictedJurisdictions": {
+      "value": "Cuba, certain sanctioned areas of Russia and Ukraine (including without limitation, Crimea, the so-called region of Dontesk, the so-called region of Luhansk, and the so-called region of Zaporizzhia), Democratic People's Republic of Korea (North Korea), Iran, and Syria",
+      "level": "stated",
+      "evidence": [
+        "e14",
+        "e8"
+      ]
+    },
+    "sanctionsScreening": {
+      "value": "These verification and screening procedures may include, without limitation, checking the information you provide against sanctions lists issued by any governmental authority",
+      "level": "stated",
+      "evidence": [
+        "e10"
+      ]
+    },
+    "kycRequired": {
+      "value": "No KYC when going permissionless with your own wallet; Terms state you may be required to provide certain information and documentation",
+      "level": "stated",
+      "evidence": [
+        "e12",
+        "e13"
+      ]
+    }
+  },
+  "marketData": {
+    "tokenSymbol": {
+      "value": "AKT",
+      "level": "stated",
+      "evidence": [
+        "e30"
+      ]
+    },
+    "marketCapUsd": {
+      "value": 154366220,
+      "level": "reported",
+      "evidence": [
+        "e32"
+      ]
+    },
+    "tokenPriceUsd": {
+      "value": 0.514378,
+      "level": "reported",
+      "evidence": [
+        "e31"
+      ]
+    }
+  },
+  "usage": {
+    "weeklyActiveUsers": {
+      "value": null,
+      "level": "not-published",
+      "searched": [
+        "https://stats.akash.network/",
+        "https://stats.akash.network/graph/daily-usd-spent",
+        "https://console-api.akash.network/v1/dashboard-data",
+        "https://akash.network/",
+        "https://akash.network/token/",
+        "https://akash.network/docs/getting-started/core-concepts/"
+      ]
+    },
+    "volume": {
+      "value": null,
+      "level": "not-published",
+      "searched": [
+        "https://stats.akash.network/",
+        "https://console-api.akash.network/v1/dashboard-data"
+      ]
+    },
+    "traders": {
+      "value": null,
+      "level": "not-published",
+      "searched": [
+        "https://stats.akash.network/",
+        "https://stats.akash.network/graph/daily-usd-spent",
+        "https://console-api.akash.network/v1/dashboard-data",
+        "https://akash.network/",
+        "https://akash.network/token/",
+        "https://akash.network/docs/getting-started/core-concepts/"
+      ]
+    }
+  },
+  "priceQuotes": [
+    {
+      "workload": "gpu-hour-h100-80gb",
+      "statistic": "min",
+      "amount": "2.73",
+      "currency": "USD",
+      "per": "GPU-hour (on-demand)",
+      "sampledAt": "2026-10-22",
+      "level": "stated",
+      "evidence": [
+        "e60",
+        "e66"
+      ]
+    }
+  ],
+  "costComponents": [
+    {
+      "kind": "network-gas",
+      "basis": "per-unit",
+      "amount": "0.025",
+      "currency": "uakt",
+      "appliesTo": "buyer",
+      "scope": "akt CLI: The built-in templates currently use 0.025uakt. When a transaction derives its fee from gas prices, the configured network price is a floor.",
+      "evidence": [
+        "e63",
+        "e64",
+        "e65"
+      ]
+    }
+  ],
+  "securityChecks": [
+    {
+      "criterion": "third-party-audit",
+      "outcome": "unknown",
+      "evidence": []
+    },
+    {
+      "criterion": "bug-bounty",
+      "outcome": "unknown",
+      "evidence": []
+    },
+    {
+      "criterion": "security-contact",
+      "outcome": "pass",
+      "evidence": [
+        "e92",
+        "e93"
+      ]
+    },
+    {
+      "criterion": "open-source-core",
+      "outcome": "pass",
+      "evidence": [
+        "e94"
+      ]
+    },
+    {
+      "criterion": "verified-contracts",
+      "outcome": "unknown",
+      "evidence": []
+    },
+    {
+      "criterion": "incident-handling",
+      "outcome": "unknown",
+      "evidence": []
+    },
+    {
+      "criterion": "custody-documented",
+      "outcome": "pass",
+      "evidence": [
+        "e97",
+        "e98"
+      ]
+    },
+    {
+      "criterion": "https-certificate",
+      "outcome": "pass",
+      "evidence": [
+        "e90"
+      ]
+    },
+    {
+      "criterion": "security-headers",
+      "outcome": "fail",
+      "evidence": [
+        "e91"
+      ]
+    },
+    {
+      "criterion": "account-protection",
+      "outcome": "unknown",
+      "evidence": []
+    }
+  ],
+  "riskChecks": [
+    {
+      "criterion": "custodial-funds",
+      "outcome": "fail",
+      "evidence": [
+        "e98",
+        "e99",
+        "e100"
+      ]
+    },
+    {
+      "criterion": "entity-unidentified",
+      "outcome": "pass",
+      "evidence": [
+        "e1"
+      ]
+    },
+    {
+      "criterion": "jurisdiction-unstated",
+      "outcome": "pass",
+      "evidence": [
+        "e7"
+      ]
+    },
+    {
+      "criterion": "unresolved-incident",
+      "outcome": "unknown",
+      "evidence": []
+    },
+    {
+      "criterion": "regulatory-action",
+      "outcome": "unknown",
+      "evidence": []
+    },
+    {
+      "criterion": "conflicting-terms",
+      "outcome": "fail",
+      "evidence": [
+        "e103",
+        "e104"
+      ]
+    },
+    {
+      "criterion": "single-operator-control",
+      "outcome": "unknown",
+      "evidence": []
+    },
+    {
+      "criterion": "no-terms-of-service",
+      "outcome": "pass",
+      "evidence": [
+        "e1"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "e1",
+      "url": "https://console.akash.network/terms-of-service",
+      "retrievedAt": "2026-11-22",
+      "quote": "These Akash Network Terms of Service (these \"Terms\" or this \"Agreement\") are a contract between you and Overclock Labs Inc. (\"Akash,\" \"we,\" \"our,\" or \"us\") and govern your access to and use of the website located at https://akash.network (the \"Website\")",
+      "kind": "terms"
+    },
+    {
+      "id": "e2",
+      "url": "https://www.sec.gov/Archives/edgar/data/1734871/000173487118000003/xslFormDX01/primary_doc.xml",
+      "retrievedAt": "2026-11-22",
+      "quote": "Name of Issuer Overclock Labs, Inc. Jurisdiction of Incorporation/Organization DELAWARE",
+      "kind": "regulator"
+    },
+    {
+      "id": "e3",
+      "url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0001734871&owner=include&count=40",
+      "retrievedAt": "2026-11-22",
+      "quote": "0001734871 (see all company filings) State location: CA | State of Inc.: DE | Fiscal Year End: 1231",
+      "kind": "regulator"
+    },
+    {
+      "id": "e5",
+      "url": "https://www.sec.gov/Archives/edgar/data/1734871/000173487118000003/xslFormDX01/primary_doc.xml",
+      "retrievedAt": "2026-11-22",
+      "quote": "Year of Incorporation/Organization Over Five Years Ago X Within Last Five Years (Specify Year) 2015",
+      "kind": "regulator"
+    },
+    {
+      "id": "e6",
+      "url": "https://ovrclk.com/company",
+      "retrievedAt": "2026-11-22",
+      "quote": "Greg Osuri and Adam Bozanich founded Overclock Labs in 2015 to close that gap and make Kubernetes production-ready at internet scale.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e7",
+      "url": "https://console.akash.network/terms-of-service",
+      "retrievedAt": "2026-11-22",
+      "quote": "This Agreement shall be governed by, and construed and enforced in accordance with, the laws of Texas.",
+      "kind": "terms"
+    },
+    {
+      "id": "e8",
+      "url": "https://console.akash.network/terms-of-service",
+      "retrievedAt": "2026-11-22",
+      "quote": "any jurisdiction comprehensively sanctioned or embargoed by the United States, the United Nations, the United Kingdom, or Panama, which, as of the date that these Terms were last updated: Cuba, certain sanctioned areas of Russia and Ukraine (including without limitation, Crimea, the so-called region of Dontesk, the so-called region of Luhansk, and the so-called region of Zaporizzhia), Democratic People's Republic of Korea (North Korea), Iran, and Syria.",
+      "kind": "terms"
+    },
+    {
+      "id": "e10",
+      "url": "https://console.akash.network/terms-of-service",
+      "retrievedAt": "2026-11-22",
+      "quote": "We may employ various measures to comply with our anti-money laundering obligations and otherwise prevent the misuse of the Services. These verification and screening procedures may include, without limitation, checking the information you provide against sanctions lists issued by any governmental authority prohibiting or limiting business activities or transactions with any Person.",
+      "kind": "terms"
+    },
+    {
+      "id": "e12",
+      "url": "https://akash.network/docs/getting-started/what-is-akash/",
+      "retrievedAt": "2026-11-22",
+      "quote": "Start with our trial ($1 free credits, no card required, 30 days) or go permissionless with your own wallet (no KYC;",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e13",
+      "url": "https://console.akash.network/terms-of-service",
+      "retrievedAt": "2026-11-22",
+      "quote": "You may be required to provide us directly, or through a third party, certain information and documentation.",
+      "kind": "terms"
+    },
+    {
+      "id": "e14",
+      "url": "https://console.akash.network/terms-of-service",
+      "retrievedAt": "2026-11-22",
+      "quote": "You further represent and warrant that you are not, and you are not acting on behalf of, a \"Prohibited Person,\" which means a: (i) Sanctioned Person; or (ii) Person that is a resident of or headquartered in a Sanctioned Jurisdiction or a Prohibited Jurisdiction.",
+      "kind": "terms"
+    },
+    {
+      "id": "e30",
+      "url": "https://akash.network/token/",
+      "retrievedAt": "2026-11-22",
+      "quote": "The Akash Network Token (AKT) acts as the programmatic clearing mechanism that drives the network's decentralized cloud economics.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e31",
+      "url": "https://coinmarketcap.com/currencies/akash-network/",
+      "retrievedAt": "2026-11-22",
+      "quote": "The live Akash Network price today is $0.514378 USD with a 24-hour trading volume of $2,942,511 USD.",
+      "kind": "aggregator"
+    },
+    {
+      "id": "e32",
+      "url": "https://coinmarketcap.com/currencies/akash-network/",
+      "retrievedAt": "2026-11-22",
+      "quote": "The current CoinMarketCap ranking is #128, with a live market cap of $154,366,220 USD.",
+      "kind": "aggregator"
+    },
+    {
+      "id": "e60",
+      "url": "https://akash.network/pricing/gpus/h100/",
+      "retrievedAt": "2026-11-22",
+      "quote": "As of October 22, 2026, on-demand H100s on Akash start at $2.73 per GPU-hour.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e63",
+      "url": "https://akash.network/docs/developers/akt/configuration/",
+      "retrievedAt": "2026-11-22",
+      "quote": "During first-run setup, akt stores each Akash registry network’s high_gas_price. The built-in templates currently use 0.025uakt. When a transaction derives its fee from gas prices, the configured network price is a floor:",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e64",
+      "url": "https://akash.network/docs/developers/deployment/cli/configuration/",
+      "retrievedAt": "2026-11-22",
+      "quote": "# Gas price (in uakt per unit)",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e65",
+      "url": "https://console.akash.network/terms-of-service",
+      "retrievedAt": "2026-11-22",
+      "quote": "Blockchain transactions require the payment of transaction fees to the appropriate network's nodes, miners, validators, or operators (\"Blockchain Fees\"). You will be solely responsible to pay the Blockchain Fees for any transaction that you initiate via the Protocol or the Services. Blockchain Fees are neither levied directly by Akash nor paid to or shared with Akash in any way",
+      "kind": "terms"
+    },
+    {
+      "id": "e66",
+      "url": "https://akash.network/pricing/gpus/h100/",
+      "retrievedAt": "2026-11-22",
+      "quote": "Each H100 delivers 80 GB of HBM3, 3.35 TB/s of bandwidth and FP8 Tensor Cores, supported by major AI frameworks and runtimes.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e90",
+      "url": "https://akash.network/",
+      "retrievedAt": "2026-11-22",
+      "quote": "\"https-certificate\": \"pass\",",
+      "kind": "certificate"
+    },
+    {
+      "id": "e91",
+      "url": "https://akash.network/",
+      "retrievedAt": "2026-11-22",
+      "quote": "\"security-headers\": \"fail\",",
+      "kind": "certificate"
+    },
+    {
+      "id": "e92",
+      "url": "https://console.akash.network/.well-known/security.txt",
+      "retrievedAt": "2026-11-22",
+      "quote": "Contact: https://github.com/akash-network/console/security/advisories/new",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e93",
+      "url": "https://raw.githubusercontent.com/akash-network/console/main/SECURITY.md",
+      "retrievedAt": "2026-11-22",
+      "quote": "Report security issues in Akash Console privately through GitHub: https://github.com/akash-network/console/security/advisories/new",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e94",
+      "url": "https://raw.githubusercontent.com/akash-network/node/main/README.md",
+      "retrievedAt": "2026-11-22",
+      "quote": "Akash is written in Golang and is Apache 2.0 licensed - contributions are welcomed whether that means providing feedback, testing existing and new feature or hacking on the source.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e97",
+      "url": "https://akash.network/docs/getting-started/choosing-your-console/",
+      "retrievedAt": "2026-11-22",
+      "quote": "Akash ships two web apps for deploying. Pick the one whose key-custody model matches what you want.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e98",
+      "url": "https://akash.network/docs/api-documentation/console-api/",
+      "retrievedAt": "2026-11-22",
+      "quote": "It lets you create and manage deployments with Console-managed wallets, so you do not have to manage private keys.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e99",
+      "url": "https://akash.network/blog/why-we-selected-solana-for-akash/",
+      "retrievedAt": "2026-11-22",
+      "quote": "In a Console-managed wallet: nothing to do. Your balance migrates automatically.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e100",
+      "url": "https://akash.network/blog/introducing-console-air-self-host-self-custody/",
+      "retrievedAt": "2026-11-22",
+      "quote": "If you’re a managed-wallet user (you signed in with email or social login, and the console handles signing for you), nothing changes.",
+      "kind": "official-docs"
+    },
+    {
+      "id": "e103",
+      "url": "https://console.akash.network/terms-of-service",
+      "retrievedAt": "2026-11-22",
+      "quote": "When you purchase access to the Services with a Payment Card, a Digital Asset Wallet associated with and controlled by your account will be created automatically and the amount of your payment will be converted to Axelar USDC stablecoins",
+      "kind": "terms"
+    },
+    {
+      "id": "e104",
+      "url": "https://akash.network/docs/getting-started/how-funding-works/",
+      "retrievedAt": "2026-11-22",
+      "quote": "Credits are spent as your deployments run. Console converts them to the network’s ACT token behind the scenes, so nothing you do involves buying or holding crypto.",
+      "kind": "official-docs"
+    }
+  ]
+}
