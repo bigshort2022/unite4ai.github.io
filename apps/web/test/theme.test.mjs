@@ -52,12 +52,15 @@ test('keyboard/native button activation persists across page loads ahead of syst
   const page = browser({ light: true });
   page.ready();
   assert.equal(page.button.hidden, false);
-  assert.equal(page.attributes.get('aria-checked'), 'true');
+  assert.equal(page.button.textContent, 'Dark mode');
   page.click();
   assert.equal(page.root.dataset.theme, 'dark');
-  assert.equal(page.attributes.get('aria-checked'), 'false');
+  assert.equal(page.button.textContent, 'Light mode');
   assert.equal(page.store.get('u4ai-theme'), 'dark');
-  assert.equal(browser({ light: true, saved: page.store.get('u4ai-theme') }).root.dataset.theme, 'dark');
+  const reload = browser({ light: true, saved: page.store.get('u4ai-theme') });
+  reload.ready();
+  assert.equal(reload.root.dataset.theme, 'dark');
+  assert.equal(reload.button.textContent, 'Light mode');
   page.system(true);
   assert.equal(page.root.dataset.theme, 'dark');
 });
@@ -67,6 +70,7 @@ test('invalid storage follows the OS and live system changes until an explicit c
   page.ready();
   page.system(true);
   assert.equal(page.root.dataset.theme, 'light');
+  assert.equal(page.button.textContent, 'Dark mode');
   page.click();
   page.system(true);
   assert.equal(page.root.dataset.theme, 'dark');
@@ -78,9 +82,10 @@ test('unavailable storage does not strand a dead switch', () => {
   page.click();
   assert.equal(page.root.dataset.theme, 'dark');
   assert.equal(page.sheet.media, 'not all');
-  assert.equal(page.attributes.get('aria-checked'), 'false');
+  assert.equal(page.button.textContent, 'Light mode');
   page.click();
   assert.equal(page.root.dataset.theme, 'light');
+  assert.equal(page.button.textContent, 'Dark mode');
 });
 
 test('other-tab choice is respected and clearing it restores system preference', () => {
