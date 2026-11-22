@@ -323,6 +323,10 @@ source. Category IDs are `compute`, `agent-services`, `agent-payments` and `defi
 Only `compute` records have `buyerUrl` and `sellerUrl`; use distinct official documentation
 and provider-onboarding destinations, not fabricated checkout links. Adjacent protocols
 and token exchanges must not be labelled compute suppliers.
+Any record may add an optional `paymentSource`: a distinct official HTTPS page that backs the
+payment text when the main `source` does not. Write each field so that every part of it can be
+found in the cited official pages; do not add characterisations ("independent", "intent-based")
+that the source does not state.
 
 The top-level `reviewedAt` is the date on which the entire directory was source-reviewed.
 Do not advance it after checking only one record. Corrections may retain the existing date;

@@ -3,25 +3,27 @@
   "projects": [
     {
       "id": "akash", "name": "Akash Network", "category": "compute",
-      "product": "Containerized CPU/GPU infrastructure from independent providers.",
+      "product": "Container deployments on CPU/GPU capacity from data centers that bid competitively on a decentralized marketplace.",
       "human": "Console deployment and bid selection.",
       "agent": "CLI, SDK and documented agent tooling; external credentials and funding required.",
-      "payment": "Current documentation describes ACT-funded leases and managed account credits.",
+      "payment": "Console accounts hold USD credits, and Console funds each deployment from that balance (converted to ACT behind the scenes); self-custody wallet users fund each deployment themselves.",
       "limitation": "Provider attributes and benchmarks do not prove arbitrary task correctness; recheck current funding terms.",
       "source": "https://akash.network/docs/getting-started/core-concepts/",
       "buyerUrl": "https://akash.network/docs/getting-started/ai-agents/",
-      "sellerUrl": "https://akash.network/docs/providers/operations/provider-audit/"
+      "sellerUrl": "https://akash.network/docs/providers/operations/provider-audit/",
+      "paymentSource": "https://akash.network/docs/getting-started/how-funding-works/"
     },
     {
       "id": "io-net", "name": "io.net", "category": "compute",
       "product": "GPU cloud infrastructure and separately managed inference services.",
       "human": "Cloud account and self-service VM/container onboarding; some services require sales provisioning.",
       "agent": "Account/API workflows; IO Intelligence has a separate inference API.",
-      "payment": "Buyer IO Credits and documented IO Coin supplier earnings are different mechanisms.",
+      "payment": "Buyers pay with prepaid IO Credits (1 credit = 1 USD), topped up by card, USDC or $IO; suppliers must stake $IO to be eligible for block rewards, which in Phase I accrue to the Solana wallet associated with their account.",
       "limitation": "Funding and refund descriptions conflict across documentation; confirm the selected product's current terms.",
       "source": "https://io.net/docs/guides/payment/io-credits",
       "buyerUrl": "https://io.net/docs/guides/clouds/start-using-io-cloud",
-      "sellerUrl": "https://io.net/docs/guides/workers/device-onboarding"
+      "sellerUrl": "https://io.net/docs/guides/workers/device-onboarding",
+      "paymentSource": "https://io.net/docs/guides/staking/io-staking"
     },
     {
       "id": "golem", "name": "Golem Network", "category": "compute",
@@ -43,18 +45,20 @@
       "limitation": "Interruptions, storage charges and payout delays matter; a verified host badge is not proof of correct task output.",
       "source": "https://docs.vast.ai/guides/reference/billing",
       "buyerUrl": "https://docs.vast.ai/guides/pricing",
-      "sellerUrl": "https://docs.vast.ai/host/verification-stages"
+      "sellerUrl": "https://docs.vast.ai/host/verification-stages",
+      "paymentSource": "https://docs.vast.ai/host/payment"
     },
     {
       "id": "render", "name": "Render Network", "category": "compute",
       "product": "Specialized rendering jobs and frames, not generic GPU-shell rental.",
       "human": "Prepare scenes, submit rendering jobs and inspect frames.",
       "agent": "Local Manager API requires access approval and a token.",
-      "payment": "Render Credits and network burn/mint economics; consult current task and transfer pricing.",
+      "payment": "Render Credits (€1 each, bought via Stripe or PayPal; usable only for rendering and not withdrawable); pricing runs through the Burn Mint Equilibrium.",
       "limitation": "API/provider onboarding is gated. An AI-workload waitlist is not proof of generally available AI compute.",
       "source": "https://rendernetwork.com/pricing",
       "buyerUrl": "https://know.rendernetwork.com/docs/get-started/quickstart.md",
-      "sellerUrl": "https://know.rendernetwork.com/general-render-network/what-role-am-i/how-to-get-started-1"
+      "sellerUrl": "https://know.rendernetwork.com/general-render-network/what-role-am-i/how-to-get-started-1",
+      "paymentSource": "https://know.rendernetwork.com/docs/web-app/render-credits"
     },
     {
       "id": "virtuals-acp", "name": "Virtuals ACP", "category": "agent-services",
@@ -70,7 +74,7 @@
       "product": "Mech-delivered tools, LLM access and other agent tasks.",
       "human": "Inspect registered Mechs and configure a requester.",
       "agent": "Client/server interfaces support on-chain and off-chain request paths.",
-      "payment": "Chain-specific token, prepaid and subscription options; check the selected Mech and client version.",
+      "payment": "Per-request or prepaid payment in native tokens, OLAS or USDC, depending on the Mech's payment type and the chain; Nevermined subscriptions only on Gnosis and Base.",
       "limitation": "Operator identities and benchmarks include self-reported claims; undelivered off-chain requests are not all visible in chain counts.",
       "source": "https://stack.olas.network/mech-client/"
     },
@@ -79,9 +83,10 @@
       "product": "Registry and marketplace for callable AI services.",
       "human": "Browse and invoke services through the marketplace.",
       "agent": "SDK/CLI clients interact with services and provider daemons.",
-      "payment": "Documented token-funded Multi-Party Escrow channels authorize service calls.",
+      "payment": "Paid service calls are funded through ASI (FET) token payment channels using a multi-party escrow contract, after a service's free calls are used up.",
       "limitation": "Registry publication is distinct from marketplace listing; payment-channel integrity is not semantic output correctness.",
-      "source": "https://dev.singularitynet.io/docs/products/AIMarketplace/"
+      "source": "https://dev.singularitynet.io/docs/products/AIMarketplace/",
+      "paymentSource": "https://dev.singularitynet.io/docs/products/AIMarketplace/payment-methods/"
     },
     {
       "id": "fetch-ai", "name": "Fetch.ai / ASI", "category": "agent-services",
@@ -97,7 +102,7 @@
       "product": "Independent subnet incentive markets producing services such as inference.",
       "human": "Select a specific subnet service or participate as an operator.",
       "agent": "Consumer interfaces are subnet-specific; miners and validators use network tooling.",
-      "payment": "TAO/alpha emissions and staking are not a universal customer-task checkout.",
+      "payment": "The chain emits TAO to subnets and their participants in proportion to measured value; staking TAO into a subnet swaps it to that subnet's alpha at the pool price, and delegated stake earns a share of its validator's dividends, minus the validator's take.",
       "limitation": "Validator rewards do not establish a universal service SLA or proof of a customer's completed task.",
       "source": "https://www.bittensor.com/docs/concepts/network"
     },
@@ -115,7 +120,7 @@
       "product": "Authorization and evidence protocol for agent commerce.",
       "human": "A trusted approval surface obtains user consent.",
       "agent": "Signed checkout/payment mandates constrain autonomous purchases.",
-      "payment": "External credentials and processors move money; AP2 is not itself a payment processor.",
+      "payment": "Payment credentials and payment processing are separate roles (Credential Provider, Merchant Payment Processor), which a single entity may combine; AP2 operates as a security feature within a commerce protocol.",
       "limitation": "Current v0.2 excludes agent-to-agent mandate delegation and actual dispute-resolution procedures.",
       "source": "https://ap2-protocol.org/ap2/specification/"
     },
@@ -124,31 +129,32 @@
       "product": "API monetization, payment plans and external paid-service discovery.",
       "human": "Embedded checkout and merchant-plan purchase paths.",
       "agent": "Catalog, router, REST and MCP interfaces for supported services.",
-      "payment": "Cards, stablecoins or credits depend on the product and merchant route.",
+      "payment": "Catalog services are paid with Nevermined credits or from a funded wallet; buying an agent's payment plan uses an enrolled card instead.",
       "limitation": "Delegated authorization is not funding; fees, reserved budgets and settlement require external reconciliation.",
       "source": "https://nevermined.ai/docs/products/catalog/overview.md"
     },
     {
       "id": "skyfire", "name": "Skyfire", "category": "agent-payments",
-      "product": "Managed identity and payment infrastructure for buyer/seller agents.",
+      "product": "A user's verified identity, reused by its buyer and seller agents, and a Skyfire-managed wallet per agent; seller agents verify incoming tokens and charge them.",
       "human": "Account owners configure agents, services and funding.",
       "agent": "Identity and payment tokens are validated and charged by seller integrations.",
       "payment": "Skyfire-managed wallets and documented charge/settlement windows.",
       "limitation": "Identity tokens are not payment receipts; settlement depends on managed infrastructure and lifecycle rules.",
-      "source": "https://docs.skyfire.xyz/docs/platform-structure"
+      "source": "https://docs.skyfire.xyz/docs/platform-structure",
+      "paymentSource": "https://docs.skyfire.xyz/docs/payments-settlement"
     },
     {
       "id": "payman", "name": "Payman AI", "category": "agent-payments",
-      "product": "Governed banking and payment agents for financial institutions.",
+      "product": "Governed banking and payment agents for banks and credit unions; agents act only when an authenticated customer or member asks.",
       "human": "Institution-connected conversational payments and approvals.",
       "agent": "Genie MCP bridge requires sign-in, provider connection and approved access.",
-      "payment": "Current product describes institution-held funds and existing banking rails.",
+      "payment": "Payman says it never holds funds: the regulated institution holds funds, license and KYC, and transactions run inside the institution's own systems.",
       "limitation": "Not a universal permissionless payout API; old public documentation availability could not be confirmed.",
       "source": "https://paymanai.com/"
     },
     {
       "id": "request", "name": "Request Network", "category": "defi",
-      "product": "Payment requests, invoicing links and reconciliation.",
+      "product": "Payment requests and payment links (including business invoice generation), with webhook payment-status notifications.",
       "human": "Dashboard-generated links and external wallet payment.",
       "agent": "HTTP APIs construct requests/payment data; signing and submission remain external.",
       "payment": "On-chain payment references and indexed reconciliation.",
@@ -157,25 +163,26 @@
     },
     {
       "id": "superfluid", "name": "Superfluid", "category": "defi",
-      "product": "Continuous token balance accrual through streaming agreements.",
+      "product": "Money streaming: tokens move continuously from sender to receiver at a per-second rate, with balances calculated in real time.",
       "human": "Wallet-authorized stream creation, updates and closure.",
       "agent": "Forwarder contracts and externally authorized software manage streams.",
-      "payment": "Time-accruing balance accounting with solvency buffers and liquidation mechanics.",
+      "payment": "Opening a stream takes a buffer deposit as a reserve; if the sender's balance runs out, the buffer keeps streams running until Sentinels close them.",
       "limitation": "A stream is not task verification; timely closure and funding remain responsibilities outside this directory.",
       "source": "https://docs.superfluid.org/docs/concepts/overview/money-streaming"
     },
     {
       "id": "sablier", "name": "Sablier", "category": "defi",
-      "product": "Prefunded Lockup schedules and open-ended Flow debt accrual.",
+      "product": "Lockup streams, whose creator must lock up tokens in a smart contract, and open-ended Flow streams that track debt and must be topped up periodically to maintain solvency.",
       "human": "Create or withdraw through the supported interface.",
       "agent": "Contracts and indexers expose scheduled and covered balances.",
-      "payment": "Contract-held tokens; withdrawability depends on the product, schedule and funding.",
+      "payment": "Lockup recipients withdraw tokens as they vest on the stream's schedule; Flow recipients can withdraw only the debt covered by the stream balance.",
       "limitation": "Time-based release is not task acceptance; new-chain deployment requests are in maintenance mode.",
-      "source": "https://docs.sablier.com/concepts/lockup/overview"
+      "source": "https://docs.sablier.com/concepts/lockup/overview",
+      "paymentSource": "https://docs.sablier.com/concepts/flow/overview"
     },
     {
       "id": "cow", "name": "CoW Protocol", "category": "defi",
-      "product": "Intent-based token exchange through competitive solvers.",
+      "product": "Signed off-chain user orders, bundled together and settled by solvers that compete in an auction.",
       "human": "Sign a token order using an external interface.",
       "agent": "Orderbook and signing interfaces submit authorized exchange intents.",
       "payment": "On-chain settlement enforces order conditions and limit prices.",
@@ -184,7 +191,7 @@
     },
     {
       "id": "uniswap", "name": "Uniswap", "category": "defi",
-      "product": "Token liquidity, swaps and routed asset conversion.",
+      "product": "Swap integration through custom links, a hosted API, SDK or smart contracts; the API routes across Uniswap v2, v3, v4 and UniswapX.",
       "human": "External swap interface with user approval and signing.",
       "agent": "API, SDK or contracts construct trades; callers control signing and submission.",
       "payment": "On-chain asset exchange with route-specific slippage and execution conditions.",
