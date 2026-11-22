@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { NONE_COUNT, NONE_TARGETS, POOLS, SYSTEM, TEMPLATES, TOOLS, buildItems, generator, toJsonl } from '../../../scripts/benchmarks/tool-selection.mjs';
+import { SUITES } from '../src/eval/suites.ts';
+import { judge, lastJsonObject } from '../src/eval/tool-selection.ts';
 
 const DATA = fileURLToPath(new URL('../../web/public/data/benchmarks/tool-selection-v1.jsonl', import.meta.url));
 /** Version "1" is these bytes. A change to the items needs a new version, with its own seed, file and hash. */
@@ -102,4 +104,106 @@ test('every tool is the answer to some item, and requests are unique among calls
 
 test('the data file is under 1 MB', () => {
   assert.ok(readFileSync(DATA).length < 1024 * 1024);
+});
+
+// ─── Suite ───────────────────────────────────────────────────────────────────
+
+test('the suite reads its vendored copy of the data', () => {
+  assert.equal(SUITES['tool-selection-v1'].localSource, '../../public/data/benchmarks/tool-selection-v1.jsonl');
+});
+
+test('the suite builds the published prompt: system message, then the request and its tools as indented JSON', () => {
+  const [first] = SUITES['tool-selection-v1'].items(readFileSync(DATA, 'utf8'), 100);
+  assert.deepEqual(first.messages, [
+    { role: 'system', content: SYSTEM },
+    { role: 'user', content: `Request: ${ITEMS[0].request}\n\nTools:\n${JSON.stringify(ITEMS[0].tools, null, 2)}` },
+  ]);
+  assert.equal(first.expected, JSON.stringify(ITEMS[0].expected));
+});
+
+test('the suite refuses a source with the wrong number of items or an item whose answer is not offered', () => {
+  const suite = SUITES['tool-selection-v1'];
+  const lines = readFileSync(DATA, 'utf8').trim().split('\n');
+  assert.throws(() => suite.items(lines.slice(0, 10).join('\n'), 100), /has 10 items; the benchmark needs 100/);
+  const call = ITEMS.findIndex((item) => item.expected.tool !== null);
+  const broken = ITEMS.map((item, index) => (index === call ? { ...item, tools: item.tools.filter((tool) => tool.name !== item.expected.tool) } : item));
+  assert.throws(() => suite.items(toJsonl(broken), 100), new RegExp(`item ${call + 1}: expected tool "${ITEMS[call].expected.tool}" is not among its tools`));
+});
+
+// ─── Scoring ─────────────────────────────────────────────────────────────────
+
+const ITEM = {
+  id: 'fixture',
+  system: SYSTEM,
+  domain: 'files',
+  request: 'Look through the files in the docs directory for the phrase "invoice".',
+  tools: TOOLS.files,
+  expected: { tool: 'search_files', arguments: { query: 'invoice', directory: 'docs' } },
+};
+const LIST = { ...ITEM, request: 'What is in the docs directory?', expected: { tool: 'list_directory', arguments: { path: 'docs' } } };
+const LOG = {
+  ...ITEM,
+  domain: 'git',
+  request: 'Show me the last 3 commits.',
+  tools: TOOLS.git,
+  expected: { tool: 'git_log', arguments: { limit: 3 } },
+};
+const NONE = { ...ITEM, tools: TOOLS.files.filter((tool) => tool.name !== 'search_files'), expected: { tool: null, arguments: {} } };
+const reply = (answer) => JSON.stringify(answer);
+const correct = (text, item = ITEM) => judge(text, item).correct;
+
+test('the last JSON object in the text is the answer, however much text or fencing surrounds it', () => {
+  assert.deepEqual(lastJsonObject('I will search.\n```json\n{"tool": "x", "arguments": {"a": {"b": 1}}}\n```'), { tool: 'x', arguments: { a: { b: 1 } } });
+  assert.deepEqual(lastJsonObject('{"tool": "a"} then {"tool": "b"}'), { tool: 'b' });
+  assert.deepEqual(lastJsonObject('{"tool": "a", "arguments": {}} and a stray }'), { tool: 'a', arguments: {} });
+  assert.equal(lastJsonObject('no object here'), null);
+  assert.equal(lastJsonObject('{"tool": "cut off'), null);
+});
+
+test('the exact call is correct, with spaces around strings ignored and a reasoning block removed', () => {
+  assert.equal(correct(reply({ tool: 'search_files', arguments: { query: 'invoice', directory: 'docs' } })), true);
+  assert.equal(correct(reply({ tool: 'search_files', arguments: { directory: ' docs ', query: 'invoice' } })), true);
+  const thought = `<think>Maybe {"tool": "search_web", "arguments": {"query": "invoice"}}</think>${reply(ITEM.expected)}`;
+  assert.equal(correct(thought), true);
+  const verdict = judge(`Here you go: ${reply(ITEM.expected)}`, ITEM);
+  assert.deepEqual(verdict, { correct: true, extracted: JSON.stringify(ITEM.expected) });
+});
+
+test('a near miss, a missing, wrong or extra argument, or no object at all is wrong', () => {
+  assert.equal(correct(reply({ tool: 'search_web', arguments: { query: 'invoice' } })), false);
+  assert.equal(correct(reply({ tool: 'search_files', arguments: { query: 'invoice' } })), false);
+  assert.equal(correct(reply({ tool: 'search_files', arguments: { query: 'Invoice', directory: 'docs' } })), false);
+  assert.equal(correct(reply({ tool: 'search_files', arguments: { query: 'invoice', directory: 'docs', limit: 5 } })), false);
+  assert.equal(correct(reply({ tool: 'search_files' })), false);
+  assert.equal(correct(reply({ name: 'search_files', arguments: ITEM.expected.arguments })), false);
+  assert.equal(correct(reply({ tool: 'search_files', arguments: ['invoice', 'docs'] })), false);
+  assert.deepEqual(judge('I would search the files for it.', ITEM), { correct: false, extracted: null });
+  // The answer is the last object, even when an earlier one was right.
+  assert.equal(correct(`${reply(ITEM.expected)} or maybe ${reply({ tool: 'search_web', arguments: { query: 'invoice' } })}`), false);
+});
+
+test('an optional parameter the request does not set may be left out, null or its default, and nothing else', () => {
+  assert.equal(correct(reply({ tool: 'list_directory', arguments: { path: 'docs' } }), LIST), true);
+  assert.equal(correct(reply({ tool: 'list_directory', arguments: { path: 'docs', include_hidden: false } }), LIST), true);
+  assert.equal(correct(reply({ tool: 'list_directory', arguments: { path: 'docs', include_hidden: null } }), LIST), true);
+  assert.equal(correct(reply({ tool: 'list_directory', arguments: { path: 'docs', include_hidden: true } }), LIST), false);
+  // Without a default, an unset optional parameter must be left out.
+  const unset = { ...ITEM, expected: { tool: 'search_files', arguments: { query: 'invoice' } } };
+  assert.equal(correct(reply({ tool: 'search_files', arguments: { query: 'invoice', directory: '' } }), unset), false);
+});
+
+test('an integer must be a JSON number: 3.0 is 3, "3" is wrong', () => {
+  assert.equal(correct('{"tool": "git_log", "arguments": {"limit": 3.0}}', LOG), true);
+  assert.equal(correct(reply({ tool: 'git_log', arguments: { limit: '3' } }), LOG), false);
+  assert.equal(correct(reply({ tool: 'git_log', arguments: { limit: 4 } }), LOG), false);
+});
+
+test('with no correct call, only a null tool with no arguments is correct', () => {
+  assert.equal(correct(reply({ tool: null, arguments: {} }), NONE), true);
+  assert.equal(correct(reply({ tool: null }), NONE), true);
+  assert.equal(correct(reply({ tool: null, arguments: { query: 'invoice' } }), NONE), false);
+  assert.equal(correct(reply({ tool: 'search_web', arguments: { query: 'invoice' } }), NONE), false);
+  assert.equal(correct('I cannot do that with these tools.', NONE), false);
+  // And a null answer to an item that has a call is wrong.
+  assert.equal(correct(reply({ tool: null, arguments: {} })), false);
 });
