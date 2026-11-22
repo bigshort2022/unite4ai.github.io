@@ -52,9 +52,11 @@ Each repeat-run method is a new benchmark version; earlier single-run results st
 previous versions and are never mixed with repeat-run ones.
 
 - **Runs.** `k = 5` complete passes over all items, temperature 0.7, top-p 1, the same
-  prompts. Every request carries a seed, its position in the run, which the transcript
-  records; whether the server honours it is not checked, since OpenAI-compatible replies do
-  not say. A pass that stops early fails the whole result; resuming continues the same pass.
+  prompts. Every request carries a seed, its position among all the run's answers
+  (pass × items + item), which the transcript records; whether the server honours it is not
+  checked, since OpenAI-compatible replies do not say. A seed per position within a pass would
+  make every pass identical on a server that honours it. A pass that stops early fails the
+  whole result; resuming continues the same pass.
 - **Measures**, computed from the transcript, never typed:
   - `pass_1`: share of all item attempts that succeeded (`k × items` attempts);
   - `pass_k`: share of items that succeeded on every one of the `k` passes;
