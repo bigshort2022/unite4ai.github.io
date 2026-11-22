@@ -8,6 +8,11 @@ test('a quote matches across HTML tags, entities, markdown emphasis and line wra
   assert.equal(quotePresent('**Each IO Credit is equivalent to 1 USD**', 'text/markdown', 'Each IO Credit is equivalent to 1 USD'), true);
 });
 
+test('React text-split comments do not insert spaces inside a quote', () => {
+  const html = '<span>the facilitator charges <!-- -->$0.001 per transaction, so a $<!-- -->0.001 endpoint nets nothing.</span>';
+  assert.equal(quotePresent(html, 'text/html', 'the facilitator charges $0.001 per transaction, so a $0.001 endpoint nets nothing.'), true);
+});
+
 test('a quote that is not on the page, or only partly there, does not match', () => {
   assert.equal(quotePresent('<p>Fees are 2%.</p>', 'text/html', 'Fees are 3%.'), false);
   assert.equal(quotePresent('<p>Fees are</p>', 'text/html', 'Fees are 2%.'), false);

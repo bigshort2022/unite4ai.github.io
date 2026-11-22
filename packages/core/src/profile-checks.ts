@@ -24,6 +24,8 @@ export function pageText(body: string, contentType: string): string {
   if (!/html/i.test(contentType)) return body;
   return body
     .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
+    // Comments are not text and never separate words (React splits text nodes with <!-- -->).
+    .replace(/<!--[\s\S]*?-->/g, '')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&[a-z#0-9]+;/gi, decodeEntity);
 }
