@@ -68,27 +68,24 @@ test('the fixture results pass the content gate, so the pages are tested with re
   ]);
 });
 
-test('the published results pass the content gate; the version 1 GSM8K run and its speed are kept as previous-version results', async () => {
+test('the published results pass the content gate; version 1 runs of GSM8K-200, its speed and the canary are kept as previous-version results', async () => {
   const contentRoot = join(ROOT, 'src/content');
   const run = 'bigshort2022--2026-11-15--eb8811e4.json';
-  const published = readdirSync(join(contentRoot, 'evals'));
-  for (const file of [
+  const files = [
+    'qwen3-4b-instruct-2507--canary-injection-v1--bigshort2022--2026-11-15--0f64fdf6.json',
     'qwen3-6-35b-a3b--canary-injection-v1--bigshort2022--2026-11-15--0182e626.json',
     `qwen3-6-35b-a3b--decode-speed-gsm8k-200--${run}`,
     `qwen3-6-35b-a3b--gsm8k-200--${run}`,
-  ]) {
-    assert.ok(published.includes(file), `${file} must stay in the repository`);
-  }
+  ];
+  const published = readdirSync(join(contentRoot, 'evals'));
+  for (const file of files) assert.ok(published.includes(file), `${file} must stay in the repository`);
 
   const { errors, warnings } = await validateContent(contentRoot);
   assert.deepEqual(errors, []);
-  // Exactly these two: the canary result is for its benchmark's current version.
-  assert.deepEqual(warnings.filter((warning) => warning.startsWith('evals/')), [
-    `evals/qwen3-6-35b-a3b--decode-speed-gsm8k-200--${run}: result is for benchmark version 1; `
-    + 'the current version is 2, so it will not appear on the leaderboard',
-    `evals/qwen3-6-35b-a3b--gsm8k-200--${run}: result is for benchmark version 1; `
-    + 'the current version is 2, so it will not appear on the leaderboard',
-  ]);
+  assert.deepEqual(
+    warnings.filter((warning) => warning.startsWith('evals/')),
+    files.map((file) => `evals/${file}: result is for benchmark version 1; the current version is 2, so it will not appear on the leaderboard`),
+  );
 });
 
 test('leaderboard and benchmark page render fixture results', { timeout: 120_000 }, () => {
@@ -276,7 +273,7 @@ test('model page lists its evaluations and local setups; the feed publishes the 
   );
   assert.deepEqual(feed.benchmarks.map((b) => [b.id, b.version, b.previous_versions]), [
     ['gsm8k-200', '2', ['1']],
-    ['canary-injection-v1', '1', []],
+    ['canary-injection-v1', '2', ['1']],
     ['decode-speed-gsm8k-200', '2', ['1']],
   ]);
   assert.equal(feed.benchmarks[0].higher_is_better, true);
