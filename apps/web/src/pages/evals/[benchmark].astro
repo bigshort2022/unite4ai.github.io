@@ -2,7 +2,7 @@
 import Base from '../../layouts/Base.astro';
 import { getCollection, render } from 'astro:content';
 import { reproductionLabel } from '@unite4ai/core';
-import { CATEGORY_LABELS, SUBMIT_GUIDE, deviceLine, formatNumber, loadEvals, runtimeLabel, scoreRange, withUnit, type Board } from '../../lib/evals';
+import { CATEGORY_LABELS, SUBMIT_GUIDE, deviceLine, formatNumber, loadEvals, repeatLines, runtimeLabel, scoreRange, withUnit, type Board } from '../../lib/evals';
 
 export async function getStaticPaths() {
   const benchmarks = await getCollection('benchmarks');
@@ -35,6 +35,7 @@ const modelName = (id: string) => modelNames.get(id) ?? id;
       <span class="tag">version {d.version}</span>
       <span class="tag">{d.scoring}</span>
       {d.items > 0 && <span class="tag">{d.items} items</span>}
+      {d.repeat && <span class="tag">{`${d.repeat.runs} runs per item at temperature ${d.repeat.temperature}`}</span>}
       <span class="tag">{d.metric.name}{d.metric.unit && ` (${d.metric.unit})`}, {d.metric.higher_is_better ? 'higher' : 'lower'} is better</span>
     </div>
 
@@ -51,6 +52,9 @@ const modelName = (id: string) => modelNames.get(id) ?? id;
       <>
       {measured && (
         <p style="margin-top:1rem;color:var(--u-text-dim)">Grouped per machine and runtime. Compare rows on the same machine only.</p>
+      )}
+      {d.repeat && (
+        <p style="margin-top:1rem;color:var(--u-text-dim)">{`The score is the share of items answered correctly on all ${d.repeat.runs} runs. Its interval, pass@1 and the spread between runs are under Every run.`}</p>
       )}
       <div class="eval-scroll" tabindex="0" role="region" aria-label={`Leaderboard for ${d.name}`}>
         <table class="eval-table">
@@ -107,7 +111,7 @@ const modelName = (id: string) => modelNames.get(id) ?? id;
                 <tr id={`run-${run.id}`}>
                   <td class="num">{run.run.date}<small>v{run.benchmark_version}</small></td>
                   <td><a href={href(`/registry/models/${run.model}`)}>{modelName(run.model)}</a></td>
-                  <td class="num"><span class="score">{withUnit(formatNumber(run.score), d.metric.unit)}</span>{d.items > 0 && <small>n = {run.n}</small>}</td>
+                  <td class="num"><span class="score">{withUnit(formatNumber(run.score), d.metric.unit)}</span>{d.items > 0 && <small>n = {run.n}</small>}{run.repeat && repeatLines(run.repeat, run.n).map((text) => <small>{text}</small>)}</td>
                   <td>
                     {run.setup.format} · {run.setup.quantization}
                     <small>{run.setup.runtime} {run.setup.runtime_version}</small>

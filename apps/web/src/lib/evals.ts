@@ -1,6 +1,6 @@
 import { getCollection, type CollectionEntry } from 'astro:content';
 import { byCodeUnit, groupEvals, leaderboard, type EvalGroup, type EvalRun } from '@unite4ai/core';
-import { EVAL_CATEGORIES } from '@unite4ai/schema';
+import { EVAL_CATEGORIES, type RepeatResult } from '@unite4ai/schema';
 import { REPO } from './site';
 
 export const SUBMIT_GUIDE = `${REPO}/blob/main/CONTRIBUTING.md#submitting-an-evaluation-result`;
@@ -114,4 +114,15 @@ export function scoreRange(group: EvalGroup): string | null {
   return group.score_min === group.score_max
     ? null
     : `${formatNumber(group.score_min)}–${formatNumber(group.score_max)}`;
+}
+
+/** What a repeat-run result adds under its score: the score's interval, pass@1 with its interval, and how far the runs spread. */
+export function repeatLines(repeat: RepeatResult, n: number): string[] {
+  const range = ([low, high]: readonly [number, number]) => `${formatNumber(low)}–${formatNumber(high)}`;
+  const perRun = repeat.run_correct.map((correct) => (100 * correct) / n);
+  return [
+    `all ${repeat.runs} runs: 95% CI ${range(repeat.pass_k_ci)}`,
+    `pass@1 ${formatNumber(repeat.pass_1)}% (${range(repeat.pass_1_ci)})`,
+    `per run ${range([Math.min(...perRun), Math.max(...perRun)])}, sd ${formatNumber(repeat.run_score_sd)}`,
+  ];
 }

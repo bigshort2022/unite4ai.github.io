@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { repeatSummary } from '@unite4ai/core';
 import { validateContent } from '@unite4ai/core/validate';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -498,4 +499,28 @@ test('a benchmark page with current results has no empty state, and its previous
   assert.doesNotMatch(leaderboardOf(detail), /No results/);
   assert.match(detail, /<section id="previous-versions"[^>]*>\s*<h2>Previous versions<\/h2>/);
   assert.doesNotMatch(page('evals/index.html'), /of (?:an )?earlier versions?/);
+});
+
+test('a repeat-run result shows its interval, pass@1 with its interval, and the spread between runs', { timeout: 120_000 }, () => {
+  const repeat = repeatSummary({ runs: 5, temperature: 0.7, top_p: 1 }, {
+    item_pass_histogram: [10, 0, 0, 0, 2, 38],
+    run_correct: [40, 39, 40, 40, 39],
+    seconds_total: 250,
+  });
+  const file = result({ benchmark: 'canary-injection-v1', score: repeat.pass_k, date: '2026-11-20', hash: 'c' });
+  file.content.n = 50;
+  file.content.repeat = repeat;
+  const detail = buildScratch('repeat', [file])('evals/canary-injection-v1/index.html');
+
+  assert.match(detail, /<span class="tag">5 runs per item at temperature 0\.7<\/span>/);
+  assert.match(leaderboardOf(detail), /The score is the share of items answered correctly on all 5 runs\./);
+  assert.ok(detail.includes(`<span class="score">${repeat.pass_k}%</span>`));
+  const range = ([low, high]) => `${low}–${high}`;
+  for (const text of [
+    `all 5 runs: 95% CI ${range(repeat.pass_k_ci)}`,
+    `pass@1 ${repeat.pass_1}% (${range(repeat.pass_1_ci)})`,
+    `per run 78–80, sd ${repeat.run_score_sd}`,
+  ]) {
+    assert.ok(detail.includes(`<small>${text}</small>`), text);
+  }
 });
