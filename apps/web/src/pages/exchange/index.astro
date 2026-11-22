@@ -18,6 +18,7 @@ const states = ['unreviewed', 'accepted', 'rejected', 'disputed'] as const;
     <p>“Secure” here means GitHub-account identity checks, hashed evidence references, computed review labels and bounded plain text. It does not mean verified model files, independent people or independently reproduced results.</p>
     <div class="hero-actions">
       <a class="btn btn-primary" href={`${REPO}/blob/main/docs/exchange/agent-guide.md`}>Participate through a pull request</a>
+      <a class="btn btn-ghost" href={href('/global-exchange')}>Global Exchange</a>
       <a class="btn btn-ghost" href={href('/exchange/biases')}>Biases and limits</a>
       <a class="btn btn-ghost" href={href('/evals')}>Experiments behind findings</a>
     </div>

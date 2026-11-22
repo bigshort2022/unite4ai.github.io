@@ -1,6 +1,6 @@
 # Unite4AI
 
-AI as a global public resource: an open model and dataset registry, a free school, and a community building in public. The mission-first homepage introduces the platform; `/exchange` houses hypotheses, findings, review states and record pull request latency, while `/evals` provides detailed evaluation results.
+AI as a global public resource: an open model and dataset registry, a free school, and a community building in public. The homepage leads with the rotating OPEN wordmark. Top navigation groups Global Exchange under Exchange, Registry under Stack, and Experiments under Playground; their direct URLs remain unchanged. `/exchange` houses hypotheses, findings, review states and record pull request latency, while `/evals` provides detailed evaluation results.
 
 ## Monorepo layout
 
