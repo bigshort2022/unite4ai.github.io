@@ -36,7 +36,7 @@ test('production build targets the unite4ai.com custom domain', { timeout: 120_0
   const security = sections.find((section) => section.startsWith('security"'));
   assert.ok(security, 'the evaluations page must have a security section');
   assert.match(security, /<h2 id="category-security"[^>]*>Security<\/h2>/);
-  assert.match(security, /<a href="\/evals\/canary-injection-v1"[^>]*>Prompt-injection canary \(v1\)<\/a>/);
+  assert.match(security, /<a href="\/evals\/canary-injection-v1"[^>]*>Prompt-injection canary<\/a>/);
   assert.equal(sections.filter((section) => section.includes('Prompt-injection canary')).length, 1);
   // The speed benchmark has its Efficiency section whether or not anyone has submitted a result.
   const efficiency = sections.find((section) => section.startsWith('efficiency"'));
