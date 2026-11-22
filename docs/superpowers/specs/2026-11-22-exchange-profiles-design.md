@@ -109,7 +109,8 @@ where a seller side exists. Effective cost % sums percent components and USD fix
 components that apply to the reference. Score = 100 × (1 − min(cost%, 20) ÷ 20). Components
 in other currencies, or with unknown amounts, make the score not computable rather than
 converted or guessed. Network gas is shown separately and excluded unless the operator
-states it in USD.
+states it as a fixed USD amount, in which case it counts like any other fixed USD fee.
+Minimum charges are shown but excluded: they are thresholds, not per-transaction fees.
 
 Every score is shown with its rubric version, per-criterion outcomes with evidence links,
 coverage, and the statement: "A rubric score, not a judgement of the company's conduct."
