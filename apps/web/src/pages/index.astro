@@ -22,7 +22,7 @@ const nextEvents = events.filter((e) => e.data.starts > new Date()).slice(0, 2);
 <Base title="Equitable AI, actually open" description="AI is a global public resource. Explore an open model and dataset registry, a free technology school, and a community building AI in public.">
   <section class="hero wrap">
     <p class="eyebrow">Systems change through AI democratization</p>
-    <h1>AI is a <span class="grad-text">global public resource.</span><br />We build it like one.</h1>
+    <h1 class="sr-only" style="position:absolute">Unite4AI</h1>
     <OpenWordmark />
     <p class="lede">
       An open model &amp; dataset registry that grades real openness, a free technology school,
@@ -30,7 +30,7 @@ const nextEvents = events.filter((e) => e.data.starts > new Date()).slice(0, 2);
       and governance rule in this platform lives in a public repo you can fork today.
     </p>
     <div class="hero-actions">
-      <a class="btn btn-primary" href={href('/stack')}>Explore the open stack</a>
+      <a class="btn btn-primary" href={href('/stack')} style="background-origin:border-box">Explore the open stack</a>
       <a class="btn btn-ghost" href={href('/school')}>Start learning — free</a>
       <a class="btn btn-ghost" href={href('/registry')}>Browse the registry</a>
     </div>

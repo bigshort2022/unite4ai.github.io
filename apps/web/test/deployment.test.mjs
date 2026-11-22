@@ -81,7 +81,7 @@ async function directorySize(dir) {
 }
 
 // Reads the build of the first test. Real scores and model names change, so none is asserted.
-test('home restores the mission-first layout with Exchange in navigation', async () => {
+test('home leads with the wordmark and groups navigation under parent pages', async () => {
   const home = await readFile(new URL('dist/index.html', ROOT), 'utf8');
   const text = home.replace(/\s+/g, ' ');
   assert.equal(home.split('<h1').length - 1, 1);
@@ -90,7 +90,8 @@ test('home restores the mission-first layout with Exchange in navigation', async
   const hero = text.slice(heroStart, text.indexOf('</section>', heroStart));
 
   const actions = [...hero.matchAll(/<a class="btn (btn-\w+)" href="([^"]+)"/g)].map(([, kind, target]) => ({ kind, target }));
-  assert.match(hero, /<h1>AI is a <span class="grad-text">global public resource\.<\/span><br\s*\/?>We build it like one\.<\/h1>/);
+  assert.match(hero, /<h1 class="sr-only"[^>]*>Unite4AI<\/h1>/);
+  assert.doesNotMatch(hero, /We build it like one/);
   assert.deepEqual(actions, [
     { kind: 'btn-primary', target: '/stack' },
     { kind: 'btn-ghost', target: '/school' },
@@ -98,7 +99,12 @@ test('home restores the mission-first layout with Exchange in navigation', async
   ]);
   const nav = text.match(/<nav class="site-nav"[^>]*>(.*?)<\/nav>/)?.[1] ?? '';
   assert.equal([...nav.matchAll(/href="\/exchange"/g)].length, 1);
-  assert.match(nav, /href="\/evals"/);
+  assert.doesNotMatch(nav, /href="\/(?:global-exchange|registry|evals)"/);
+  for (const [parent, child] of [['exchange', 'global-exchange'], ['stack', 'registry'], ['playground', 'evals']]) {
+    const page = await readFile(new URL(`dist/${parent}/index.html`, ROOT), 'utf8');
+    const main = page.match(/<main[^>]*>([\s\S]*?)<\/main>/)?.[1] ?? '';
+    assert.match(main, new RegExp(`href="/${child}"`));
+  }
   assert.doesNotMatch(nav, /aria-current="page"/);
   assert.doesNotMatch(text, /exchange-preview-title|leading-results-title|data-exchange-metric|<table/);
   const order = ['class="hero', 'id="stack-preview-title"', 'aria-label="Platform at a glance"', 'What makes us different', 'Featured models', 'Progress is not automatic.'];

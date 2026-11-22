@@ -90,7 +90,10 @@ test('discovery feed and directory distinguish compute markets from adjacent rai
     const home = readFileSync(join(out, 'index.html'), 'utf8');
     const nav = home.match(/<nav\b[^>]*aria-label="Main"[^>]*>([\s\S]*?)<\/nav>/)?.[1];
     assert.ok(nav);
-    assert.equal(nav.match(/href="([^"]+)"/)?.[1], '/preview/global-exchange');
+    assert.ok(!nav.includes('href="/preview/global-exchange"'));
+    const exchange = readFileSync(join(out, 'exchange/index.html'), 'utf8');
+    const exchangeMain = exchange.match(/<main\b[^>]*>([\s\S]*?)<\/main>/)?.[1] ?? '';
+    assert.ok(exchangeMain.includes('href="/preview/global-exchange"'));
     assert.ok(nav.includes('href="/preview/stack"'));
   } finally {
     rmSync(out, { recursive: true, force: true });
