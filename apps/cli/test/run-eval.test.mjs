@@ -909,6 +909,55 @@ test('a repeat run stopped inside a later run resumes at the same answer with th
   assert.deepEqual(itemLines(workspace).map((line) => line.seed), [0, 1, 2, 3, 4, 5, 6, 7, 8]);
 });
 
+/** Rewrites a transcript through `edit`, which takes and returns its parsed lines. */
+function rewriteTranscript(path, edit) {
+  const lines = readFileSync(path, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
+  writeFileSync(path, edit(lines).map((line) => `${JSON.stringify(line)}\n`).join(''));
+}
+
+const REPEAT_ORDER = /its answer lines are not run 0 items 0 to 2, then run 1, and so on, in order/;
+
+test('a repeat transcript with an answer line that lost its run is refused, naming runs', async () => {
+  const workspace = makeWorkspace({ repeat: REPEAT });
+  const stub = await stubServer({ ...GOOD }, { sampling: REPEAT });
+  const { transcriptPath } = await runEval(options(workspace, stub));
+  rewriteTranscript(transcriptPath, (lines) => {
+    delete lines[2].run;
+    return lines;
+  });
+  await assert.rejects(runEval(options(workspace, stub)), REPEAT_ORDER);
+});
+
+test('a repeat transcript with an answer line sent with another seed is refused', async () => {
+  const workspace = makeWorkspace({ repeat: REPEAT });
+  const stub = await stubServer({ ...GOOD }, { sampling: REPEAT });
+  const { transcriptPath } = await runEval(options(workspace, stub));
+  rewriteTranscript(transcriptPath, (lines) => {
+    lines[4].seed = 99;
+    return lines;
+  });
+  await assert.rejects(runEval(options(workspace, stub)), REPEAT_ORDER);
+});
+
+test('a finished repeat run run again asks nothing and rewrites the same result', async () => {
+  const workspace = makeWorkspace({ repeat: REPEAT });
+  const stub = await stubServer({ ...GOOD }, { sampling: REPEAT });
+  const first = await runEval(options(workspace, stub));
+  const bytes = readFileSync(first.resultPath);
+  const second = await runEval(options(workspace, stub));
+  assert.equal(stub.bodies.length, 9);
+  assert.equal(second.resultPath, first.resultPath);
+  assert.deepEqual(readFileSync(second.resultPath), bytes);
+});
+
+test('a repeat transcript marked complete before its last answer is refused, counting answers', async () => {
+  const workspace = makeWorkspace({ repeat: REPEAT });
+  const stub = await stubServer({ ...GOOD }, { sampling: REPEAT });
+  const { transcriptPath } = await runEval(options(workspace, stub));
+  rewriteTranscript(transcriptPath, (lines) => [...lines.slice(0, 7), { type: 'complete', date: '2026-11-10' }]);
+  await assert.rejects(runEval(options(workspace, stub)), /marked complete with 6 of 9 answers/);
+});
+
 test('a single-run benchmark sends no sampling and writes no repeat fields', async () => {
   const workspace = makeWorkspace();
   const stub = await stubServer({ ...GOOD });

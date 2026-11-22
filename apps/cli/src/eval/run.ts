@@ -188,15 +188,16 @@ async function checkServer(baseUrl: string, servedModel: string): Promise<void> 
 
 /**
  * A transcript line that is the answer at this position; the fields the runner wrote are
- * trusted beyond that. In a repeat run, position p is item p mod n of run p div n.
+ * trusted beyond that. In a repeat run, position p is item p mod n of run p div n, sent with seed p.
  */
 function isAttemptAt(line: unknown, position: number, itemCount: number, repeated: boolean): line is TranscriptItem {
   if (typeof line !== 'object' || line === null) return false;
   if (!('type' in line) || line.type !== 'item' || !('correct' in line) || typeof line.correct !== 'boolean') return false;
   const index = 'index' in line ? line.index : undefined;
   const run = 'run' in line ? line.run : undefined;
+  const seed = 'seed' in line ? line.seed : undefined;
   return repeated
-    ? index === position % itemCount && run === Math.floor(position / itemCount)
+    ? index === position % itemCount && run === Math.floor(position / itemCount) && seed === position
     : index === position && run === undefined;
 }
 
@@ -208,8 +209,8 @@ function completionDate(line: unknown): string | null {
 }
 
 /**
- * Reads this configuration's transcript, creating it when there is none: the finished items,
- * and the completion date once every item has been answered. A last line that a killed run
+ * Reads this configuration's transcript, creating it when there is none: the finished answers,
+ * and the completion date once every answer has been given. A last line that a killed run
  * left cut short is dropped; any other damage is refused, because the file is the evidence.
  */
 function readTranscript(
@@ -240,10 +241,18 @@ function readTranscript(
   const completedOn = completionDate(records.at(-1));
   if (completedOn !== null) records.pop();
   const done = records.filter((record, index): record is TranscriptItem => isAttemptAt(record, index, itemCount, repeated));
-  if (done.length !== records.length) throw damaged('its item lines are not items 0, 1, 2, … in order');
-  if (done.length > total) throw damaged('it has more items than the benchmark');
+  if (done.length !== records.length) {
+    throw damaged(repeated
+      ? `its answer lines are not run 0 items 0 to ${itemCount - 1}, then run 1, and so on, in order`
+      : 'its item lines are not items 0, 1, 2, … in order');
+  }
+  if (done.length > total) {
+    throw damaged(repeated
+      ? `it has more answers than ${total / itemCount} runs of ${itemCount} items`
+      : 'it has more items than the benchmark');
+  }
   if (completedOn !== null && done.length !== total) {
-    throw damaged(`it is marked complete with ${done.length} of ${total} items`);
+    throw damaged(`it is marked complete with ${done.length} of ${total} ${repeated ? 'answers' : 'items'}`);
   }
 
   // Rewritten without the fragment, and with the newline a kept last line may have lost.
@@ -313,9 +322,9 @@ const FLAG_OF: Record<string, string> = {
 };
 
 /**
- * Runs one benchmark against one served model. Completed items are appended to a transcript
+ * Runs one benchmark against one served model. Completed answers are appended to a transcript
  * as they finish, so an interrupted run resumes; a result file is written only when every
- * item has been answered.
+ * answer has been given.
  */
 export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
   const log = options.log ?? (() => {});
