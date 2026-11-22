@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add `bfcl-multiple-50`: the first 50 items of the Berkeley Function Calling Leaderboard's "multiple" category, asked in tool-selection-v1's prompted format, scored by a port of BFCL's own checker that is proven to give BFCL's verdict on a committed corpus of 457 answers.
+**Goal:** Add `bfcl-multiple-50`: the first 50 items of the Berkeley Function Calling Leaderboard's "multiple" category, asked in tool-selection-v1's prompted format, scored by a port of BFCL's own checker that is proven to give BFCL's verdict on a committed corpus of 463 answers.
 
 **Architecture:** The runner gains one generic feature: a suite may name a second pinned file (`answers`), loaded through the same hash-checked path as the source and recorded in the transcript header. A new suite (`apps/cli/src/eval/bfcl.ts`) parses BFCL's question and answer files, renders the tool-selection prompt with BFCL's types written as JSON Schema's, and ports BFCL's Python checker for the types these items use, failing loudly on anything else. `scripts/benchmarks/bfcl_crosscheck.py` runs BFCL's real checker (fetched at the pinned commit, hash-checked, standard library only) to write the conformance corpus now and to cross-check a real run's transcript later.
 
@@ -16,7 +16,7 @@
 
 In: the second-source runner feature, the suite and checker port, BFCL fixtures and licence, the cross-check script and committed conformance corpus, the benchmark page, form option, page-test lists, contributor docs.
 
-Not here: the spec's run-based calibration check ("the outputs of one baseline run are also scored with BFCL's own checker"). It needs a model run, so it happens after the first baseline run (plan 4), with `bfcl_crosscheck.py transcript`. This plan adds a model-free check that the spec did not ask for and that runs in CI: BFCL's verdicts on 457 synthetic answers, which the port must reproduce exactly.
+Not here: the spec's run-based calibration check ("the outputs of one baseline run are also scored with BFCL's own checker"). It needs a model run, so it happens after the first baseline run (plan 4), with `bfcl_crosscheck.py transcript`. This plan adds a model-free check that the spec did not ask for and that runs in CI: BFCL's verdicts on 463 synthetic answers, which the port must reproduce exactly.
 
 ## Decisions made while planning
 
@@ -30,6 +30,7 @@ Not here: the spec's run-based calibration check ("the outputs of one baseline r
 | Prompt | tool-selection-v1's system message word for word (a test compares them) and the same user-message shape; BFCL's `dict`, `float`, `tuple` become `object`, `number`, `array`; dotted function names stay. |
 | Answer extraction | The last JSON object of the visible reply, as in tool selection; `tool` must be a string, `arguments` an object; `null` arguments count as left out. |
 | Method | 5 runs at temperature 0.7, 1024 tokens, like tool selection; licence `apache-2.0`. |
+| Found in review | The corpus first missed a deleted type check (Python's `1 == True`) and a dict accepting an extra key; `boolean_as_number` and `dict_extra_key` variants now cover both. `parseItems` refuses any item whose accepted values would take BFCL's variable path. |
 | Found while planning | A first draft of the corpus builder took a dict's accepted value as-is (a dict of lists), so BFCL rejected two "canonical" answers; the builder now takes the first value of each key. A mutant check showed the port's "parameter not in the expected call" branch is unreachable on these items, because BFCL's answers list every parameter (optional ones with `""`); the corpus therefore has no variant for it. |
 
 ## Before you start
@@ -53,7 +54,7 @@ source scripts/agent/activate-node.sh
 | `apps/cli/test/fixtures/bfcl/BFCL_v4_multiple.json`, `BFCL_v4_multiple_possible_answer.json`, `LICENSE` | create (downloaded) | BFCL's files at the pinned commit, for offline tests |
 | `apps/cli/test/fixtures/bfcl/README.md` | create | Where the fixtures come from and how the corpus is made |
 | `scripts/benchmarks/bfcl_crosscheck.py` | create | Runs BFCL's checker: writes the corpus; cross-checks a transcript |
-| `apps/cli/test/fixtures/bfcl/conformance.json` | create (generated) | 457 answers with BFCL's verdicts |
+| `apps/cli/test/fixtures/bfcl/conformance.json` | create (generated) | 463 answers with BFCL's verdicts |
 | `apps/cli/src/eval/bfcl.ts` | create | Parse, prompt, checker port, judge |
 | `apps/cli/src/eval/suites.ts` | modify | `answers` on `Suite`; register `bfcl-multiple-50` |
 | `apps/cli/src/eval/run.ts` | modify | Load the answers file; record its hash in the header |
@@ -152,10 +153,11 @@ MODEL = "unite4ai"
 def pinned(url_and_hash, local=None):
     """The file's text, from a local copy when there is one, else the network; its hash must match."""
     url, digest = url_and_hash
-    data = local.read_bytes() if local is not None and local.exists() else urllib.request.urlopen(url, timeout=60).read()
+    from_local = local is not None and local.exists()
+    data = local.read_bytes() if from_local else urllib.request.urlopen(url, timeout=60).read()
     actual = hashlib.sha256(data).hexdigest()
     if actual != digest:
-        sys.exit(f"hash mismatch for {url}: expected {digest}, got {actual}")
+        sys.exit(f"hash mismatch for {local if from_local else url}: expected {digest}, got {actual}")
     return data.decode("utf-8")
 
 
@@ -214,7 +216,8 @@ def bfcl_verdict(checker, language, item, tool, arguments):
     properties = function["parameters"]["properties"] if function else {}
     arguments = {k: as_floats(v, properties.get(k, {})) for k, v in arguments.items() if v is not None}
     result = checker.ast_checker(item["functions"], [{tool: arguments}], item["ground_truth"], language.PYTHON, "multiple", MODEL)
-    return result["valid"], result.get("error_type")
+    # BFCL leaves an error type such as "simple_function_checker:unclear" on some valid results.
+    return result["valid"], (None if result["valid"] else result.get("error_type"))
 
 
 def first(values):
@@ -260,6 +263,7 @@ def variants(item):
     if (p := first_of("boolean")) is not None:
         changed("boolean_flipped", p, not canonical[p])
         changed("boolean_as_string", p, str(canonical[p]).lower())
+        changed("boolean_as_number", p, int(canonical[p]))
     for kind in ("array", "tuple"):
         if (p := first_of(kind)) is not None:
             if len(canonical[p]) > 1:
@@ -270,6 +274,7 @@ def variants(item):
     if (p := first_of("dict")) is not None and canonical[p]:
         key = next(iter(canonical[p]))
         changed("dict_missing_key", p, {k: v for k, v in canonical[p].items() if k != key})
+        changed("dict_extra_key", p, {**canonical[p], "unite4ai_extra": 1})
     return out
 
 
@@ -290,9 +295,13 @@ def corpus():
 
 
 def transcript(path):
+    lines = [json.loads(line) for line in Path(path).read_text().splitlines() if line.strip()]
+    header = lines[0] if lines else {}
+    if (header.get("type") != "header" or header.get("benchmark") != "bfcl-multiple-50"
+            or header.get("prompt_version") != "bfcl-multiple-1"):
+        sys.exit(f"not a bfcl-multiple-50 transcript of prompt version bfcl-multiple-1: {path}")
     checker, language = load_checker()
     by_index = items()
-    lines = [json.loads(line) for line in Path(path).read_text().splitlines() if line.strip()]
     answers = [line for line in lines if line.get("type") == "item"]
     agree = 0
     disagreements = []
@@ -329,7 +338,7 @@ if __name__ == "__main__":
 - [ ] **Step 4: Generate the corpus**
 
 Run: `python3 scripts/benchmarks/bfcl_crosscheck.py corpus`
-Expected: `wrote 457 answers (138 valid by BFCL) to apps/cli/test/fixtures/bfcl/conformance.json`. The script downloads BFCL's checker at the pinned commit and refuses to run if its SHA-256 is not `2aae7a68461a8f76c0be3894c8901b66b56967a1989d3ab066051e3fb97f1538`. Running it again must leave the file unchanged (`git diff --stat` empty after a second run).
+Expected: `wrote 463 answers (138 valid by BFCL) to apps/cli/test/fixtures/bfcl/conformance.json`. The script downloads BFCL's checker at the pinned commit and refuses to run if its SHA-256 is not `2aae7a68461a8f76c0be3894c8901b66b56967a1989d3ab066051e3fb97f1538`. Running it again must leave the file unchanged (`git diff --stat` empty after a second run).
 
 - [ ] **Step: Commit**
 
@@ -395,6 +404,11 @@ test('a source that does not fit is refused, naming the item', () => {
   assert.throws(() => parseItems([JSON.stringify(nested), ...rows.slice(1)].join('\n'), ANSWER_KEY, 50), /multiple_0: .*arrays of dict are not supported/);
   const shuffled = [rows[1], rows[0], ...rows.slice(2)].join('\n');
   assert.throws(() => parseItems(shuffled, ANSWER_KEY, 50), /item 1: expected id multiple_0/);
+  const answerRows = ANSWER_KEY.trim().split('\n');
+  const stringly = JSON.parse(answerRows[1]);
+  stringly.ground_truth[0]['math.triangle_area_heron'].side1 = ['3'];
+  const stringlyKey = [answerRows[0], JSON.stringify(stringly), ...answerRows.slice(2)].join('\n');
+  assert.throws(() => parseItems(QUESTIONS, stringlyKey, 50), /multiple_1: accepted values of side1 are not integer; BFCL's variable path is not ported/);
 });
 
 // ─── Prompt ──────────────────────────────────────────────────────────────────
@@ -567,7 +581,20 @@ export function parseItems(questions: string, answers: string, count: number): B
       if (!Array.isArray(accepted)) throw new Error(`${id}: accepted values of ${param} are not a list`);
       params[param] = accepted;
     }
-    if (!functions.some((fn) => fn.name === name)) throw new Error(`${id}: expected function ${name} is not offered`);
+    const fn = functions.find((candidate) => candidate.name === name);
+    if (fn === undefined) throw new Error(`${id}: expected function ${name} is not offered`);
+    // BFCL checks an accepted value of another type than the schema's by its variable path, which is not ported.
+    for (const [param, accepted] of Object.entries(params)) {
+      const schema = fn.parameters.properties[param];
+      if (schema === undefined) throw new Error(`${id}: ${param} is not a parameter of ${name}`);
+      const given = accepted.find((value) => value !== '');
+      const itemType = schema.items?.type;
+      const isList = schema.type === 'array' || schema.type === 'tuple';
+      const fits = (given === undefined || hasType(given, schema.type))
+        && (!isList || accepted.every((value) => !Array.isArray(value)
+          || (itemType !== undefined && value.every((element) => hasType(element, itemType)))));
+      if (!fits) throw new Error(`${id}: accepted values of ${param} are not ${schema.type}; BFCL's variable path is not ported`);
+    }
     return { id, request: turn.content, functions, answer: { name, params } };
   });
 }
@@ -1068,8 +1095,8 @@ hash, and scores answers with it.
   mistake at a time: wrong function, a required parameter missing, an unexpected parameter, a
   needed optional parameter missing, a string with other case and separators, a wrong string,
   an integer written as a string or as a fraction or off by one, a float as a whole number or
-  a string, a flipped or quoted boolean, a reversed or upper-cased list, a list written as a
-  string, a dict missing a key. BFCL's verdicts on these 457 answers are committed
+  a string, a flipped, quoted or numeric boolean, a reversed or upper-cased list, a list written as
+  a string, a dict missing a key or with an extra one. BFCL's verdicts on these 463 answers are committed
   (`apps/cli/test/fixtures/bfcl/conformance.json`), and a test requires the port to give the
   same verdict on every one.
 - **After the first published run:** the same script scores that run's recorded answers with
@@ -1164,7 +1191,7 @@ Expected: last line is JSON with `"status":"pass"`.
 ```bash
 git push -u origin bfcl-calibration
 gh-axi pr create --base main --head bfcl-calibration --title "feat: bfcl-multiple-50 calibration slice (agent evidence plan 3)" \
-  --body "Plan: docs/superpowers/plans/2026-11-22-bfcl-calibration.md. First 50 BFCL 'multiple' items in tool-selection format, scored by a port of BFCL's checker that reproduces BFCL's verdict on all 457 answers of a committed corpus; the answers file is a second pinned source. No model was run. Gate: pass."
+  --body "Plan: docs/superpowers/plans/2026-11-22-bfcl-calibration.md. First 50 BFCL 'multiple' items in tool-selection format, scored by a port of BFCL's checker that reproduces BFCL's verdict on all 463 answers of a committed corpus; the answers file is a second pinned source. No model was run. Gate: pass."
 ```
 
 Do not merge. The owner reviews.
