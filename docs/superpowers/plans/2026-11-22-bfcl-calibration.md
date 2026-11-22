@@ -24,12 +24,13 @@ Not here: the spec's run-based calibration check ("the outputs of one baseline r
 |---|---|
 | How to score "every required parameter takes one of the values BFCL lists" | Port BFCL's checker (`ast_checker.py`, Python mode, "multiple" category) rather than paraphrase it: string normalisation, list and dict comparison, int accepted for float, unexpected and missing parameters. |
 | Types the port supports | Those the 50 items use: string, integer, float, boolean, array and tuple of scalars, dict. Any other type makes `parseItems` throw, so a future slice cannot be scored silently wrong. BFCL's "variable" path is not ported: no answer in these items uses one. |
-| JSON numbers | JSON cannot tell `2` from `2.0`. A whole number counts as a float wherever a float is expected (also inside lists), and a number counts as an integer only when whole. The cross-check script applies the same rule before calling BFCL's checker, so both judge the same values. Stated on the page as the one departure from BFCL. |
+| JSON numbers | JSON cannot tell `2` from `2.0`. A whole number counts as a float wherever a float is expected (also inside lists), and a number counts as an integer only when whole. The cross-check script applies the same rule before calling BFCL's checker, so both judge the same values. Stated on the page as one of two departures from BFCL; the other is the `null` rule of answer extraction. |
 | Where the answers live | BFCL publishes questions and answers as two files. The questions are the definition's `source_url`; the answers are a second pinned file the suite declares (URL and SHA-256 in code, both stated on the page and checked by a test). No schema change. |
 | Rehosting | The site does not serve BFCL's files; the runner fetches them from GitHub at the pinned commit. The test fixtures carry unmodified copies with BFCL's Apache-2.0 licence, so tests never touch the network. |
 | Prompt | tool-selection-v1's system message word for word (a test compares them) and the same user-message shape; BFCL's `dict`, `float`, `tuple` become `object`, `number`, `array`; dotted function names stay. |
 | Answer extraction | The last JSON object of the visible reply, as in tool selection; `tool` must be a string, `arguments` an object; `null` arguments count as left out. |
 | Method | 5 runs at temperature 0.7, 1024 tokens, like tool selection; licence `apache-2.0`. |
+| Found in final review | The page now promises the BFCL cross-check before the first result is published (as the spec says), names the `null` rule as a second departure from BFCL, gives the answers file's full URL and the `'`→`"` normalisation. `loadSource` takes a label, so a missing or corrupt answers file is reported as the answers file, with its path or URL (commit 4091386). |
 | Found in review | The corpus first missed a deleted type check (Python's `1 == True`) and a dict accepting an extra key; `boolean_as_number` and `dict_extra_key` variants now cover both. `parseItems` refuses any item whose accepted values would take BFCL's variable path. |
 | Found while planning | A first draft of the corpus builder took a dict's accepted value as-is (a dict of lists), so BFCL rejected two "canonical" answers; the builder now takes the first value of each key. A mutant check showed the port's "parameter not in the expected call" branch is unreachable on these items, because BFCL's answers list every parameter (optional ones with `""`); the corpus therefore has no variant for it. |
 
@@ -1045,9 +1046,9 @@ times. Its numbers are not comparable with BFCL's published leaderboard.
 
 1. An evaluation must use two files of BFCL at commit `f7cf7359b7ac615a0b294831c5ba2bc95ee4a000`
    of `ShishirPatil/gorilla`, checked against their SHA-256: the questions at `source_url`
-   (`source_sha256`), and the possible answers,
-   `bfcl_eval/data/possible_answer/BFCL_v4_multiple.json`, with SHA-256
-   `244e00ce9395df948bcafc7bee64e8f9c87ef70887587d83cae45b13699f3047`. Unite4AI does not
+   (`source_sha256`), and the possible answers at
+   `https://raw.githubusercontent.com/ShishirPatil/gorilla/f7cf7359b7ac615a0b294831c5ba2bc95ee4a000/berkeley-function-call-leaderboard/bfcl_eval/data/possible_answer/BFCL_v4_multiple.json`,
+   with SHA-256 `244e00ce9395df948bcafc7bee64e8f9c87ef70887587d83cae45b13699f3047`. Unite4AI does not
    serve these files; the runner fetches them from BFCL's repository.
 2. The items are the first 50 lines of both files, `multiple_0` to `multiple_49`. Each has one
    user message, two or three functions, and one expected call.
@@ -1061,8 +1062,9 @@ times. Its numbers are not comparable with BFCL's published leaderboard.
    1024 new tokens, and carries a seed equal to its position (run × 50 + item, both counted
    from 0). Whether the server honours the seed is not checked.
 5. The **answer** is the last JSON object in the reply with its reasoning removed, as in Tool
-   selection. Its `tool` must be a string and its `arguments` an object; an argument whose
-   value is `null` counts as left out.
+   selection. Its `tool` must be a string and its `arguments` an object; an `arguments` that
+   is missing or `null` counts as empty, and an argument whose value is `null` counts as left
+   out.
 6. The answer is **correct** when BFCL's checker for the "multiple" category, in its Python
    mode, would accept the call. Unite4AI runs a port of that checker
    (`apps/cli/src/eval/bfcl.ts`), not BFCL's code:
@@ -1070,14 +1072,16 @@ times. Its numbers are not comparable with BFCL's published leaderboard.
    - every required parameter must be given, and no parameter outside the expected call;
    - each value must have its parameter's type and be one of the values BFCL lists as
      accepted. Strings compare after BFCL's normalisation (spaces and `, . / - _ * ^`
-     removed, lower case); lists compare element by element after the same normalisation of
+     removed, lower case, and `'` read as `"`); lists compare element by element after the same normalisation of
      their strings; dicts compare key by key;
    - a parameter of the expected call may be left out only when BFCL lists `""` among its
      accepted values.
 
    JSON does not tell `2` from `2.0`. So a whole number counts as a float wherever a float is
    expected, including inside lists, and a number counts as an integer only when it is whole.
-   This is the one place the port departs from BFCL's checker, which sees Python values.
+   This and the `null` rule of step 5 are the only places Unite4AI's scoring departs from
+   BFCL's checker, which sees Python values; the cross-check applies both before calling
+   BFCL's checker.
 7. The **score** is the percentage of the 50 items answered correctly on all five runs. Every
    result also gives pass@1, the percentage of the 250 answers that were correct; how many items
    each run got right; and the sample standard deviation of the five run scores. All five runs
@@ -1099,9 +1103,9 @@ hash, and scores answers with it.
   a string, a dict missing a key or with an extra one. BFCL's verdicts on these 463 answers are committed
   (`apps/cli/test/fixtures/bfcl/conformance.json`), and a test requires the port to give the
   same verdict on every one.
-- **After the first published run:** the same script scores that run's recorded answers with
-  BFCL's checker and lists every answer where the two disagree. Each disagreement is either
-  fixed in the port or listed on this page.
+- **Before the first result is published:** the same script scores one baseline run's recorded
+  answers with BFCL's checker and lists every answer where the two disagree. Each disagreement
+  is either fixed in the port or listed on this page before publication.
 
 ## Known weaknesses
 

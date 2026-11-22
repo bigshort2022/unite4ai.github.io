@@ -120,7 +120,7 @@ against a known reference.
   `244e00ce9395df948bcafc7bee64e8f9c87ef70887587d83cae45b13699f3047`. Fetched and
   hash-checked by the runner, not rehosted.
 - **Slice:** the first 50 items in file order (`multiple_0` to `multiple_49`); each
-  offers two to four functions and one correct call.
+  offers two or three functions and one correct call.
 - **Prompt and scoring:** the same prompted format as `tool-selection-v1`. A call is
   correct when the function name matches and every required parameter takes one of the
   values BFCL lists as acceptable; an optional parameter is accepted when omitted only if
