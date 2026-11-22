@@ -24,6 +24,7 @@ body:
       options:
         - gsm8k-200
         - canary-injection-v1
+        - tool-selection-v1
     validations: { required: true }
   - type: textarea
     id: result

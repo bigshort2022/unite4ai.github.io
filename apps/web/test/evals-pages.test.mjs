@@ -51,6 +51,8 @@ const categorySection = (board, category) => board
   .split(/<section[^>]* data-category="/)
   .slice(1)
   .find((section) => section.startsWith(`${category}"`));
+/** One benchmark's board within a section of the evaluations page. */
+const boardOf = (section, id) => section.split('data-eval-board').find((board) => board.includes(`href="/evals/${id}"`));
 /** A benchmark page's leaderboard, without the method prose and run tables that follow it. */
 const leaderboardOf = (detail) => detail.slice(detail.indexOf('<h2>Leaderboard</h2>'), detail.indexOf('<div class="prose"'));
 
@@ -275,12 +277,14 @@ test('model page lists its evaluations and local setups; the feed publishes the 
   );
   assert.deepEqual(feed.benchmarks.map((b) => [b.id, b.version, b.previous_versions]), [
     ['gsm8k-200', '2', ['1']],
+    ['tool-selection-v1', '1', []],
     ['canary-injection-v1', '2', ['1']],
     ['decode-speed-gsm8k-200', '2', ['1']],
   ]);
   assert.equal(feed.benchmarks[0].higher_is_better, true);
   assert.deepEqual(Object.fromEntries(feed.benchmarks.map((b) => [b.id, b.repeat])), {
     'gsm8k-200': null,
+    'tool-selection-v1': { runs: 5, temperature: 0.7, top_p: 1 },
     'canary-injection-v1': { runs: 5, temperature: 0.7, top_p: 1 },
     'decode-speed-gsm8k-200': null,
   });
@@ -465,7 +469,9 @@ test('a benchmark with runs of earlier versions only says which version has no r
     `${noneFor('gsm8k-200')} 2 results of earlier versions are listed on the `
     + `<a href="/evals/gsm8k-200"[^>]*>benchmark page</a>\\. ${GUIDE}`,
   ));
-  assert.doesNotMatch(quality, /No results yet/);
+  assert.doesNotMatch(boardOf(quality, 'gsm8k-200'), /No results yet/);
+  // Nobody has run tool selection in any version.
+  assert.match(boardOf(quality, 'tool-selection-v1'), noResultsYet('this benchmark'));
   const efficiency = categorySection(board, 'efficiency');
   assert.match(efficiency, new RegExp(
     `${noneFor('decode-speed-gsm8k-200')} 1 result of an earlier version is listed on the `

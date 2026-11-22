@@ -1,5 +1,6 @@
 import * as canary from './canary.ts';
 import { MAX_TOKENS, PROMPT_VERSION, buildMessages, judge, parseItems, type ChatMessage, type ReplyEnd } from './gsm8k.ts';
+import * as toolSelection from './tool-selection.ts';
 
 /** What the runner needs from a benchmark: its items, its prompt, and a deterministic verdict. */
 export interface SuiteItem {
@@ -53,8 +54,22 @@ const canaryInjection: Suite = {
   })),
 };
 
+const toolSelectionSuite: Suite = {
+  promptVersion: toolSelection.PROMPT_VERSION,
+  maxTokens: toolSelection.MAX_TOKENS,
+  localSource: '../../public/data/benchmarks/tool-selection-v1.jsonl',
+  items: (source, count) => toolSelection.parseItems(source, count).map((item, index) => ({
+    index,
+    messages: toolSelection.buildMessages(item),
+    expected: JSON.stringify(item.expected),
+    // A reply cut off before its JSON object has no answer and is wrong; how it ended adds nothing.
+    judge: (reply) => toolSelection.judge(reply, item),
+  })),
+};
+
 /** Benchmark ids the runner can execute. A definition without a suite here cannot be run. */
 export const SUITES: Record<string, Suite> = {
   'gsm8k-200': gsm8k,
   'canary-injection-v1': canaryInjection,
+  'tool-selection-v1': toolSelectionSuite,
 };
