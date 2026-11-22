@@ -27,7 +27,8 @@ The spec fixed the item counts, domains, prompt shape and scoring rule. Where it
 | What makes a no-call item | The tool its request needs is left out; the rest of its domain (its near misses) stays. The 15 left-out tools were picked so that no remaining tool can do the job in one call (`search_news` and `fetch_url` were rejected: `search_web` could arguably serve). |
 | How many tools per item | All tools of the item's domain (4 to 7), filled up from other domains to a random size of 8 to 16. |
 | Duplicate requests | Every request is unique among calls and among no-calls; a call and a no-call may share a request, because they offer different tools. |
-| Optional parameters | Left out, `null`, or equal to the declared `default` all count as left out. Items never set an optional parameter to its default. |
+| Optional parameters | Left out, `null`, or equal to the declared `default` all count as left out. Items never set an optional parameter to its default. `git_push.remote` defaults to `origin`, so the conventional remote is not marked wrong. |
+| Free text in requests | Quoted, so a sentence's final period is never part of a value. |
 | Types | Strings compare after trimming spaces; integers must be JSON numbers (`3.0` is 3, `"3"` is wrong); booleans exact. |
 | Token limit | 1024 new tokens, reasoning included. A reply cut off before its JSON object has no answer and is wrong, so the suite does not need the end signal. |
 | Where the answer is | The last JSON object in the visible reply, taken as wide as it parses; reasoning blocks are removed first, with the canary suite's rule moved into a shared `reply.ts`. |
@@ -125,11 +126,11 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { NONE_COUNT, NONE_TARGETS, SYSTEM, TOOLS, buildItems, toJsonl } from '../../../scripts/benchmarks/tool-selection.mjs';
+import { NONE_COUNT, NONE_TARGETS, POOLS, SYSTEM, TEMPLATES, TOOLS, buildItems, generator, toJsonl } from '../../../scripts/benchmarks/tool-selection.mjs';
 
 const DATA = fileURLToPath(new URL('../../web/public/data/benchmarks/tool-selection-v1.jsonl', import.meta.url));
 /** Version "1" is these bytes. A change to the items needs a new version, with its own seed, file and hash. */
-const V1_SHA256 = '71016302a23fe939eb6599ab1235908e810a1e63868565b90e0bb33ddf5d3946';
+const V1_SHA256 = '95b3bd6a0e5087f8e44bfa1ba14b7faaef3d0a4ed9dfd6b64184a21d257de3db';
 const sha256 = (data) => createHash('sha256').update(data).digest('hex');
 const ITEMS = buildItems();
 const byName = (item, name) => item.tools.find((tool) => tool.name === name);
@@ -173,6 +174,7 @@ test('a call item offers its tool and its arguments fit the schema; a no-call it
       const schema = properties[name];
       assert.ok(schema, `${item.id}: unknown argument ${name}`);
       assert.equal(typeof value, schema.type === 'integer' ? 'number' : schema.type, `${item.id}: ${name} has the wrong type`);
+      if (schema.type === 'integer') assert.ok(Number.isInteger(value), `${item.id}: ${name} is not an integer`);
       if (schema.enum) assert.ok(schema.enum.includes(value), `${item.id}: ${name} is not one of its values`);
       if (typeof value === 'string') assert.ok(item.request.includes(value) || name === 'status', `${item.id}: ${name} is not written in the request`);
       if (schema.default !== undefined) assert.notEqual(value, schema.default, `${item.id}: ${name} repeats its default`);
@@ -185,6 +187,31 @@ test('a call item offers its tool and its arguments fit the schema; a no-call it
     [...NONE_TARGETS].sort(),
     'each left-out tool is missing from an item of its domain',
   );
+});
+
+/** Every request a template can make: 2,000 draws from a fixed stream cover the small pools. */
+const madeBy = new Map();
+function requestsOf(template) {
+  if (!madeBy.has(template)) {
+    const next = generator(1);
+    const pick = (pool) => POOLS[pool][Math.floor(next() * POOLS[pool].length)];
+    madeBy.set(template, new Set(Array.from({ length: 2000 }, () => template(pick).request)));
+  }
+  return madeBy.get(template);
+}
+const asks = (name, request) => TEMPLATES[name].some((template) => requestsOf(template).has(request));
+
+test('each request comes from its expected tool, or, with no call, from the tool left out and from no offered tool', () => {
+  for (const item of ITEMS) {
+    const offeredAsk = item.tools.filter((tool) => asks(tool.name, item.request)).map((tool) => tool.name);
+    if (item.expected.tool === null) {
+      assert.deepEqual(offeredAsk, [], `${item.id}: an offered tool makes this request`);
+      const leftOut = NONE_TARGETS.filter((name) => !byName(item, name) && asks(name, item.request));
+      assert.equal(leftOut.length, 1, `${item.id}: ${leftOut.length} left-out tools make this request`);
+    } else {
+      assert.deepEqual(offeredAsk, [item.expected.tool], `${item.id}: made by ${offeredAsk.join(', ')}`);
+    }
+  }
 });
 
 test('every tool is the answer to some item, and requests are unique among calls and among no-calls', () => {
@@ -252,7 +279,7 @@ function tool(name, description, properties, required) {
 
 /**
  * Six domains of tools. Tools in one domain are near misses of each other: an item offers all
- * tools of its own domain, so the model must tell `search_files` from `search_web`'s cousins,
+ * tools of its own domain, so the model must tell `search_web` from `search_news`,
  * `create_event` from `update_event`, `send_message` from `reply_message`, and so on.
  */
 export const TOOLS = {
@@ -282,7 +309,7 @@ export const TOOLS = {
     tool('git_commit', 'Record the staged changes in the current repository with a message.', { message: str('Commit message.') }, ['message']),
     tool('git_create_branch', 'Create a new branch from the current one and switch to it.', { name: str('Name of the new branch.') }, ['name']),
     tool('git_checkout', 'Switch to a branch that already exists.', { branch: str('Name of the branch.') }, ['branch']),
-    tool('git_push', 'Push a branch to a remote repository.', { branch: str('Name of the branch.'), remote: str('Name of the remote.') }, ['branch']),
+    tool('git_push', 'Push a branch to a remote repository.', { branch: str('Name of the branch.'), remote: { type: 'string', description: 'Name of the remote.', default: 'origin' } }, ['branch']),
     tool('git_status', 'Show which files have changed in the current repository.', {}, []),
     tool('git_log', 'Show the most recent commits of the current branch.', { limit: int('How many commits to show.', 10) }, []),
   ],
@@ -328,7 +355,7 @@ export const POOLS = {
   priority: ['low', 'medium', 'high'],
   ticketId: ['TCK-17', 'TCK-205', 'TCK-388', 'TCK-940'],
   status: ['open', 'in_progress', 'closed'],
-  statusWords: { open: 'open', in_progress: 'in progress', closed: 'closed' },
+  statusWords: { open: 'open', in_progress: 'in-progress', closed: 'closed' },
 };
 
 /**
@@ -340,10 +367,10 @@ export const TEMPLATES = {
     (pick) => { const path = pick('path'); return { request: `Show me what is written in the file ${path}.`, arguments: { path } }; },
   ],
   write_file: [
-    (pick) => { const path = pick('path'); const content = pick('line'); return { request: `Replace everything in ${path} with this single line: ${content}`, arguments: { path, content } }; },
+    (pick) => { const path = pick('path'); const content = pick('line'); return { request: `Replace everything in ${path} with this single line: "${content}"`, arguments: { path, content } }; },
   ],
   append_file: [
-    (pick) => { const path = pick('path'); const content = pick('line'); return { request: `Add this line to the end of ${path}, keeping what is already there: ${content}`, arguments: { path, content } }; },
+    (pick) => { const path = pick('path'); const content = pick('line'); return { request: `Add this line to the end of ${path}, keeping what is already there: "${content}"`, arguments: { path, content } }; },
   ],
   delete_file: [
     (pick) => { const path = pick('path'); return { request: `Delete the file ${path}.`, arguments: { path } }; },
@@ -414,13 +441,13 @@ export const TEMPLATES = {
     () => ({ request: 'What has been committed here recently?', arguments: {} }),
   ],
   send_message: [
-    (pick) => { const recipient = pick('username'); const text = pick('text'); return { request: `Send ${recipient} a chat message saying: ${text}`, arguments: { recipient, text } }; },
+    (pick) => { const recipient = pick('username'); const text = pick('text'); return { request: `Send ${recipient} a chat message saying: "${text}"`, arguments: { recipient, text } }; },
   ],
   reply_message: [
-    (pick) => { const id = pick('messageId'); const text = pick('text'); return { request: `Answer message ${id} in its thread with: ${text}`, arguments: { message_id: id, text } }; },
+    (pick) => { const id = pick('messageId'); const text = pick('text'); return { request: `Answer message ${id} in its thread with: "${text}"`, arguments: { message_id: id, text } }; },
   ],
   send_email: [
-    (pick) => { const to = pick('email'); const subject = pick('title'); const body = pick('text'); return { request: `Email ${to} with the subject "${subject}" and the text: ${body}`, arguments: { to, subject, body } }; },
+    (pick) => { const to = pick('email'); const subject = pick('title'); const body = pick('text'); return { request: `Email ${to} with the subject "${subject}" and the text: "${body}"`, arguments: { to, subject, body } }; },
   ],
   search_messages: [
     (pick) => { const query = pick('phrase'); return { request: `Find the chat messages where someone mentioned "${query}".`, arguments: { query } }; },
@@ -436,7 +463,7 @@ export const TEMPLATES = {
     (pick) => { const id = pick('ticketId'); const assignee = pick('username'); return { request: `Give ticket ${id} to ${assignee}.`, arguments: { ticket_id: id, assignee } }; },
   ],
   comment_ticket: [
-    (pick) => { const id = pick('ticketId'); const text = pick('text'); return { request: `Leave a note on ticket ${id}: ${text}`, arguments: { ticket_id: id, text } }; },
+    (pick) => { const id = pick('ticketId'); const text = pick('text'); return { request: `Leave a note on ticket ${id}: "${text}"`, arguments: { ticket_id: id, text } }; },
   ],
   search_tickets: [
     (pick) => { const query = pick('phrase'); return { request: `Find tickets about "${query}".`, arguments: { query } }; },
@@ -533,20 +560,21 @@ export function toJsonl(items) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   mkdirSync(dirname(OUTPUT), { recursive: true });
-  writeFileSync(OUTPUT, toJsonl(buildItems()));
-  console.log(`wrote ${buildItems().length} items to ${OUTPUT}`);
+  const items = buildItems();
+  writeFileSync(OUTPUT, toJsonl(items));
+  console.log(`wrote ${items.length} items to ${OUTPUT}`);
 }
 ````
 
 - [ ] **Step 4: Generate the items**
 
 Run: `node scripts/benchmarks/tool-selection.mjs && shasum -a 256 apps/web/public/data/benchmarks/tool-selection-v1.jsonl`
-Expected: `wrote 100 items to …/tool-selection-v1.jsonl` and the hash `71016302a23fe939eb6599ab1235908e810a1e63868565b90e0bb33ddf5d3946`. A different hash means the generator was not copied exactly; fix the copy, never the pinned hash. The file is 422,370 bytes or close to it.
+Expected: `wrote 100 items to …/tool-selection-v1.jsonl` and the hash `95b3bd6a0e5087f8e44bfa1ba14b7faaef3d0a4ed9dfd6b64184a21d257de3db`. A different hash means the generator was not copied exactly; fix the copy, never the pinned hash. The file is 422,152 bytes.
 
 - [ ] **Step 5: Run the tests**
 
 Run: `bun test apps/cli/test/tool-selection.test.mjs`
-Expected: 6 pass, 0 fail.
+Expected: 7 pass, 0 fail.
 
 - [ ] **Step: Commit**
 
@@ -571,13 +599,13 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { NONE_COUNT, NONE_TARGETS, SYSTEM, TOOLS, buildItems, toJsonl } from '../../../scripts/benchmarks/tool-selection.mjs';
+import { NONE_COUNT, NONE_TARGETS, POOLS, SYSTEM, TEMPLATES, TOOLS, buildItems, generator, toJsonl } from '../../../scripts/benchmarks/tool-selection.mjs';
 import { SUITES } from '../src/eval/suites.ts';
 import { judge, lastJsonObject } from '../src/eval/tool-selection.ts';
 
 const DATA = fileURLToPath(new URL('../../web/public/data/benchmarks/tool-selection-v1.jsonl', import.meta.url));
 /** Version "1" is these bytes. A change to the items needs a new version, with its own seed, file and hash. */
-const V1_SHA256 = '71016302a23fe939eb6599ab1235908e810a1e63868565b90e0bb33ddf5d3946';
+const V1_SHA256 = '95b3bd6a0e5087f8e44bfa1ba14b7faaef3d0a4ed9dfd6b64184a21d257de3db';
 const sha256 = (data) => createHash('sha256').update(data).digest('hex');
 const ITEMS = buildItems();
 const byName = (item, name) => item.tools.find((tool) => tool.name === name);
@@ -869,7 +897,7 @@ and add `'tool-selection-v1': toolSelectionSuite,` as the last entry of `SUITES`
 - [ ] **Step 5: Run the tests and the type check**
 
 Run: `bun test apps/cli/test/tool-selection.test.mjs && bun run typecheck`
-Expected: 15 pass, 0 fail; 0 type errors.
+Expected: 16 pass, 0 fail; 0 type errors.
 
 - [ ] **Step: Commit**
 
@@ -899,7 +927,7 @@ import test, { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { repeatProblems } from '@unite4ai/core/repeat';
 import { validateContent } from '@unite4ai/core/validate';
-import { NONE_COUNT, NONE_TARGETS, SYSTEM, TOOLS, buildItems, toJsonl } from '../../../scripts/benchmarks/tool-selection.mjs';
+import { NONE_COUNT, NONE_TARGETS, POOLS, SYSTEM, TEMPLATES, TOOLS, buildItems, generator, toJsonl } from '../../../scripts/benchmarks/tool-selection.mjs';
 import { runEval } from '../src/eval/run.ts';
 import { SUITES } from '../src/eval/suites.ts';
 import { judge, lastJsonObject } from '../src/eval/tool-selection.ts';
@@ -908,7 +936,7 @@ const CONTENT_ROOT = fileURLToPath(new URL('../../web/src/content', import.meta.
 const DATA = fileURLToPath(new URL('../../web/public/data/benchmarks/tool-selection-v1.jsonl', import.meta.url));
 const DEFINITION = join(CONTENT_ROOT, 'benchmarks/tool-selection-v1.md');
 /** Version "1" is these bytes. A change to the items needs a new version, with its own seed, file and hash. */
-const V1_SHA256 = '71016302a23fe939eb6599ab1235908e810a1e63868565b90e0bb33ddf5d3946';
+const V1_SHA256 = '95b3bd6a0e5087f8e44bfa1ba14b7faaef3d0a4ed9dfd6b64184a21d257de3db';
 const sha256 = (data) => createHash('sha256').update(data).digest('hex');
 const ITEMS = buildItems();
 const byName = (item, name) => item.tools.find((tool) => tool.name === name);
@@ -1088,7 +1116,7 @@ repeat:
   temperature: 0.7
   top_p: 1
 source_url: https://unite4ai.com/data/benchmarks/tool-selection-v1.jsonl
-source_sha256: 71016302a23fe939eb6599ab1235908e810a1e63868565b90e0bb33ddf5d3946
+source_sha256: 95b3bd6a0e5087f8e44bfa1ba14b7faaef3d0a4ed9dfd6b64184a21d257de3db
 license: cc-by-4.0
 updated: 2026-11-22
 ---
@@ -1173,7 +1201,8 @@ the items with no call. The data file is generated from the script and checked i
   disagree; that is what the score measures. On a server that ignores the seed, a rerun gives
   other answers and can give another score.
 - **No-call items are few.** Fifteen items cannot tell a model that rarely declines from one
-  that never does by much; read the per-item transcript when that matters.
+  that never does by much, and none of them is in the web domain; read the per-item transcript
+  when that matters.
 - **Public.** Models can be tuned against it. When results suggest the items have leaked or
   the benchmark is saturated, a new version with a new seed replaces it.
 - English only.
@@ -1192,7 +1221,7 @@ In `.github/ISSUE_TEMPLATE/submit-eval-result.yml`, add `        - tool-selectio
 - [ ] **Step 5: Run the tests and the content gate**
 
 Run: `bun test apps/cli/test/tool-selection.test.mjs apps/web/test/evals-pages.test.mjs apps/web/test/issue-templates.test.mjs && bun run validate && bun run check`
-Expected: all pass (17 in `tool-selection.test.mjs`); `validate` 0 errors; `astro check` 0 errors.
+Expected: all pass (18 in `tool-selection.test.mjs`); `validate` 0 errors; `astro check` 0 errors.
 
 - [ ] **Step: Commit**
 
