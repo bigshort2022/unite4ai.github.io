@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { CONTENT_ID, benchmarkSchema, evalResultSchema } from '@unite4ai/schema';
+import { CONTENT_ID, REPEAT_MAX_RUNS, benchmarkSchema, evalResultSchema } from '@unite4ai/schema';
 import { benchmark, measuredBenchmark, result } from './fixtures/evals.mjs';
 
 const ok = (schema, value) => schema.safeParse(value).success;
@@ -193,6 +193,8 @@ const REPEAT = {
 
 test('a benchmark may fix a repeat-run method of 2 to 20 runs, and a measured benchmark may not', () => {
   assert.equal(ok(benchmarkSchema, benchmark({ repeat: METHOD })), true);
+  assert.equal(ok(benchmarkSchema, benchmark({ repeat: { ...METHOD, runs: 2, temperature: 0 } })), true);
+  assert.equal(ok(benchmarkSchema, benchmark({ repeat: { ...METHOD, runs: REPEAT_MAX_RUNS, temperature: 2 } })), true);
   assert.equal(ok(benchmarkSchema, benchmark({ repeat: { ...METHOD, runs: 1 } })), false);
   assert.equal(ok(benchmarkSchema, benchmark({ repeat: { ...METHOD, runs: 21 } })), false);
   assert.equal(ok(benchmarkSchema, benchmark({ repeat: { ...METHOD, top_p: 0 } })), false);
@@ -207,4 +209,6 @@ test('a result may carry a repeat block; its rates are percentages and its inter
   assert.equal(ok(evalResultSchema, result({ repeat: { ...REPEAT, pass_k_ci: [90] } })), false);
   assert.equal(ok(evalResultSchema, result({ repeat: { ...REPEAT, run_correct: [200.5, 200, 200, 200, 200] } })), false);
   assert.equal(ok(evalResultSchema, result({ repeat: { ...REPEAT, typo: 1 } })), false);
+  assert.equal(ok(evalResultSchema, result({ repeat: { ...REPEAT, run_correct: Array(REPEAT_MAX_RUNS + 1).fill(0) } })), false);
+  assert.equal(ok(evalResultSchema, result({ repeat: { ...REPEAT, item_pass_histogram: Array(REPEAT_MAX_RUNS + 2).fill(0) } })), false);
 });
