@@ -339,3 +339,17 @@ Run `node --test apps/web/test/global-exchange-pages.test.mjs` under Node 24 for
 page/feed contract. Changes to project membership require updating the explicit expected
 identity/category set in that consumer-contract test along with the sourced records.
 No live payment, model execution or provider purchase is required for this check.
+
+### Exchange profiles
+
+Profiles live in `apps/web/src/content/exchange-profiles/<directory-id>.json` and follow
+`docs/exchange-profiles/research-protocol.md`. Every value cites a verbatim quote from a
+public source; missing values are `not-published`, never estimated. Market data is
+`reported` from a named source with its date. Scores are computed from the rubric in
+`packages/core/src/profile-rubrics.ts` and are never written into records. Only profiles
+with `status: "published"` and an owner review are rendered.
+
+**Corrections from operators or anyone else:** open an issue or pull request naming the
+profile, the value, and a public source that states the correct value. A maintainer
+re-verifies the source and updates the record within the normal review cycle. Scores
+change only through record changes or a new rubric version.
