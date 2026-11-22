@@ -3,6 +3,7 @@ import Base from '../../layouts/Base.astro';
 import { readExchangeProfiles } from '@unite4ai/core/profiles';
 import { riskScore, securityScore, transactionCostScore } from '@unite4ai/core/profile-scores';
 import { highlightUrl } from '@unite4ai/core/profile-checks';
+import type { ExchangeProfile } from '@unite4ai/schema';
 import directory from '../../data/global-exchange.json';
 
 export async function getStaticPaths() {
@@ -22,15 +23,22 @@ const scores = [
   { name: 'Risk Score', note: 'Higher means more risk indicators are present.', s: riskScore(profile) },
 ];
 const cost = transactionCostScore(profile);
-const label = (k: string) => k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
-const factRows = (section: Record<string, any>) => Object.entries(section).map(([k, f]) => ({ k: label(k), f }));
+type FactKey = keyof ExchangeProfile['identity'] | keyof ExchangeProfile['legal'] | keyof ExchangeProfile['marketData'] | keyof ExchangeProfile['usage'];
+const LABELS: Record<FactKey, string> = {
+  officialUrl: 'Official URL', operatingEntity: 'Operating entity', headquarters: 'Headquarters', formedOn: 'Date of formation',
+  registeredJurisdiction: 'Registered jurisdiction', governingLaw: 'Governing law', licenses: 'Licences held',
+  restrictedJurisdictions: 'Restricted jurisdictions', sanctionsScreening: 'Sanctions screening', kycRequired: 'KYC required',
+  tokenSymbol: 'Token symbol', marketCapUsd: 'Market cap (USD)', tokenPriceUsd: 'Token price (USD)',
+  weeklyActiveUsers: 'Average weekly active users', volume: 'Volume', traders: 'Traders',
+};
+const factRows = (section: Record<string, any>) => Object.entries(section).map(([k, f]) => ({ k: LABELS[k as FactKey], f }));
+const display = (v: unknown) => (typeof v === 'number' ? v.toLocaleString('en-US', { maximumFractionDigits: 8 }) : String(v));
 ---
 <Base title={`${entry.name} profile`} description={`Researched profile of ${entry.name}: identity, legal facts, usage, prices, costs and rubric scores.`}>
   <section class="wrap section">
     <p><a href={href('/global-exchange')}>Back to the Global Exchange</a></p>
     <h1>{entry.name}</h1>
-    <p>Researched {profile.meta.researchedAt}; reviewed by {profile.meta.reviewedBy} on {profile.meta.reviewedAt}.
-      {profile.meta.agent && <>Drafted by {profile.meta.agent.model} via {profile.meta.agent.harness}.</>}</p>
+    <p>Researched {profile.meta.researchedAt}; reviewed by {profile.meta.reviewedBy} on {profile.meta.reviewedAt}.{profile.meta.agent && <>{' '}Drafted by {profile.meta.agent.model} via {profile.meta.agent.harness}.</>}</p>
     <p>Profiles describe public documentation and data at the stated dates. Reported figures are not verified by Unite4AI. Scores depend on what is published: an operator that documents more can score differently from one that documents less.</p>
   </section>
 
@@ -63,7 +71,7 @@ const factRows = (section: Record<string, any>) => Object.entries(section).map((
     <section class="wrap section" aria-labelledby={section.id}>
       <h2 id={section.id}>{section.title}</h2>
       <dl>{section.rows.map(({ k, f }) => (
-        <><dt>{k}</dt><dd>{f.value === null ? 'Not published' : <>{String(f.value)} <small>({f.level})</small>{f.evidence.map((id: string) => <> <a href={link(id)} rel="nofollow noopener">[{id}]</a></>)}</>}</dd></>
+        <><dt>{k}</dt><dd>{f.value === null ? 'Not published' : <>{display(f.value)} <small>({f.level})</small>{f.evidence.map((id: string) => <> <a href={link(id)} rel="nofollow noopener">[{id}]</a></>)}</>}</dd></>
       ))}</dl>
     </section>
   ))}
@@ -71,7 +79,7 @@ const factRows = (section: Record<string, any>) => Object.entries(section).map((
   <section class="wrap section" aria-labelledby="usage">
     <h2 id="usage">Usage</h2>
     <dl>{factRows(profile.usage).map(({ k, f }) => (
-      <><dt>{k}</dt><dd>{f.value === null ? 'Not published' : <>{f.value.toLocaleString('en-US')} {f.unit}, {f.window.start} to {f.window.end} <small>({f.level})</small>{f.evidence.map((id: string) => <> <a href={link(id)} rel="nofollow noopener">[{id}]</a></>)}</>}</dd></>
+      <><dt>{k}</dt><dd>{f.value === null ? 'Not published' : <>{display(f.value)} {f.unit}, {f.window.start} to {f.window.end} <small>({f.level})</small>{f.evidence.map((id: string) => <> <a href={link(id)} rel="nofollow noopener">[{id}]</a></>)}</>}</dd></>
     ))}</dl>
   </section>
 

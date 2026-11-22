@@ -36,6 +36,10 @@ test('published profiles render with scores and evidence; drafts never render', 
     const quotes = page.match(/<h2 id="prices">[\s\S]*?<\/table>/)[0];
     assert.match(quotes, /<th>Level<\/th>/);
     assert.match(quotes, /<td>reported<\/td>/);
+    assert.match(page, /<dt>Market cap \(USD\)<\/dt><dd>1,000,000 /);
+    assert.match(page, /<dt>Token price \(USD\)<\/dt><dd>0\.5 /);
+    assert.match(page, /<dt>KYC required<\/dt>/);
+    assert.match(page, /2026-11-22\. Drafted by fixture-model/);
     assert.ok(page.includes('href="https://fixture.example/e2#:~:text='), 'facts link to highlighted evidence');
     assert.equal(existsSync(join(out, 'global-exchange', 'vast-ai', 'index.html')), false, 'drafts are not rendered');
 
