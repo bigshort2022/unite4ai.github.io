@@ -36,6 +36,17 @@ test('fixed fees need a currency and amounts are decimal strings', () => {
   assert.equal(exchangeProfileSchema.safeParse(q).success, false);
 });
 
+test('currencies keep the source denomination, including lowercase chain units, but no symbols or spaces', () => {
+  const ok = profile();
+  ok.costComponents[2].currency = 'uakt';
+  assert.equal(exchangeProfileSchema.safeParse(ok).success, true);
+  for (const bad of ['$', 'u akt', 'U$D', '1usd']) {
+    const p = profile();
+    p.costComponents[2].currency = bad;
+    assert.equal(exchangeProfileSchema.safeParse(p).success, false, bad);
+  }
+});
+
 test('a fee with an unpublished amount must cite evidence that the fee exists', () => {
   const withdrawal = { kind: 'withdrawal', amount: null, appliesTo: 'seller', scope: 'Payouts', searched: ['https://fixture.example/fees'] };
   const p = profile();

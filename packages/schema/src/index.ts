@@ -343,7 +343,7 @@ export const PROFILE_COST_KINDS = ['platform-fee', 'take-rate', 'payment-process
 
 const profileEvidenceId = z.string().regex(/^e\d{1,3}$/, 'must be an evidence id like e7');
 const profileDecimal = z.string().regex(/^\d+(?:\.\d+)?$/, 'must be a non-negative decimal string');
-const profileCurrency = z.string().regex(/^[A-Z]{3,5}$/, 'must be an uppercase currency or asset code');
+const profileCurrency = z.string().regex(/^[A-Za-z][A-Za-z0-9]{1,11}$/, 'must be a currency or asset denomination as the source writes it (letters and digits, e.g. USD, USDC, uakt)');
 const profileNotPublished = z.strictObject({ value: z.null(), level: z.literal('not-published'), searched: z.array(httpsUrl).min(1) });
 
 export const profileFactSchema = z.union([
