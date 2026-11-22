@@ -11,6 +11,7 @@ export { buildRegistryIndex, type RegistryEntry, type RegistryIndexItem } from '
 export {
   byCodeUnit,
   groupEvals,
+  indistinguishableFrom,
   leaderboard,
   localSetups,
   median,

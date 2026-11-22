@@ -279,6 +279,11 @@ test('model page lists its evaluations and local setups; the feed publishes the 
     ['decode-speed-gsm8k-200', '2', ['1']],
   ]);
   assert.equal(feed.benchmarks[0].higher_is_better, true);
+  assert.deepEqual(Object.fromEntries(feed.benchmarks.map((b) => [b.id, b.repeat])), {
+    'gsm8k-200': null,
+    'canary-injection-v1': { runs: 5, temperature: 0.7, top_p: 1 },
+    'decode-speed-gsm8k-200': null,
+  });
   // Groups of a measured benchmark carry their runtime and machine; quality groups do not.
   assert.equal(feed.groups.length, 7);
   const quality = feed.groups.filter((g) => g.benchmark === 'gsm8k-200');
@@ -500,6 +505,9 @@ test('a benchmark page with current results has no empty state, and its previous
   assert.doesNotMatch(leaderboardOf(detail), /No results/);
   assert.match(detail, /<section id="previous-versions"[^>]*>\s*<h2>Previous versions<\/h2>/);
   assert.doesNotMatch(page('evals/index.html'), /of (?:an )?earlier versions?/);
+  // Single-run scores carry no interval, so their ranking is not qualified.
+  assert.doesNotMatch(detail, /not distinguishable/);
+  assert.doesNotMatch(page('evals/index.html'), /not distinguishable/);
 });
 
 test('a repeat-run result shows its interval, pass@1 with its interval, and the spread between runs', { timeout: 120_000 }, () => {
@@ -520,7 +528,20 @@ test('a repeat-run result shows its interval, pass@1 with its interval, and the 
   const steadyFile = result({ benchmark: 'canary-injection-v1', score: steady.pass_k, date: '2026-11-21', hash: 'd', submitter: 'fixture-bot-2' });
   steadyFile.content.n = 50;
   steadyFile.content.repeat = steady;
-  const detail = buildScratch('repeat', [file, steadyFile])('evals/canary-injection-v1/index.html');
+  // Another model, five runs of 35 of the 50 items: a lower score whose interval overlaps the first group's.
+  const other = repeatSummary({ runs: 5, temperature: 0.7, top_p: 1 }, {
+    item_pass_histogram: [15, 0, 0, 0, 0, 35],
+    run_correct: [35, 35, 35, 35, 35],
+    seconds_total: 250,
+  });
+  const OTHER = 'qwen3-4b-instruct-2507';
+  const otherFile = result({ benchmark: 'canary-injection-v1', score: other.pass_k, date: '2026-11-22', hash: 'e' });
+  otherFile.name = otherFile.name.replace(MODEL, OTHER);
+  otherFile.content.model = OTHER;
+  otherFile.content.n = 50;
+  otherFile.content.repeat = other;
+  const site = buildScratch('repeat', [file, steadyFile, otherFile]);
+  const detail = site('evals/canary-injection-v1/index.html');
 
   assert.match(detail, /<span class="tag">5 runs per item at temperature 0\.7<\/span>/);
   const note = leaderboardOf(detail);
@@ -537,4 +558,19 @@ test('a repeat-run result shows its interval, pass@1 with its interval, and the 
     assert.ok(detail.includes(`<small>${text}</small>`), text);
   }
   assert.ok(!detail.includes('per run 80–80'));
+
+  // Both groups' 95% intervals overlap, so the ranking between them is not supported.
+  assert.ok(Math.max(repeat.pass_k_ci[1], steady.pass_k_ci[1]) >= other.pass_k_ci[0]);
+  const board = site('evals/index.html');
+  const canaryBoard = board.slice(board.indexOf('Leaderboard for Prompt-injection canary'));
+  for (const leaderboard of [leaderboardOf(detail), canaryBoard.slice(0, canaryBoard.indexOf('</table>'))]) {
+    const [first, second] = leaderboard.split('<tbody>')[1].split('<tr').slice(1);
+    assert.ok(first.includes(`/registry/models/${MODEL}"`), 'the higher score ranks first');
+    assert.doesNotMatch(first, /not distinguishable/);
+    assert.ok(second.includes(`/registry/models/${OTHER}"`));
+    assert.match(second, /<td class="rank num">2<small>not distinguishable from #1<\/small><\/td>/);
+    // Each result of a repeat-run benchmark is five runs, so the Runs cell counts results.
+    assert.match(first, /<small>2 results/);
+    assert.match(second, /<small>1 result[ <]/);
+  }
 });

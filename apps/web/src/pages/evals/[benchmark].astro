@@ -2,7 +2,7 @@
 import Base from '../../layouts/Base.astro';
 import { getCollection, render } from 'astro:content';
 import { reproductionLabel } from '@unite4ai/core';
-import { CATEGORY_LABELS, SUBMIT_GUIDE, deviceLine, formatNumber, loadEvals, repeatLines, runtimeLabel, scoreRange, withUnit, type Board } from '../../lib/evals';
+import { CATEGORY_LABELS, SUBMIT_GUIDE, deviceLine, formatNumber, loadEvals, repeatLines, runsLabel, runtimeLabel, scoreRange, withUnit, type Board } from '../../lib/evals';
 
 export async function getStaticPaths() {
   const benchmarks = await getCollection('benchmarks');
@@ -17,7 +17,7 @@ const href = (p: string) => `${base}${p}` || '/';
 
 const { boards, modelNames } = await loadEvals();
 // There is one board for every benchmark in the collection, so this one's is among them.
-const { rows, runs, earlierRuns, measured } = boards.find((board) => board.benchmark.id === entry.id) as Board;
+const { rows, rankNotes, runs, earlierRuns, measured } = boards.find((board) => board.benchmark.id === entry.id) as Board;
 const runTables = [
   { id: 'every-run', title: 'Every run', caption: `Every run of ${d.name}, version ${d.version}`, list: runs },
   { id: 'previous-versions', title: 'Previous versions', caption: `Runs of previous versions of ${d.name}`, list: earlierRuns },
@@ -65,7 +65,7 @@ const modelName = (id: string) => modelNames.get(id) ?? id;
           <tbody>
             {rows.map((row, index) => (
               <tr>
-                {!measured && <td class="rank num">{index + 1}</td>}
+                {!measured && <td class="rank num">{index + 1}{rankNotes[index] && <small>{rankNotes[index]}</small>}</td>}
                 <td><a href={href(`/registry/models/${row.model}`)}>{modelName(row.model)}</a></td>
                 <td class="num">
                   <span class="score">{withUnit(formatNumber(row.score), d.metric.unit)}</span>
@@ -79,7 +79,7 @@ const modelName = (id: string) => modelNames.get(id) ?? id;
                 {!measured && (
                   <td class="num">{row.tokens_per_second === null ? '—' : `${formatNumber(row.tokens_per_second)} tok/s`}</td>
                 )}
-                <td><span class={`tag${row.submitters.length > 1 ? ' tag-open' : ''}`}>{reproductionLabel(row)}</span><small>{row.runs} {row.runs === 1 ? 'run' : 'runs'}</small></td>
+                <td><span class={`tag${row.submitters.length > 1 ? ' tag-open' : ''}`}>{reproductionLabel(row)}</span><small>{runsLabel(row.runs, d.repeat !== undefined)}</small></td>
               </tr>
             ))}
           </tbody>

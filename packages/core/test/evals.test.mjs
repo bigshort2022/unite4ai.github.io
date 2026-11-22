@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { groupEvals, leaderboard, localSetups as setupsOfCurrent, median, reproductionLabel } from '../src/evals.ts';
+import { groupEvals, indistinguishableFrom, leaderboard, localSetups as setupsOfCurrent, median, reproductionLabel } from '../src/evals.ts';
 import { result, run } from './fixtures/evals.mjs';
 
 const setup = (overrides = {}) => ({ ...result().setup, ...overrides });
@@ -73,6 +73,30 @@ test('a group reports median, range, run count, distinct submitters, latest date
 
 test('speed is null when no run measured it', () => {
   assert.equal(groupEvals([run('a')])[0].tokens_per_second, null);
+});
+
+/** A repeat block carrying only what grouping reads; the leaderboard does not recompute it. */
+const repeatWith = (pass_k_ci) => ({ repeat: { pass_k_ci } });
+
+test('a repeat-run group spans its members\' intervals; a group with a single-run member has none', () => {
+  const [group] = groupEvals([
+    run('a', repeatWith([60, 80])),
+    run('b', repeatWith([70, 90])),
+    run('c', repeatWith([65, 85])),
+  ]);
+  assert.deepEqual(group.pass_k_ci, [60, 90]);
+  assert.equal(groupEvals([run('a', repeatWith([60, 80])), run('b')])[0].pass_k_ci, null);
+  assert.equal(groupEvals([run('a')])[0].pass_k_ci, null);
+});
+
+test('a row is not distinguishable from the highest-ranked earlier row whose interval overlaps its own', () => {
+  const rows = (...intervals) => intervals.map((pass_k_ci) => ({ pass_k_ci }));
+  assert.deepEqual(indistinguishableFrom(rows([80, 90], [70, 85], [50, 60])), [null, 0, null]);
+  // The highest-ranked overlapping row, not the nearest; touching intervals overlap.
+  assert.deepEqual(indistinguishableFrom(rows([80, 90], [75, 88], [70, 80])), [null, 0, 0]);
+  assert.deepEqual(indistinguishableFrom(rows([80, 90], null, [70, 85])), [null, null, 0]);
+  assert.deepEqual(indistinguishableFrom(rows(null, [70, 85])), [null, null]);
+  assert.deepEqual(indistinguishableFrom([]), []);
 });
 
 test('reproduction label counts submitters other than the first, not runs', () => {
