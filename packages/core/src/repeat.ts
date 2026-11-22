@@ -83,7 +83,15 @@ export function tallyAttempts(attempts: readonly Attempt[], itemCount: number, r
   let seconds = 0;
   let promptTokens: number | null = 0;
   let completionTokens: number | null = 0;
+  const seen = new Uint8Array(itemCount * runs);
   for (const attempt of attempts) {
+    const { run, index } = attempt;
+    if (run < 0 || run >= runs || index < 0 || index >= itemCount) {
+      throw new Error(`answer for run ${run} item ${index} is outside ${runs} runs of ${itemCount} items`);
+    }
+    const key = run * itemCount + index;
+    if (seen[key] === 1) throw new Error(`run ${run} item ${index} is answered twice`);
+    seen[key] = 1;
     if (attempt.correct) {
       passes[attempt.index] += 1;
       runCorrect[attempt.run] += 1;
@@ -112,7 +120,10 @@ export function repeatSummary(method: RepeatMethod, counts: RepeatCounts): Repea
   const everyRun = histogram[runs];
   const scores = counts.run_correct.map((correct) => (100 * correct) / n);
   const mean = sum(scores) / runs;
-  const sd = Math.sqrt(sum(scores.map((score) => (score - mean) ** 2)) / (runs - 1));
+  const sd = Math.sqrt(sum(scores.map((score) => {
+    const d = score - mean;
+    return d * d;
+  })) / (runs - 1));
   /** Total over correct answers; undefined when the total is unknown or nothing was correct. */
   const perSuccess = (total: number | undefined, digits: number) =>
     (total === undefined || successes === 0 ? undefined : round(total / successes, digits));
@@ -172,6 +183,15 @@ export function repeatProblems(repeat: RepeatResult, n: number): string[] {
   const most = n - histogram[0];
   if (runCorrect.some((correct) => correct < fewest || correct > most)) {
     return [`each repeat.run_correct entry must be between ${fewest} (items right on every run) and ${most} (items right on any run)`];
+  }
+  const descending = [...runCorrect].sort((a, b) => b - a);
+  let best = 0;
+  for (let t = 1; t < runs; t += 1) {
+    best += descending[t - 1];
+    const room = histogram.reduce((total, count, passed) => total + count * Math.min(passed, t), 0);
+    if (best > room) {
+      return [`repeat.run_correct cannot come from these items: its ${t} best runs have ${best} correct answers, but items passing as in repeat.item_pass_histogram allow at most ${room}`];
+    }
   }
 
   const expected = repeatSummary(repeat, repeat);

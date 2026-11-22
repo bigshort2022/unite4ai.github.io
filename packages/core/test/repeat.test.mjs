@@ -30,6 +30,7 @@ test('the pass@1 bootstrap is seeded, so every machine gets the same interval', 
   assert.deepEqual(bootstrapPass1Percent([10, 0, 0, 0, 0, 40], 5), [68, 90]);
   assert.deepEqual(bootstrapPass1Percent([0, 0, 0, 0, 0, 50], 5), [100, 100]);
   assert.deepEqual(bootstrapPass1Percent([0, 1, 0, 2], 3), [33.33, 100]);
+  assert.deepEqual(bootstrapPass1Percent([3, 5, 7, 9, 11, 15], 5), [57.6, 74.8]);
 });
 
 test('answers are tallied per item and per run; a missing token count leaves that total out', () => {
@@ -44,6 +45,15 @@ test('answers are tallied per item and per run; a missing token count leaves tha
   untimed[4] = { ...untimed[4], completionTokens: null };
   assert.equal('completion_tokens_total' in tallyAttempts(untimed, 3, 3), false);
   assert.throws(() => tallyAttempts(attempts().slice(1), 3, 3), /8 answers; 3 runs of 3 items need 9/);
+  const outside = attempts();
+  outside[3] = { ...outside[3], run: 3 };
+  assert.throws(() => tallyAttempts(outside, 3, 3), /answer for run 3 item 0 is outside 3 runs of 3 items/);
+  const negative = attempts();
+  negative[3] = { ...negative[3], index: -1 };
+  assert.throws(() => tallyAttempts(negative, 3, 3), /answer for run 1 item -1 is outside 3 runs of 3 items/);
+  const twice = attempts();
+  twice[4] = { ...twice[4], index: 0 };
+  assert.throws(() => tallyAttempts(twice, 3, 3), /run 1 item 0 is answered twice/);
 });
 
 test('the summary derives every rate and interval from the counts', () => {
@@ -89,4 +99,32 @@ test('a repeat block is checked against its own counts', () => {
   assert.deepEqual(repeatProblems({ ...good, run_correct: [1, 3, 3] }, 3), [
     'each repeat.run_correct entry must be between 2 (items right on every run) and 3 (items right on any run)',
   ]);
+});
+
+test('every derived figure is checked against the counts', () => {
+  const good = repeatSummary(METHOD, tallyAttempts(attempts(), 3, 3));
+  for (const key of [
+    'pass_1',
+    'pass_1_ci',
+    'pass_k',
+    'pass_k_ci',
+    'run_score_sd',
+    'seconds_per_success',
+    'prompt_tokens_per_success',
+    'completion_tokens_per_success',
+  ]) {
+    const problems = repeatProblems({ ...good, [key]: key.endsWith('_ci') ? [1, 2] : 999 }, 3);
+    assert.equal(problems.length, 1, key);
+    assert.ok(problems[0].startsWith(`repeat.${key} is `), problems[0]);
+  }
+});
+
+test('run counts no set of answers can produce are rejected', () => {
+  const method = { runs: 4, temperature: 0.7, top_p: 1 };
+  const forged = repeatSummary(method, { item_pass_histogram: [0, 1, 0, 1, 0], run_correct: [2, 2, 0, 0], seconds_total: 4 });
+  assert.deepEqual(repeatProblems(forged, 2), [
+    'repeat.run_correct cannot come from these items: its 2 best runs have 4 correct answers, but items passing as in repeat.item_pass_histogram allow at most 3',
+  ]);
+  const achievable = repeatSummary(method, { item_pass_histogram: [0, 1, 0, 1, 0], run_correct: [2, 1, 1, 0], seconds_total: 4 });
+  assert.deepEqual(repeatProblems(achievable, 2), []);
 });
