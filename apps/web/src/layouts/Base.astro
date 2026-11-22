@@ -22,6 +22,8 @@ const nav = [
   { label: 'Search', href: '/search' },
   { label: 'Contribute', href: '/contribute' },
 ];
+const sections: Record<string, string> = { '/global-exchange': '/exchange', '/registry': '/stack', '/evals': '/playground' };
+const section = Object.entries(sections).find(([child]) => path === child || path.startsWith(`${child}/`))?.[1];
 ---
 <!doctype html>
 <html lang="en">
@@ -51,7 +53,7 @@ const nav = [
         <a class="brand" href={href('/')}>Unite<span>4AI</span></a>
         <nav class="site-nav" aria-label="Main">
           {nav.map((n) => (
-            <a href={href(n.href)} aria-current={path === n.href ? 'page' : undefined}>{n.label}</a>
+            <a href={href(n.href)} aria-current={path === n.href ? 'page' : section === n.href ? 'location' : undefined}>{n.label}</a>
           ))}
         </nav>
       </div>

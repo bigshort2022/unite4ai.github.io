@@ -105,7 +105,24 @@ test('home leads with the wordmark and groups navigation under parent pages', as
     const main = page.match(/<main[^>]*>([\s\S]*?)<\/main>/)?.[1] ?? '';
     assert.match(main, new RegExp(`href="/${child}"`));
   }
-  assert.doesNotMatch(nav, /aria-current="page"/);
+  assert.doesNotMatch(nav, /aria-current/);
+  const current = async (route) => {
+    const page = (await readFile(new URL(`dist${route}/index.html`, ROOT), 'utf8')).replace(/\s+/g, ' ');
+    const links = page.match(/<nav class="site-nav"[^>]*>(.*?)<\/nav>/)?.[1] ?? '';
+    return [...links.matchAll(/href="([^"]+)" aria-current="(\w+)"/g)].map(([, target, kind]) => `${target}:${kind}`);
+  };
+  for (const [route, expected] of [
+    ['/exchange', '/exchange:page'],
+    ['/stack', '/stack:page'],
+    ['/playground', '/playground:page'],
+    ['/global-exchange', '/exchange:location'],
+    ['/registry', '/stack:location'],
+    ['/registry/datasets', '/stack:location'],
+    ['/evals', '/playground:location'],
+    ['/evals/gsm8k-200', '/playground:location'],
+  ]) {
+    assert.deepEqual(await current(route), [expected], route);
+  }
   assert.doesNotMatch(text, /exchange-preview-title|leading-results-title|data-exchange-metric|<table/);
   const order = ['class="hero', 'id="stack-preview-title"', 'aria-label="Platform at a glance"', 'What makes us different', 'Featured models', 'Progress is not automatic.'];
   const positions = order.map((marker) => text.indexOf(marker));
