@@ -4,6 +4,7 @@ import { OPEN_LICENSE_SET, OPEN_WASHED } from '@unite4ai/schema';
 import { validateEvals } from './validate-evals.ts';
 import { readExchangeRecords } from './read-exchange.ts';
 import { validateExchange } from './exchange.ts';
+import { readExchangeProfiles, validateProfiles } from './profiles.ts';
 
 export interface ValidateResult {
   errors: string[];
@@ -134,6 +135,18 @@ export async function validateContent(contentRoot: string): Promise<ValidateResu
   const catalog = await validateEvals(contentRoot, errors, warnings);
   const exchange = await readExchangeRecords(contentRoot);
   errors.push(...exchange.errors, ...validateExchange(exchange.records, catalog));
+  const profiles = await readExchangeProfiles(contentRoot);
+  errors.push(...profiles.errors);
+  if (profiles.profiles.length > 0) {
+    let directoryIds = new Set<string>();
+    try {
+      const directory = JSON.parse(await readFile(join(contentRoot, '..', 'data', 'global-exchange.json'), 'utf8')) as { projects: { id: string }[] };
+      directoryIds = new Set(directory.projects.map((p) => p.id));
+    } catch {
+      errors.push('exchange-profiles: cannot read data/global-exchange.json beside the content root');
+    }
+    errors.push(...validateProfiles(profiles.profiles, directoryIds));
+  }
 
   return { errors, warnings };
 }
