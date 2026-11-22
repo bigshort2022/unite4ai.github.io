@@ -95,8 +95,10 @@ export function validateProfiles(profiles: ProfileEntry[], directoryIds: Readonl
         errors.push(`${file}: regulatory-action is triggered and must cite regulator evidence`);
       }
     }
-    for (const [key, fact] of Object.entries(p.marketData)) {
-      if (fact.level !== 'not-published' && fact.level !== 'reported') errors.push(`${file}: marketData.${key} must be reported market data`);
+    // The operator may state its own token symbol; market cap and price come from a named third party.
+    for (const key of ['marketCapUsd', 'tokenPriceUsd'] as const) {
+      const { level } = p.marketData[key];
+      if (level !== 'not-published' && level !== 'reported') errors.push(`${file}: marketData.${key} must be reported market data`);
     }
     for (const q of p.priceQuotes) if (!workloads.has(q.workload)) errors.push(`${file}: quote workload ${q.workload} is not a reference workload`);
     const checkRubric = (checks: ExchangeProfile['securityChecks'], allowed: Set<string>, name: string) => {

@@ -58,6 +58,15 @@ test('market data must be reported, and quotes must name a reference workload', 
   assert.match(errors, /mystery-unit/);
 });
 
+test('the operator may state its own token symbol; only market cap and price must be reported', () => {
+  const p = profile();
+  p.marketData.tokenSymbol.level = 'stated';
+  p.marketData.tokenPriceUsd.level = 'stated';
+  const errors = validateProfiles([entry(p)], ids).join('\n');
+  assert.doesNotMatch(errors, /tokenSymbol/);
+  assert.match(errors, /tokenPriceUsd.*reported/);
+});
+
 test('the content gate reads the directory beside the content root and reports bad files', async () => {
   const content = root({ 'akash.json': profile(), 'broken.json': '{not json', 'Bad Name.json': profile() });
   const { errors } = await validateContent(content);
