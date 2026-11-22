@@ -1,13 +1,21 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import test from 'node:test';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import test, { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { repeatProblems } from '@unite4ai/core/repeat';
+import { validateContent } from '@unite4ai/core/validate';
 import { NONE_COUNT, NONE_TARGETS, POOLS, SYSTEM, TEMPLATES, TOOLS, buildItems, generator, toJsonl } from '../../../scripts/benchmarks/tool-selection.mjs';
+import { runEval } from '../src/eval/run.ts';
 import { SUITES } from '../src/eval/suites.ts';
 import { judge, lastJsonObject } from '../src/eval/tool-selection.ts';
 
+const CONTENT_ROOT = fileURLToPath(new URL('../../web/src/content', import.meta.url));
 const DATA = fileURLToPath(new URL('../../web/public/data/benchmarks/tool-selection-v1.jsonl', import.meta.url));
+const DEFINITION = join(CONTENT_ROOT, 'benchmarks/tool-selection-v1.md');
 /** Version "1" is these bytes. A change to the items needs a new version, with its own seed, file and hash. */
 const V1_SHA256 = '95b3bd6a0e5087f8e44bfa1ba14b7faaef3d0a4ed9dfd6b64184a21d257de3db';
 const sha256 = (data) => createHash('sha256').update(data).digest('hex');
@@ -223,4 +231,127 @@ test('braces inside a string value do not move the answer, and a boolean written
 test('with no correct call, null arguments count as left out', () => {
   assert.equal(correct(reply({ tool: null, arguments: { query: null } }), NONE), true);
   assert.equal(correct(reply({ tool: null, arguments: null }), NONE), true);
+});
+
+// ─── Page and runner ─────────────────────────────────────────────────────────
+
+test('the benchmark page pins the data and gives the system message word for word', () => {
+  const definition = readFileSync(DEFINITION, 'utf8');
+  assert.match(definition, new RegExp(`^source_sha256: ${V1_SHA256}$`, 'm'));
+  assert.match(definition, /^version: "1"$/m);
+  assert.match(definition, /^items: 100$/m);
+  assert.match(definition, /^scoring: exact-match$/m);
+  assert.match(definition, /^repeat:\n {2}runs: 5\n {2}temperature: 0\.7\n {2}top_p: 1$/m);
+  assert.ok(definition.includes(`\n\`\`\`text\n${SYSTEM}\n\`\`\`\n`), 'the system message must be on the page verbatim');
+});
+
+const MODEL_CARD = `---
+name: Model A
+summary: Fixture model used only in tests.
+maintainers: ["tester"]
+license: mit
+openness:
+  weights: open
+  training_data: open
+  training_code: open
+  evaluation: open
+updated: 2026-11-01
+---
+
+## Notes
+
+Fixture.
+`;
+
+const temps = [];
+const servers = [];
+after(() => {
+  servers.forEach((server) => server.close());
+  temps.forEach((dir) => rmSync(dir, { recursive: true, force: true }));
+});
+
+/** A content root laid out as in the repository, with the real definition and the vendored data. */
+function makeWorkspace() {
+  const root = mkdtempSync(join(tmpdir(), 'u4ai-tools-'));
+  temps.push(root);
+  const contentRoot = join(root, 'src/content');
+  for (const dir of ['models', 'benchmarks', 'evals']) mkdirSync(join(contentRoot, dir), { recursive: true });
+  writeFileSync(join(contentRoot, 'models/model-a.md'), MODEL_CARD);
+  copyFileSync(DEFINITION, join(contentRoot, 'benchmarks/tool-selection-v1.md'));
+  const data = join(root, 'public/data/benchmarks/tool-selection-v1.jsonl');
+  mkdirSync(dirname(data), { recursive: true });
+  copyFileSync(DATA, data);
+  return { contentRoot, workDir: join(root, 'work') };
+}
+
+/**
+ * A model that answers every item with its expected call, except that it never declines: on an
+ * item with no correct call it calls the first tool offered. A request that departs from the
+ * published method gets a 500 that says how.
+ */
+function stubServer() {
+  const items = new Map(ITEMS.map((item) => [item.request + JSON.stringify(item.tools), item]));
+  const bodies = [];
+  return new Promise((done) => {
+    const server = createServer((req, res) => {
+      let body = '';
+      req.on('data', (chunk) => { body += chunk; });
+      req.on('end', () => {
+        const json = (code, payload) => {
+          res.statusCode = code;
+          res.setHeader('content-type', 'application/json');
+          res.end(JSON.stringify(payload));
+        };
+        if (req.url === '/v1/models') return json(200, { data: [{ id: 'stub-model' }] });
+        if (req.method !== 'POST' || req.url !== '/v1/chat/completions') return json(404, { error: 'not found' });
+        const parsed = JSON.parse(body);
+        bodies.push(parsed);
+        const fixed = { model: 'stub-model', temperature: 0.7, top_p: 1, max_tokens: 1024, stream: true };
+        const wrong = Object.keys(fixed).find((key) => parsed[key] !== fixed[key]);
+        if (wrong) return json(500, { error: { message: `stub: ${wrong} must be ${fixed[wrong]}` } });
+        const user = parsed.messages[1].content;
+        const [, request, tools] = user.match(/^Request: ([\s\S]*?)\n\nTools:\n([\s\S]*)$/);
+        const item = items.get(request + JSON.stringify(JSON.parse(tools)));
+        if (!item) return json(500, { error: { message: 'stub: not an item as published' } });
+        const answer = item.expected.tool === null ? { tool: item.tools[0].name, arguments: {} } : item.expected;
+        res.setHeader('content-type', 'text/event-stream');
+        res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: JSON.stringify(answer) }, finish_reason: null }] })}\n\n`);
+        res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] })}\n\n`);
+        res.write(`data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: 900, completion_tokens: 30 } })}\n\n`);
+        res.end('data: [DONE]\n\n');
+      });
+    });
+    servers.push(server);
+    server.listen(0, '127.0.0.1', () => done({ baseUrl: `http://127.0.0.1:${server.address().port}/v1`, bodies }));
+  });
+}
+
+test('a run sends every item five times as published and publishes a result the gate accepts', { timeout: 120_000 }, async () => {
+  const workspace = makeWorkspace();
+  const stub = await stubServer();
+  const outcome = await runEval({
+    benchmark: 'tool-selection-v1',
+    model: 'model-a',
+    servedModel: 'stub-model',
+    submitter: 'alice',
+    runtime: 'mlx-lm',
+    runtimeVersion: '0.32.2',
+    format: 'mlx',
+    quantization: '4bit',
+    baseUrl: stub.baseUrl,
+    contentRoot: workspace.contentRoot,
+    workDir: workspace.workDir,
+    command: 'bun run eval -- --benchmark tool-selection-v1 --model model-a',
+    hardware: { device: 'Test Box', accelerator: 'cpu', memory_gb: 16 },
+    today: '2026-11-22',
+  });
+
+  assert.equal(stub.bodies.length, 500);
+  assert.deepEqual(stub.bodies.map((body) => body.seed), Array.from({ length: 500 }, (_, position) => position));
+  // The stub never declines, so exactly the 85 items with a call are right on every run.
+  assert.deepEqual([outcome.n, outcome.runs, outcome.correct, outcome.score], [100, 5, 85, 85]);
+  const result = JSON.parse(readFileSync(outcome.resultPath, 'utf8'));
+  assert.deepEqual(result.repeat.item_pass_histogram, [15, 0, 0, 0, 0, 85]);
+  assert.deepEqual(repeatProblems(result.repeat, result.n), []);
+  assert.deepEqual((await validateContent(workspace.contentRoot)).errors, []);
 });
