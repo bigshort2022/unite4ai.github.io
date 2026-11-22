@@ -104,7 +104,20 @@ export function parseItems(questions: string, answers: string, count: number): B
       if (!Array.isArray(accepted)) throw new Error(`${id}: accepted values of ${param} are not a list`);
       params[param] = accepted;
     }
-    if (!functions.some((fn) => fn.name === name)) throw new Error(`${id}: expected function ${name} is not offered`);
+    const fn = functions.find((candidate) => candidate.name === name);
+    if (fn === undefined) throw new Error(`${id}: expected function ${name} is not offered`);
+    // BFCL checks an accepted value of another type than the schema's by its variable path, which is not ported.
+    for (const [param, accepted] of Object.entries(params)) {
+      const schema = fn.parameters.properties[param];
+      if (schema === undefined) throw new Error(`${id}: ${param} is not a parameter of ${name}`);
+      const given = accepted.find((value) => value !== '');
+      const itemType = schema.items?.type;
+      const isList = schema.type === 'array' || schema.type === 'tuple';
+      const fits = (given === undefined || hasType(given, schema.type))
+        && (!isList || accepted.every((value) => !Array.isArray(value)
+          || (itemType !== undefined && value.every((element) => hasType(element, itemType)))));
+      if (!fits) throw new Error(`${id}: accepted values of ${param} are not ${schema.type}; BFCL's variable path is not ported`);
+    }
     return { id, request: turn.content, functions, answer: { name, params } };
   });
 }

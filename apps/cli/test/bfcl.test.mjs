@@ -45,6 +45,11 @@ test('a source that does not fit is refused, naming the item', () => {
   assert.throws(() => parseItems([JSON.stringify(nested), ...rows.slice(1)].join('\n'), ANSWER_KEY, 50), /multiple_0: .*arrays of dict are not supported/);
   const shuffled = [rows[1], rows[0], ...rows.slice(2)].join('\n');
   assert.throws(() => parseItems(shuffled, ANSWER_KEY, 50), /item 1: expected id multiple_0/);
+  const answerRows = ANSWER_KEY.trim().split('\n');
+  const stringly = JSON.parse(answerRows[1]);
+  stringly.ground_truth[0]['math.triangle_area_heron'].side1 = ['3'];
+  const stringlyKey = [answerRows[0], JSON.stringify(stringly), ...answerRows.slice(2)].join('\n');
+  assert.throws(() => parseItems(QUESTIONS, stringlyKey, 50), /multiple_1: accepted values of side1 are not integer; BFCL's variable path is not ported/);
 });
 
 // ─── Prompt ──────────────────────────────────────────────────────────────────

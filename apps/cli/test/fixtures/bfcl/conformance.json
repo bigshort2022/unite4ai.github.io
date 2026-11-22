@@ -17,7 +17,7 @@
     "get_angles": true
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_0",
@@ -29,7 +29,7 @@
     "side3": 3
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_0",
@@ -152,6 +152,21 @@
    "error_type": "type_error:simple"
   },
   {
+   "id": "multiple_0",
+   "variant": "boolean_as_number",
+   "tool": "triangle_properties.get",
+   "arguments": {
+    "side1": 5,
+    "side2": 4,
+    "side3": 3,
+    "get_area": 1,
+    "get_perimeter": true,
+    "get_angles": true
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
    "id": "multiple_1",
    "variant": "canonical",
    "tool": "math.triangle_area_heron",
@@ -161,7 +176,7 @@
     "side3": 5
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_1",
@@ -173,7 +188,7 @@
     "side3": 5
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_1",
@@ -500,7 +515,7 @@
     "rounding": 2
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_4",
@@ -512,7 +527,7 @@
     "time": 5
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_4",
@@ -722,7 +737,7 @@
     "K": 1.0
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_6",
@@ -733,7 +748,7 @@
     "d": 0.01
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_6",
@@ -1127,6 +1142,23 @@
    "error_type": "value_error:dict_key"
   },
   {
+   "id": "multiple_8",
+   "variant": "dict_extra_key",
+   "tool": "realestate.find_properties",
+   "arguments": {
+    "location": "SD",
+    "propertyType": "villa",
+    "bedrooms": 3,
+    "budget": {
+     "min": 300000,
+     "max": 400000,
+     "unite4ai_extra": 1
+    }
+   },
+   "valid": false,
+   "error_type": "value_error:dict_key"
+  },
+  {
    "id": "multiple_9",
    "variant": "canonical",
    "tool": "calculate_average",
@@ -1204,6 +1236,22 @@
      "science": 75,
      "history": 82,
      "music": 89
+    }
+   },
+   "valid": false,
+   "error_type": "value_error:dict_key"
+  },
+  {
+   "id": "multiple_9",
+   "variant": "dict_extra_key",
+   "tool": "calculate_average",
+   "arguments": {
+    "gradeDict": {
+     "math": 90,
+     "science": 75,
+     "history": 82,
+     "music": 89,
+     "unite4ai_extra": 1
     }
    },
    "valid": false,
@@ -1376,7 +1424,7 @@
     "c": -25
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_11",
@@ -1388,7 +1436,7 @@
     "c": -25
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_11",
@@ -1744,7 +1792,7 @@
     "monthly": false
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_14",
@@ -1756,7 +1804,7 @@
     "years": 5
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_14",
@@ -1847,7 +1895,7 @@
     "monthly": true
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_14",
@@ -1858,6 +1906,19 @@
     "depreciation_rate": 3,
     "years": 5,
     "monthly": "false"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_14",
+   "variant": "boolean_as_number",
+   "tool": "finance.property_depreciation",
+   "arguments": {
+    "initial_cost": 200000,
+    "depreciation_rate": 3,
+    "years": 5,
+    "monthly": 0
    },
    "valid": false,
    "error_type": "type_error:simple"
@@ -2608,7 +2669,7 @@
     "duration": 5
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_21",
@@ -3269,7 +3330,7 @@
     "c": -4
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_28",
@@ -3281,7 +3342,7 @@
     "c": -4
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_28",
@@ -3441,7 +3502,7 @@
     "width": 5
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_30",
@@ -3452,7 +3513,7 @@
     "width": 5
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_30",
@@ -3529,7 +3590,7 @@
     "length": 10
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_31",
@@ -3540,7 +3601,7 @@
     "length": 10
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_31",
@@ -3618,7 +3679,7 @@
     "round_off": 0
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_32",
@@ -3629,7 +3690,7 @@
     "height": 7
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_32",
@@ -3832,7 +3893,7 @@
     "num2": 12
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_34",
@@ -3843,7 +3904,7 @@
     "num2": 12
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_34",
@@ -3932,7 +3993,7 @@
     "num2": 256
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_35",
@@ -4040,7 +4101,7 @@
     "initial_speed": 0
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_36",
@@ -4051,7 +4112,7 @@
     "time": 4
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_36",
@@ -4135,7 +4196,7 @@
     "acceleration": -9.81
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_37",
@@ -4146,7 +4207,7 @@
     "time": 6
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_37",
@@ -4352,6 +4413,18 @@
    "error_type": "type_error:simple"
   },
   {
+   "id": "multiple_38",
+   "variant": "boolean_as_number",
+   "tool": "library.search_book",
+   "arguments": {
+    "book_name": "The Alchemist",
+    "city": "New York",
+    "availability": 0
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
    "id": "multiple_39",
    "variant": "canonical",
    "tool": "ride_hailing.get_rides",
@@ -4492,7 +4565,7 @@
     "mu0": 1.256e-06
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_40",
@@ -4503,7 +4576,7 @@
     "distance": 8
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_40",
@@ -4610,7 +4683,7 @@
     "r": 0.01
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_41",
@@ -4621,7 +4694,7 @@
     "r": 0.01
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_41",
@@ -4722,7 +4795,7 @@
     "temperature2": 400
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_42",
@@ -4735,7 +4808,7 @@
     "temperature2": 400
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_42",
@@ -5149,6 +5222,17 @@
    "arguments": {
     "era_name": "Ice age",
     "calculate_years_ago": "true"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_45",
+   "variant": "boolean_as_number",
+   "tool": "geology.get_era",
+   "arguments": {
+    "era_name": "Ice age",
+    "calculate_years_ago": 1
    },
    "valid": false,
    "error_type": "type_error:simple"
@@ -5633,7 +5717,7 @@
     "compound_freq": 1
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_49",
@@ -5645,7 +5729,7 @@
     "annual_rate": 2.5
    },
    "valid": true,
-   "error_type": "simple_function_checker:unclear"
+   "error_type": null
   },
   {
    "id": "multiple_49",

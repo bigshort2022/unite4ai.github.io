@@ -39,10 +39,11 @@ MODEL = "unite4ai"
 def pinned(url_and_hash, local=None):
     """The file's text, from a local copy when there is one, else the network; its hash must match."""
     url, digest = url_and_hash
-    data = local.read_bytes() if local is not None and local.exists() else urllib.request.urlopen(url, timeout=60).read()
+    from_local = local is not None and local.exists()
+    data = local.read_bytes() if from_local else urllib.request.urlopen(url, timeout=60).read()
     actual = hashlib.sha256(data).hexdigest()
     if actual != digest:
-        sys.exit(f"hash mismatch for {url}: expected {digest}, got {actual}")
+        sys.exit(f"hash mismatch for {local if from_local else url}: expected {digest}, got {actual}")
     return data.decode("utf-8")
 
 
@@ -101,7 +102,8 @@ def bfcl_verdict(checker, language, item, tool, arguments):
     properties = function["parameters"]["properties"] if function else {}
     arguments = {k: as_floats(v, properties.get(k, {})) for k, v in arguments.items() if v is not None}
     result = checker.ast_checker(item["functions"], [{tool: arguments}], item["ground_truth"], language.PYTHON, "multiple", MODEL)
-    return result["valid"], result.get("error_type")
+    # BFCL leaves an error type such as "simple_function_checker:unclear" on some valid results.
+    return result["valid"], (None if result["valid"] else result.get("error_type"))
 
 
 def first(values):
@@ -147,6 +149,7 @@ def variants(item):
     if (p := first_of("boolean")) is not None:
         changed("boolean_flipped", p, not canonical[p])
         changed("boolean_as_string", p, str(canonical[p]).lower())
+        changed("boolean_as_number", p, int(canonical[p]))
     for kind in ("array", "tuple"):
         if (p := first_of(kind)) is not None:
             if len(canonical[p]) > 1:
@@ -157,6 +160,7 @@ def variants(item):
     if (p := first_of("dict")) is not None and canonical[p]:
         key = next(iter(canonical[p]))
         changed("dict_missing_key", p, {k: v for k, v in canonical[p].items() if k != key})
+        changed("dict_extra_key", p, {**canonical[p], "unite4ai_extra": 1})
     return out
 
 
@@ -177,9 +181,13 @@ def corpus():
 
 
 def transcript(path):
+    lines = [json.loads(line) for line in Path(path).read_text().splitlines() if line.strip()]
+    header = lines[0] if lines else {}
+    if (header.get("type") != "header" or header.get("benchmark") != "bfcl-multiple-50"
+            or header.get("prompt_version") != "bfcl-multiple-1"):
+        sys.exit(f"not a bfcl-multiple-50 transcript of prompt version bfcl-multiple-1: {path}")
     checker, language = load_checker()
     by_index = items()
-    lines = [json.loads(line) for line in Path(path).read_text().splitlines() if line.strip()]
     answers = [line for line in lines if line.get("type") == "item"]
     agree = 0
     disagreements = []
