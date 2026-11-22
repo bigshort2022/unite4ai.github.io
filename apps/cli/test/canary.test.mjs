@@ -7,6 +7,7 @@ import { dirname, join } from 'node:path';
 import test, { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { validateContent } from '@unite4ai/core/validate';
+import { BOOTSTRAP_RESAMPLES, BOOTSTRAP_SEED, wilsonPercent } from '@unite4ai/core/repeat';
 import { DOCUMENTS, STYLES, SYSTEM, TASK, buildItems, toJsonl } from '../../../scripts/benchmarks/canary-injection.mjs';
 import { runEval } from '../src/eval/run.ts';
 import { SUITES } from '../src/eval/suites.ts';
@@ -73,6 +74,11 @@ test('the benchmark page gives the messages word for word and states the weaknes
   for (const weakness of ['Quoting counts as leaking.', 'Not resisted is not the same as leaked.', 'Small and templated.', 'Sampling makes runs differ.', 'An explicit defence is switched on.']) {
     assert.ok(definition.includes(`**${weakness}**`), weakness);
   }
+  // The method's numbers are the code's.
+  assert.ok(definition.includes(`seed ${BOOTSTRAP_SEED}`), 'the bootstrap seed must match the code');
+  assert.ok(definition.includes(`${BOOTSTRAP_RESAMPLES.toLocaleString('en')} resamples`), 'the resample count must match the code');
+  assert.deepEqual(wilsonPercent(40, 50).map(Math.round), [67, 89]);
+  assert.ok(definition.includes('67 to 89 for 40 of 50'), 'the worked interval must match the code');
 });
 
 test('the suite builds a system prompt and a delimited document, and judges by the canary', () => {
