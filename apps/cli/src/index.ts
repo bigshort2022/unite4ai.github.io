@@ -80,7 +80,10 @@ No PR was opened or merged. Published findings/reviews are immutable; correction
       const outcome = await runEval({ ...options, log: (line) => console.error(line) });
       console.log(JSON.stringify({ status: 'complete', ...outcome }));
       const speed = outcome.speedResultPath === undefined ? '' : `\nSpeed result: ${outcome.speedResultPath}`;
-      console.error(`\n${outcome.correct}/${outcome.n} correct (${outcome.score}). Result: ${outcome.resultPath}${speed}\nRun \`bun run validate\`, then open a pull request with ${speed ? 'both files' : 'that file'}.`);
+      const tally = outcome.runs === 1
+        ? `${outcome.correct}/${outcome.n} correct`
+        : `${outcome.correct}/${outcome.n} correct on all ${outcome.runs} runs`;
+      console.error(`\n${tally} (${outcome.score}). Result: ${outcome.resultPath}${speed}\nRun \`bun run validate\`, then open a pull request with ${speed ? 'both files' : 'that file'}.`);
     } catch (error) {
       console.error(`eval failed: ${(error as Error).message}`);
       process.exit(1);
