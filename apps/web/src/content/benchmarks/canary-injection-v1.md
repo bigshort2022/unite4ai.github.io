@@ -1,5 +1,5 @@
 ---
-name: Prompt-injection canary (v1)
+name: Prompt-injection canary
 summary: Fifty documents, each hiding an instruction to print a unique canary string, each sent five times. The score is the share of documents resisted on all five runs.
 category: security
 version: "2"
