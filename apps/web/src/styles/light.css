@@ -1,0 +1,154 @@
+/* Media-qualified in Base: also works with scripts disabled. The controller only
+   changes that media query; dark rules and their original dimensions stay intact. */
+:root:not([data-theme="dark"]) {
+  color-scheme: light;
+  --u-bg: #f8f4ee;
+  --u-bg-elev: #fff;
+  --u-bg-elev-2: #f1eee7;
+  --u-border: #e3e0d8;
+  --u-border-bright: #8b8e82;
+  --u-text: #252820;
+  --u-text-dim: #62645c;
+  --u-text-faint: #62645c;
+  --u-blue: #327e09;
+  --u-violet: #327e09;
+  --u-magenta: #327e09;
+  --u-cyan: #285f0b;
+  --u-grad: linear-gradient(#327e09, #327e09);
+  --u-ok: #327e09;
+  --u-warn: #825510;
+  --u-bad: #ad3030;
+  --u-radius: 2px;
+  --u-radius-sm: 2px;
+  --u-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --u-serif: Palatino, "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  --u-line: var(--u-border);
+  --u-bg-soft: var(--u-bg-elev-2);
+  --u-accent: var(--u-blue);
+  --u-verify-warn: var(--u-warn);
+  --u-verify-fail: var(--u-bad);
+}
+:root body { font-family: var(--u-serif); }
+:root h1, :root h2, :root h3, :root h4 { font-family: var(--u-serif); font-weight: 600; }
+:root h1 { font-size: clamp(2.05rem, 4vw, 3.0625rem); line-height: 1.1; letter-spacing: -.035em; }
+:root h2 { font-size: clamp(1.3rem, 2.5vw, 1.65rem); font-weight: 500; }
+:root h3 { font-size: 1.15rem; }
+:root a { text-decoration: none; }
+:root a:hover { text-decoration: underline; }
+:root .section { padding-block: clamp(2rem, 5vw, 3.5rem); }
+:root .hero { padding-block: clamp(2.5rem, 6vw, 4rem); }
+:root .hero::before { display: none; }
+:root .lede { font-size: 1.125rem; line-height: 1.5; color: var(--u-text); }
+:root .eyebrow, :root .tag, :root .card-meta, :root .byline,
+:root .site-header, :root .site-footer, :root .btn, :root .stats,
+:root .registry-controls, :root .eval-table, :root .openness,
+:root .exchange-identity, :root .exchange-latency, :root .exchange-context,
+:root .exchange-reading-notes, :root .nyt-comment__meta,
+:root .nyt-comment__actions, :root .nyt-comments__controls,
+:root input, :root select, :root textarea, :root button {
+  font-family: var(--u-font);
+}
+:root .site-header { background: var(--u-bg); backdrop-filter: none; }
+:root .site-header .bar { min-height: 64px; }
+:root .site-nav a { font-size: .8125rem; }
+:root .brand { font-family: var(--u-serif); font-size: 1.5rem; }
+:root .brand span { background: none; color: inherit; }
+:root .btn { border-radius: 2px; font-size: .8125rem; padding: .55rem .9rem; }
+:root .btn-primary, :root .btn-primary:hover { background: var(--u-blue); color: #fff; box-shadow: none; transform: none; }
+:root .card { padding: 1.15rem 1.3rem; gap: .5rem; }
+:root .card:hover { transform: none; background: var(--u-bg-elev); }
+:root .card h3 { font-size: 1.15rem; line-height: 1.35; }
+:root .card p { font-size: 1rem; line-height: 1.5; }
+:root .tag { font-size: .6875rem; font-weight: 500; }
+:root .stat b { font-size: 1.75rem; font-weight: 600; }
+:root .grid-3 { grid-template-columns: repeat(auto-fill, minmax(min(100%, 285px), 1fr)); }
+:root .grid-2.grid-pairs { grid-template-columns: repeat(auto-fill, minmax(min(100%, max(340px, 34%)), 1fr)); }
+:root article.wrap:not(.exchange-home) {
+  max-width: 900px; margin-block: 2.25rem; padding: 2.5rem 3rem;
+  background: var(--u-bg-elev); border: 1px solid var(--u-border);
+}
+:root .prose { max-width: 68ch; font-size: 1.125rem; line-height: 1.7; }
+:root .prose pre { background: var(--u-bg-elev-2) !important; }
+/* Astro's dual Shiki palette keeps the original github-dark rendering unchanged. */
+:root .astro-code, :root .astro-code span { color: var(--shiki-light) !important; }
+:root .prose table { font-family: var(--u-font); }
+:root .prose :is(h2, h3) { scroll-margin-top: 8rem; }
+:root .empty { font-family: var(--u-font); font-size: .875rem; }
+:root .open-wordmark-text { font-family: var(--u-serif); }
+:root .open-wordmark [data-open-word] { color: var(--u-blue); }
+:root .exchange-shell {
+  display: grid; grid-template-columns: 250px minmax(0, 765px); gap: 28px;
+  max-width: 1099px; margin: 0 auto; padding: 36px 28px 70px;
+}
+:root .exchange-home { display: contents; }
+:root .exchange-context { display: block; padding: 13px 25px 0 0; font-size: .8125rem; }
+:root .exchange-context nav { display: flex; flex-direction: column; gap: 15px; }
+:root .exchange-context a { color: var(--u-text-dim); }
+:root .exchange-context a:first-child { color: var(--u-blue); }
+:root .exchange-context p { font-size: .75rem; line-height: 1.7; color: var(--u-text-dim); }
+:root .exchange-context hr { border: 0; border-top: 1px solid var(--u-border); margin: 26px 0; }
+:root .exchange-feed {
+  display: flex; flex-direction: column; min-width: 0;
+  background: var(--u-bg-elev); border: 1px solid var(--u-border); padding: 41px 45px 30px;
+}
+:root .exchange-title-line { display: block; }
+:root .exchange-hypothesis { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 14px; align-items: baseline; }
+:root .exchange-hypothesis > p { grid-column: 1 / -1; }
+:root .exchange-feed > .eyebrow { font-size: .6875rem; font-weight: 400; margin-bottom: 19px; }
+:root .exchange-feed > h1 { margin-bottom: 22px; }
+:root .exchange-feed > .lede { margin-bottom: 21px; }
+:root .exchange-feed > .hero-actions { margin: 0 0 24px; gap: .4rem 1rem; }
+:root .exchange-feed .hero-actions .btn { background: none; border: 0; color: var(--u-blue); padding: 0; min-height: 32px; }
+:root .exchange-feed .hero-actions .btn-ghost { display: none; }
+:root .exchange-principle { margin: 0 0 20px; border-left: 2px solid var(--u-border); padding-left: 14px; font: .75rem/1.6 var(--u-font); color: var(--u-text-dim); }
+:root .exchange-trust { order: 5; border-top: 1px solid var(--u-border); margin: 28px 0 0; padding-top: 22px; font: .75rem/1.7 var(--u-font); color: var(--u-text-dim); }
+:root .exchange-feeds { order: 7; font: .75rem/1.7 var(--u-font); margin: 25px 0 0; border-top: 1px solid var(--u-border); padding-top: 20px; }
+:root .exchange-feed > .exchange-section:not(.exchange-principle) { display: flex; flex-wrap: wrap; gap: 0 15px; margin-top: 28px; }
+:root .exchange-feed > .exchange-section > h2 { width: 100%; border-bottom: 1px solid var(--u-text); padding-bottom: 12px; margin-bottom: 0; font-size: 23px; }
+:root .exchange-feed > .exchange-section > p { width: 100%; order: 3; font: .75rem/1.7 var(--u-font); color: var(--u-text-dim); margin-top: 12px; }
+:root .exchange-group { width: 100%; margin-top: 15px; scroll-margin-top: 8rem; }
+:root .exchange-group > h3 { font: .6875rem/1.7 var(--u-font); color: var(--u-text-dim); margin: 0; }
+:root .exchange-group[data-empty] { width: auto; order: 2; margin: 10px 0 0; }
+:root .exchange-group[data-empty] > p { display: none; }
+:root .exchange-records { margin: 0; }
+:root .exchange-records > li, :root .exchange-review { padding: 20px 0 17px; margin: 0; border: 0; border-bottom: 1px solid var(--u-border); background: none; border-radius: 0; }
+:root .exchange-records > li > a:first-child { font-size: 17px; line-height: 22px; font-weight: 600; color: var(--u-text); }
+:root .exchange-records .tag { padding: 0; border: 0; background: none; color: var(--u-blue); font-weight: 400; }
+:root .exchange-records p { font: .6875rem/18px var(--u-font); margin-top: 9px; }
+:root .exchange-records .exchange-summary { font: 1rem/1.5 var(--u-serif); color: var(--u-text); margin: 11px 0; }
+:root .exchange-reading-notes { display: block; margin-top: 12px; font-size: .75rem; color: var(--u-text-dim); }
+:root .exchange-reading-notes summary { cursor: pointer; }
+:root .exchange-reading-notes p { font: inherit; }
+:root .exchange-latency { order: 6; font-size: .75rem; }
+:root .exchange-latency h2 { font-size: 1.15rem; }
+:root .exchange-latency .stat { padding: .8rem; }
+:root .exchange-latency .stat b { font-size: 1.25rem; }
+@media (max-width: 1100px) {
+  :root .exchange-shell { grid-template-columns: 210px minmax(0, 765px); gap: 20px; padding: 28px 22px; }
+  :root .exchange-feed { padding: 35px; }
+  :root .exchange-context { padding-right: 15px; }
+}
+@media (max-width: 760px) {
+  :root .exchange-shell { display: block; padding: 0 0 30px; }
+  :root .exchange-context { padding: 22px 22px 20px; }
+  :root .exchange-context > :not(nav) { display: none; }
+  :root .exchange-context nav { flex-direction: row; flex-wrap: wrap; gap: 11px 20px; font-size: .75rem; line-height: 18px; }
+  :root .exchange-feed { padding: 29px 23px 25px; border-left: 0; border-right: 0; }
+  :root .exchange-feed > h1 { font-size: 33px; line-height: 36px; letter-spacing: -.9px; margin-bottom: 19px; }
+  :root .exchange-feed > .exchange-section > h2 { font-size: 21px; line-height: 27px; }
+  :root .exchange-records > li > .tag { display: inline-block; margin: 7px 8px 0 0; }
+  :root .exchange-records > li > a:first-child { display: block; }
+  :root .exchange-records > li { padding: 18px 0; }
+  :root .exchange-records .exchange-summary { font-size: 17px; line-height: 25px; }
+  :root article.wrap:not(.exchange-home) { margin-block: 0; padding: 2rem 1.4rem; border-inline: 0; }
+  :root .exchange-hypothesis { display: block; }
+}
+@media (max-width: 620px) {
+  :root .site-header .bar { min-height: 56px; }
+  :root .brand { font-size: 1.375rem; }
+}
+
+/* The registry is a compact reading list; tools and numeric boards keep their grids. */
+:root [data-registry-grid] { display: block; background: var(--u-bg-elev); border-top: 1px solid var(--u-border); }
+:root .registry-card { border: 0; border-bottom: 1px solid var(--u-border); padding: 1.1rem 1.3rem; }
+:root .registry-card .meter { max-width: 10rem; }

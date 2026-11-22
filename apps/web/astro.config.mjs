@@ -24,6 +24,12 @@ export default defineConfig({
   trailingSlash: 'ignore',
   integrations: [mdx(), sitemap()],
   build: { format: 'directory' },
+  markdown: {
+    shikiConfig: {
+      themes: { dark: 'github-dark', light: 'github-light' },
+      defaultColor: 'dark',
+    },
+  },
   // Two entries that claim one URL fail the build instead of one silently winning.
   prerenderConflictBehavior: 'error',
   // Fixture content stores stay outside the production cache. Test builds set

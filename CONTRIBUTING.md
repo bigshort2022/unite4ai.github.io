@@ -33,6 +33,21 @@ bun run build && bun run preview   # full site including search
 bun run dev                        # fast iteration; /search needs build first
 ```
 
+### Hub appearance
+
+The header's **Light mode** switch selects the editorial paper theme or the original
+dark design. A saved `u4ai-theme` choice in local storage overrides the OS preference;
+without one, an explicit light preference selects light and everything else selects dark.
+Storage is optional: when blocked, the switch works until navigation. With scripts
+disabled, the OS preference still styles the page and the inactive switch stays hidden.
+
+`Base.astro` loads `styles/light.css` with a media query and inlines `lib/theme.js`
+before page content. Keep original dark rules in `global.css`; light-only layout and
+semantic token overrides belong in `light.css`. Use both Shiki palettes for code.
+Do not enable an embed to test its colors: configured Giscus frames receive the
+selected theme through their existing messaging API. Run `node --test apps/web/test/theme.test.mjs`
+for preference behavior, then visually check both themes at desktop and narrow widths.
+
 Scaffold a new model card:
 
 ```bash

@@ -117,14 +117,14 @@ const verifiable = hasVerifiableArtifacts(artifacts) || evalBundle?.reproducible
   .verify-block pre { font-size: .72rem; overflow-x: auto; padding: .6rem; background: var(--u-bg-soft); border-radius: 4px; margin: .4rem 0 0; }
   .verify-hint, .verify-warn, .verify-ok { font-size: .82rem; color: var(--u-text-faint); margin: .3rem 0 0; }
   .verify-ok { color: var(--u-accent); }
-  .verify-warn { color: #c96; }
+  .verify-warn { color: var(--u-verify-warn, #c96); }
   .verify-footer { margin-top: 1rem; font-size: .85rem; border-top: 1px solid var(--u-line); padding-top: .75rem; }
   .stack-verify-dl { display: grid; gap: .6rem; margin: .5rem 0 0; font-size: .9rem; }
   .stack-verify-dl dt { color: var(--u-text-faint); font-size: .78rem; }
   .verify-run { margin-top: .4rem; font-size: .82rem; padding: .35rem .7rem; }
   .verify-status { font-size: .82rem; margin: .4rem 0 0; }
   .verify-status[data-state="ok"] { color: var(--u-accent); }
-  .verify-status[data-state="fail"] { color: #c66; }
+  .verify-status[data-state="fail"] { color: var(--u-verify-fail, #c66); }
   .verify-status[data-state="busy"] { color: var(--u-text-faint); }
 </style>
 
