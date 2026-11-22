@@ -87,9 +87,9 @@ and a maintainer turns it into a pull request.
   `decode-speed-gsm8k-200` row, copy its device, accelerator, memory and runtime exactly
   (`--device`, `--accelerator`, `--memory-gb`, `--runtime`); anything else is a new row.
 
-The runner does the bookkeeping for you. Runnable benchmarks today: `gsm8k-200` (quality) and
-`canary-injection-v1` (security). Point it at any OpenAI-compatible local server (mlx-lm,
-Ollama, llama.cpp, vLLM):
+The runner does the bookkeeping for you. Runnable benchmarks today: `gsm8k-200` and
+`tool-selection-v1` (quality) and `canary-injection-v1` (security). Point it at any
+OpenAI-compatible local server (mlx-lm, Ollama, llama.cpp, vLLM):
 
 ```bash
 bun run eval -- --benchmark gsm8k-200 --model <model-card-id> \
@@ -125,6 +125,11 @@ all five runs. The result also carries the counts behind that score (how many ru
 passed, how many items each run passed) and the rates and intervals derived from them.
 `bun run validate` recomputes those from the counts, so edit none of them by hand. A repeat
 run resumes like any other, at the answer where it stopped.
+
+`tool-selection-v1` is a repeat-run benchmark too: 100 requests, each offering 8 to 16 tools,
+answered five times at temperature 0.7 (500 replies, up to 1024 new tokens each). Every prompt
+carries its tools as JSON, so prompts run to roughly 1,000 to 2,000 tokens and a run takes
+longer than the canary's.
 
 A 2048-token benchmark can take hours on a slow machine. One invocation runs for at most
 14400 seconds (four hours); change that with `--max-seconds`. The limit is checked between

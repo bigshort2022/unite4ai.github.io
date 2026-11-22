@@ -1279,8 +1279,8 @@ and rewrap the rest of that paragraph if needed. After the paragraph that ends `
 ```markdown
 `tool-selection-v1` is a repeat-run benchmark too: 100 requests, each offering 8 to 16 tools,
 answered five times at temperature 0.7 (500 replies, up to 1024 new tokens each). Every prompt
-carries its tools as JSON, so prompts are several thousand tokens long and a run takes longer
-than the canary's.
+carries its tools as JSON, so prompts run to roughly 1,000 to 2,000 tokens and a run takes
+longer than the canary's.
 ```
 
 - [ ] **Step 2: Commit**
