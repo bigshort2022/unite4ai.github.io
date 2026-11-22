@@ -20,7 +20,10 @@
     "agent:setup": "bash scripts/agent/setup.sh",
     "agent:verify": "node scripts/agent/verify.mjs",
     "agent:model": "node scripts/agent/model-check.mjs",
-    "agent:request": "node scripts/agent/request.mjs"
+    "agent:request": "node scripts/agent/request.mjs",
+    "profile:new": "bun scripts/profiles/new.ts",
+    "profile:verify": "bun scripts/profiles/verify-evidence.ts",
+    "profile:passive": "bun scripts/profiles/passive-security.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.4.0",
