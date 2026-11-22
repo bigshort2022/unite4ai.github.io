@@ -1,6 +1,6 @@
 import { getCollection, type CollectionEntry } from 'astro:content';
-import { byCodeUnit, groupEvals, leaderboard, type EvalGroup, type EvalRun } from '@unite4ai/core';
-import { EVAL_CATEGORIES } from '@unite4ai/schema';
+import { byCodeUnit, groupEvals, indistinguishableFrom, leaderboard, type EvalGroup, type EvalRun } from '@unite4ai/core';
+import { EVAL_CATEGORIES, type RepeatResult } from '@unite4ai/schema';
 import { REPO } from './site';
 
 export const SUBMIT_GUIDE = `${REPO}/blob/main/CONTRIBUTING.md#submitting-an-evaluation-result`;
@@ -21,6 +21,8 @@ export interface Board {
   measured: boolean;
   /** Empty when the current version has no result. */
   rows: EvalGroup[];
+  /** Per row, "not distinguishable from #j" when its 95% interval overlaps a higher-ranked row's; null otherwise. */
+  rankNotes: (string | null)[];
   /** Runs of the current version. */
   runs: EvalRun[];
   /** Runs of any other version: kept on the benchmark page, off the leaderboard. */
@@ -71,14 +73,16 @@ export async function loadEvals() {
       const own = runs
         .filter((run) => run.benchmark === benchmark.id)
         .sort((a, b) => byCodeUnit(b.run.date, a.run.date) || byCodeUnit(a.id, b.id));
+      const rows = leaderboard(groups, {
+        id: benchmark.id,
+        version: benchmark.data.version,
+        higher_is_better: benchmark.data.metric.higher_is_better,
+      });
       return {
         benchmark,
         measured: byHardware.has(benchmark.id),
-        rows: leaderboard(groups, {
-          id: benchmark.id,
-          version: benchmark.data.version,
-          higher_is_better: benchmark.data.metric.higher_is_better,
-        }),
+        rows,
+        rankNotes: indistinguishableFrom(rows).map((above) => (above === null ? null : `not distinguishable from #${above + 1}`)),
         runs: own.filter((run) => run.benchmark_version === benchmark.data.version),
         earlierRuns: own.filter((run) => run.benchmark_version !== benchmark.data.version),
       };
@@ -114,4 +118,26 @@ export function scoreRange(group: EvalGroup): string | null {
   return group.score_min === group.score_max
     ? null
     : `${formatNumber(group.score_min)}–${formatNumber(group.score_max)}`;
+}
+
+/** A row's run count; each result of a repeat-run benchmark is several runs, so there it counts results ("1 result"). */
+export function runsLabel(count: number, repeated: boolean): string {
+  const [one, many] = repeated ? ['result', 'results'] : ['run', 'runs'];
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+/**
+ * What a repeat-run result adds under its score: the score's 95% interval, pass@1 with its
+ * 95% interval, and the per-run scores' range (one value when every run scored the same) and
+ * standard deviation in percentage points.
+ */
+export function repeatLines(repeat: RepeatResult, n: number): string[] {
+  const range = ([low, high]: readonly [number, number]) => `${formatNumber(low)}–${formatNumber(high)}%`;
+  const perRun = repeat.run_correct.map((correct) => (100 * correct) / n);
+  const [lowest, highest] = [formatNumber(Math.min(...perRun)), formatNumber(Math.max(...perRun))];
+  return [
+    `score 95% CI ${range(repeat.pass_k_ci)}`,
+    `pass@1 ${formatNumber(repeat.pass_1)}% (95% CI ${range(repeat.pass_1_ci)})`,
+    `per run ${lowest === highest ? lowest : `${lowest}–${highest}`}%, sd ${formatNumber(repeat.run_score_sd)} pts`,
+  ];
 }

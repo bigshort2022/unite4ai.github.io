@@ -25,6 +25,7 @@ export const GET: APIRoute = async () => {
       items: b.data.items,
       license: b.data.license,
       source_url: b.data.source_url,
+      repeat: b.data.repeat ?? null,
     })),
     groups,
     runs: runCount,

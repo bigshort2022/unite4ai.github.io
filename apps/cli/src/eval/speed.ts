@@ -8,8 +8,10 @@ import { evalResultSchema, type EvalResult } from '@unite4ai/schema';
 export function speedResultFrom(main: EvalResult, speedBenchmark: { id: string; version: string }): EvalResult | null {
   const speed = main.perf?.tokens_per_second;
   if (typeof speed !== 'number') return null;
+  // A measured benchmark answers no items, so it has no repeat block.
+  const { repeat: _repeat, ...run } = main;
   return evalResultSchema.parse({
-    ...main,
+    ...run,
     benchmark: speedBenchmark.id,
     benchmark_version: speedBenchmark.version,
     score: speed,

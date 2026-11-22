@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { repeatSummary } from '@unite4ai/core';
 import { validateContent } from '@unite4ai/core/validate';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -68,27 +69,24 @@ test('the fixture results pass the content gate, so the pages are tested with re
   ]);
 });
 
-test('the published results pass the content gate; the version 1 GSM8K run and its speed are kept as previous-version results', async () => {
+test('the published results pass the content gate; version 1 runs of GSM8K-200, its speed and the canary are kept as previous-version results', async () => {
   const contentRoot = join(ROOT, 'src/content');
   const run = 'bigshort2022--2026-11-15--eb8811e4.json';
-  const published = readdirSync(join(contentRoot, 'evals'));
-  for (const file of [
+  const files = [
+    'qwen3-4b-instruct-2507--canary-injection-v1--bigshort2022--2026-11-15--0f64fdf6.json',
     'qwen3-6-35b-a3b--canary-injection-v1--bigshort2022--2026-11-15--0182e626.json',
     `qwen3-6-35b-a3b--decode-speed-gsm8k-200--${run}`,
     `qwen3-6-35b-a3b--gsm8k-200--${run}`,
-  ]) {
-    assert.ok(published.includes(file), `${file} must stay in the repository`);
-  }
+  ];
+  const published = readdirSync(join(contentRoot, 'evals'));
+  for (const file of files) assert.ok(published.includes(file), `${file} must stay in the repository`);
 
   const { errors, warnings } = await validateContent(contentRoot);
   assert.deepEqual(errors, []);
-  // Exactly these two: the canary result is for its benchmark's current version.
-  assert.deepEqual(warnings.filter((warning) => warning.startsWith('evals/')), [
-    `evals/qwen3-6-35b-a3b--decode-speed-gsm8k-200--${run}: result is for benchmark version 1; `
-    + 'the current version is 2, so it will not appear on the leaderboard',
-    `evals/qwen3-6-35b-a3b--gsm8k-200--${run}: result is for benchmark version 1; `
-    + 'the current version is 2, so it will not appear on the leaderboard',
-  ]);
+  assert.deepEqual(
+    warnings.filter((warning) => warning.startsWith('evals/')),
+    files.map((file) => `evals/${file}: result is for benchmark version 1; the current version is 2, so it will not appear on the leaderboard`),
+  );
 });
 
 test('leaderboard and benchmark page render fixture results', { timeout: 120_000 }, () => {
@@ -137,6 +135,7 @@ test('leaderboard and benchmark page render fixture results', { timeout: 120_000
   assert.match(detail, /--fixture-three/);
   assert.match(detail, /3{12}/);
   assert.match(detail, /<small>n = 200<\/small>/);
+  assert.doesNotMatch(page('evals/gsm8k-200/index.html'), /runs per item|answered correctly on all/);
   assert.match(detail, /<caption class="sr-only">Leaderboard for GSM8K \(first 200\)<\/caption>/);
   assert.match(detail, /<td class="rank num">1<\/td>/);
 
@@ -276,10 +275,15 @@ test('model page lists its evaluations and local setups; the feed publishes the 
   );
   assert.deepEqual(feed.benchmarks.map((b) => [b.id, b.version, b.previous_versions]), [
     ['gsm8k-200', '2', ['1']],
-    ['canary-injection-v1', '1', []],
+    ['canary-injection-v1', '2', ['1']],
     ['decode-speed-gsm8k-200', '2', ['1']],
   ]);
   assert.equal(feed.benchmarks[0].higher_is_better, true);
+  assert.deepEqual(Object.fromEntries(feed.benchmarks.map((b) => [b.id, b.repeat])), {
+    'gsm8k-200': null,
+    'canary-injection-v1': { runs: 5, temperature: 0.7, top_p: 1 },
+    'decode-speed-gsm8k-200': null,
+  });
   // Groups of a measured benchmark carry their runtime and machine; quality groups do not.
   assert.equal(feed.groups.length, 7);
   const quality = feed.groups.filter((g) => g.benchmark === 'gsm8k-200');
@@ -501,4 +505,76 @@ test('a benchmark page with current results has no empty state, and its previous
   assert.doesNotMatch(leaderboardOf(detail), /No results/);
   assert.match(detail, /<section id="previous-versions"[^>]*>\s*<h2>Previous versions<\/h2>/);
   assert.doesNotMatch(page('evals/index.html'), /of (?:an )?earlier versions?/);
+  // Single-run scores carry no interval, so their ranking is not qualified.
+  assert.doesNotMatch(detail, /not distinguishable/);
+  assert.doesNotMatch(page('evals/index.html'), /not distinguishable/);
+});
+
+test('a repeat-run result shows its interval, pass@1 with its interval, and the spread between runs', { timeout: 120_000 }, () => {
+  const repeat = repeatSummary({ runs: 5, temperature: 0.7, top_p: 1 }, {
+    item_pass_histogram: [10, 0, 0, 0, 2, 38],
+    run_correct: [40, 39, 40, 40, 39],
+    seconds_total: 250,
+  });
+  const file = result({ benchmark: 'canary-injection-v1', score: repeat.pass_k, date: '2026-11-20', hash: 'c' });
+  file.content.n = 50;
+  file.content.repeat = repeat;
+  // A second run whose five runs all scored the same, built into the same site.
+  const steady = repeatSummary({ runs: 5, temperature: 0.7, top_p: 1 }, {
+    item_pass_histogram: [10, 0, 0, 0, 0, 40],
+    run_correct: [40, 40, 40, 40, 40],
+    seconds_total: 250,
+  });
+  const steadyFile = result({ benchmark: 'canary-injection-v1', score: steady.pass_k, date: '2026-11-21', hash: 'd', submitter: 'fixture-bot-2' });
+  steadyFile.content.n = 50;
+  steadyFile.content.repeat = steady;
+  // Another model, five runs of 35 of the 50 items: a lower score whose interval overlaps the first group's.
+  const other = repeatSummary({ runs: 5, temperature: 0.7, top_p: 1 }, {
+    item_pass_histogram: [15, 0, 0, 0, 0, 35],
+    run_correct: [35, 35, 35, 35, 35],
+    seconds_total: 250,
+  });
+  const OTHER = 'qwen3-4b-instruct-2507';
+  const otherFile = result({ benchmark: 'canary-injection-v1', score: other.pass_k, date: '2026-11-22', hash: 'e' });
+  otherFile.name = otherFile.name.replace(MODEL, OTHER);
+  otherFile.content.model = OTHER;
+  otherFile.content.n = 50;
+  otherFile.content.repeat = other;
+  const site = buildScratch('repeat', [file, steadyFile, otherFile]);
+  const detail = site('evals/canary-injection-v1/index.html');
+
+  assert.match(detail, /<span class="tag">5 runs per item at temperature 0\.7<\/span>/);
+  const note = leaderboardOf(detail);
+  assert.match(note, /The score is the share of items answered correctly on all 5 runs\./);
+  assert.ok(note.includes('<a href="#every-run">Every run</a>'));
+  // The label is defined where it appears.
+  assert.match(note, /A row marked (?:"|&quot;)not distinguishable from #N(?:"|&quot;) has a 95% score interval that overlaps row N(?:'|&#39;)s\./);
+  assert.ok(detail.includes(`<span class="score">${repeat.pass_k}%</span>`));
+  const range = ([low, high]) => `${low}–${high}%`;
+  for (const text of [
+    `score 95% CI ${range(repeat.pass_k_ci)}`,
+    `pass@1 ${repeat.pass_1}% (95% CI ${range(repeat.pass_1_ci)})`,
+    `per run 78–80%, sd ${repeat.run_score_sd} pts`,
+    `per run 80%, sd ${steady.run_score_sd} pts`,
+  ]) {
+    assert.ok(detail.includes(`<small>${text}</small>`), text);
+  }
+  assert.ok(!detail.includes('per run 80–80'));
+
+  // Both groups' 95% intervals overlap, so the ranking between them is not supported.
+  assert.ok(Math.max(repeat.pass_k_ci[1], steady.pass_k_ci[1]) >= other.pass_k_ci[0]);
+  const board = site('evals/index.html');
+  const canaryBoard = board.slice(board.indexOf('Leaderboard for Prompt-injection canary'));
+  const canaryRows = canaryBoard.slice(0, canaryBoard.indexOf('</table>'));
+  assert.match(canaryRows, /<small title="Its 95% score interval overlaps that row(?:'|&#39;)s">not distinguishable from #1<\/small>/);
+  for (const leaderboard of [leaderboardOf(detail), canaryRows]) {
+    const [first, second] = leaderboard.split('<tbody>')[1].split('<tr').slice(1);
+    assert.ok(first.includes(`/registry/models/${MODEL}"`), 'the higher score ranks first');
+    assert.doesNotMatch(first, /not distinguishable/);
+    assert.ok(second.includes(`/registry/models/${OTHER}"`));
+    assert.match(second, /<td class="rank num">2<small[^>]*>not distinguishable from #1<\/small><\/td>/);
+    // Each result of a repeat-run benchmark is five runs, so the Runs cell counts results.
+    assert.match(first, /<small>2 results/);
+    assert.match(second, /<small>1 result[ <]/);
+  }
 });

@@ -7,6 +7,7 @@ import { basename, join } from 'node:path';
 import test, { after } from 'node:test';
 import { evalResultSchema } from '@unite4ai/schema';
 import { validateContent } from '@unite4ai/core/validate';
+import { repeatProblems } from '@unite4ai/core/repeat';
 import { runEval } from '../src/eval/run.ts';
 
 const sha256 = (data) => createHash('sha256').update(data).digest('hex');
@@ -45,7 +46,7 @@ after(() => {
  * `speedDefinition` adds the measured benchmark that publishes the suite's decode speed; its
  * fields replace the valid ones, so `{}` is a definition the schema accepts.
  */
-function makeWorkspace({ source = SOURCE, sourceSha = sha256(source), speedDefinition } = {}) {
+function makeWorkspace({ source = SOURCE, sourceSha = sha256(source), speedDefinition, repeat } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'u4ai-eval-'));
   temps.push(root);
   const contentRoot = join(root, 'content');
@@ -63,6 +64,7 @@ function makeWorkspace({ source = SOURCE, sourceSha = sha256(source), speedDefin
     source_sha256: sourceSha,
     license: 'mit',
     updated: '2026-11-14',
+    ...(repeat === undefined ? {} : { repeat }),
   };
   const frontmatter = (fields) => `---\n${JSON.stringify(fields, null, 2)}\n---\n\n## Method\n\nFixture.\n`;
   writeFileSync(join(contentRoot, 'benchmarks/gsm8k-200.md'), frontmatter(definition));
@@ -90,8 +92,14 @@ function makeWorkspace({ source = SOURCE, sourceSha = sha256(source), speedDefin
 const INSTRUCTION = 'Solve this step by step. Finish with the final answer as a number on its own line.';
 
 /** What a completion request gets wrong against the benchmark page's method; null when nothing. */
-function requestProblem(body, question) {
-  const fixed = { model: 'stub-model', temperature: 0, max_tokens: 2048, stream: true };
+function requestProblem(body, question, sampling) {
+  const fixed = {
+    model: 'stub-model',
+    temperature: sampling?.temperature ?? 0,
+    max_tokens: 2048,
+    stream: true,
+    ...(sampling === undefined ? {} : { top_p: sampling.top_p }),
+  };
   for (const [key, value] of Object.entries(fixed)) {
     if (body[key] !== value) return `${key} must be ${JSON.stringify(value)}, got ${JSON.stringify(body[key])}`;
   }
@@ -110,9 +118,10 @@ function requestProblem(body, question) {
  * that says how. `delayMs` is how long a reply takes after its first chunk. `status` is what
  * /_omp/status answers, as an omp-managed server does (a string is sent as it is); without
  * it the route is a 404, as on plain mlx-lm and Ollama. With `usage: false` the server never
- * says how many tokens it generated.
+ * says how many tokens it generated. `sampling` is the repeat method the requests must follow.
+ * A reply may also be a function of the request body, returning any of the reply forms.
  */
-function stubServer(replies, { models = ['stub-model'], delayMs = 15, status, usage = true } = {}) {
+function stubServer(replies, { models = ['stub-model'], delayMs = 15, status, usage = true, sampling } = {}) {
   const requests = [];
   const bodies = [];
   let active = 0;
@@ -134,8 +143,9 @@ function stubServer(replies, { models = ['stub-model'], delayMs = 15, status, us
         const parsed = JSON.parse(body);
         bodies.push(parsed);
         const question = String(parsed.messages?.[0]?.content).split('\n')[0];
-        const reply = replies[question];
-        const problem = reply === undefined ? `no reply for ${JSON.stringify(question)}` : requestProblem(parsed, question);
+        const entry = replies[question];
+        const reply = typeof entry === 'function' ? entry(parsed) : entry;
+        const problem = reply === undefined ? `no reply for ${JSON.stringify(question)}` : requestProblem(parsed, question, sampling);
         if (problem) return json(500, { error: { message: `stub: ${problem}` } });
         if (typeof reply === 'number') return json(reply, { error: { message: 'stub failure' } });
         if (reply.hang) return undefined;
@@ -225,8 +235,8 @@ test('a complete run writes a result the content gate accepts, with evidence for
   assert.equal(evalResultSchema.safeParse(result).success, true);
   assert.equal(result.score, 66.67);
   assert.equal(result.run.command, 'bun run eval -- --benchmark gsm8k-200 --model model-a');
-  // 0.2.0 is the runner with per-suite token limits and the cut-off rule; 0.1.0 ran version 1.
-  assert.deepEqual(result.run.harness, { name: 'unite4ai-eval', version: '0.2.0' });
+  // 0.3.0 adds repeat runs; 0.2.0 had per-suite token limits and the cut-off rule; 0.1.0 ran version 1.
+  assert.deepEqual(result.run.harness, { name: 'unite4ai-eval', version: '0.3.0' });
   assert.deepEqual(result.setup.hardware, { device: 'Test Box', accelerator: 'cpu', memory_gb: 16 });
   const transcript = readFileSync(outcome.transcriptPath);
   assert.equal(result.evidence.sha256, sha256(transcript));
@@ -847,4 +857,114 @@ test('credentials in the base URL reach the server but not the transcript', asyn
   assert.equal(outcome.n, 3);
   assert.doesNotMatch(readFileSync(outcome.transcriptPath, 'utf8'), /carol|hunter2/);
   assert.equal(transcriptLines(workspace)[0].base_url, stub.baseUrl);
+});
+
+const REPEAT = { runs: 3, temperature: 0.7, top_p: 1 };
+
+test('a repeat-run benchmark answers every item once per run with its own seed, and publishes counts the gate recomputes', async () => {
+  const workspace = makeWorkspace({ repeat: REPEAT });
+  // Q3 is right only at seed 5: the second run's third item.
+  const stub = await stubServer({ ...GOOD, 'Q3?': (body) => (body.seed === 5 ? 'It is 7' : 'I think 9') }, { sampling: REPEAT });
+  const outcome = await runEval(options(workspace, stub));
+
+  assert.deepEqual([outcome.n, outcome.runs, outcome.correct, outcome.score], [3, 3, 2, 66.67]);
+  assert.equal(stub.maxActive(), 1, 'requests must be sequential');
+  assert.deepEqual(stub.bodies.map((body) => [body.seed, body.temperature, body.top_p]), [0, 1, 2, 3, 4, 5, 6, 7, 8].map((seed) => [seed, 0.7, 1]));
+  assert.deepEqual(itemLines(workspace).map((line) => [line.run, line.index, line.seed, line.correct, line.prompt_tokens]), [
+    [0, 0, 0, true, 20], [0, 1, 1, true, 20], [0, 2, 2, false, 20],
+    [1, 0, 3, true, 20], [1, 1, 4, true, 20], [1, 2, 5, true, 20],
+    [2, 0, 6, true, 20], [2, 1, 7, true, 20], [2, 2, 8, false, 20],
+  ]);
+  assert.deepEqual(transcriptLines(workspace)[0].repeat, REPEAT);
+
+  const result = JSON.parse(readFileSync(outcome.resultPath, 'utf8'));
+  assert.equal(result.score, 66.67);
+  assert.equal(result.n, 3);
+  assert.deepEqual(result.repeat.item_pass_histogram, [0, 1, 0, 2]);
+  assert.deepEqual(result.repeat.run_correct, [2, 3, 2]);
+  assert.equal(result.repeat.pass_1, 77.78);
+  assert.deepEqual(result.repeat.pass_k_ci, [20.77, 93.85]);
+  assert.deepEqual([result.repeat.prompt_tokens_total, result.repeat.completion_tokens_total], [180, 90]);
+  assert.deepEqual(repeatProblems(result.repeat, result.n), []);
+  assert.deepEqual((await validateContent(workspace.contentRoot)).errors, []);
+});
+
+test('a repeat run stopped inside a later run resumes at the same answer with the same seed', async () => {
+  const workspace = makeWorkspace({ repeat: REPEAT });
+  let failed = false;
+  const flaky = (body) => {
+    if (body.seed === 4 && !failed) {
+      failed = true;
+      return 503;
+    }
+    return 'Total 2,125';
+  };
+  const stub = await stubServer({ ...GOOD, 'Q2?': flaky }, { sampling: REPEAT });
+  await assert.rejects(runEval(options(workspace, stub)), /run 2 item 2 failed: .*rerun to resume/);
+  assert.equal(itemLines(workspace).length, 4);
+
+  const outcome = await runEval(options(workspace, stub));
+  assert.equal(outcome.runs, 3);
+  assert.deepEqual(stub.bodies.map((body) => body.seed), [0, 1, 2, 3, 4, 4, 5, 6, 7, 8]);
+  assert.deepEqual(itemLines(workspace).map((line) => line.seed), [0, 1, 2, 3, 4, 5, 6, 7, 8]);
+});
+
+/** Rewrites a transcript through `edit`, which takes and returns its parsed lines. */
+function rewriteTranscript(path, edit) {
+  const lines = readFileSync(path, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
+  writeFileSync(path, edit(lines).map((line) => `${JSON.stringify(line)}\n`).join(''));
+}
+
+const REPEAT_ORDER = /its answer lines are not run 0 items 0 to 2, then run 1, and so on, in order/;
+
+test('a repeat transcript with an answer line that lost its run is refused, naming runs', async () => {
+  const workspace = makeWorkspace({ repeat: REPEAT });
+  const stub = await stubServer({ ...GOOD }, { sampling: REPEAT });
+  const { transcriptPath } = await runEval(options(workspace, stub));
+  rewriteTranscript(transcriptPath, (lines) => {
+    delete lines[2].run;
+    return lines;
+  });
+  await assert.rejects(runEval(options(workspace, stub)), REPEAT_ORDER);
+});
+
+test('a repeat transcript with an answer line sent with another seed is refused', async () => {
+  const workspace = makeWorkspace({ repeat: REPEAT });
+  const stub = await stubServer({ ...GOOD }, { sampling: REPEAT });
+  const { transcriptPath } = await runEval(options(workspace, stub));
+  rewriteTranscript(transcriptPath, (lines) => {
+    lines[4].seed = 99;
+    return lines;
+  });
+  await assert.rejects(runEval(options(workspace, stub)), REPEAT_ORDER);
+});
+
+test('a finished repeat run run again asks nothing and rewrites the same result', async () => {
+  const workspace = makeWorkspace({ repeat: REPEAT });
+  const stub = await stubServer({ ...GOOD }, { sampling: REPEAT });
+  const first = await runEval(options(workspace, stub));
+  const bytes = readFileSync(first.resultPath);
+  const second = await runEval(options(workspace, stub));
+  assert.equal(stub.bodies.length, 9);
+  assert.equal(second.resultPath, first.resultPath);
+  assert.deepEqual(readFileSync(second.resultPath), bytes);
+});
+
+test('a repeat transcript marked complete before its last answer is refused, counting answers', async () => {
+  const workspace = makeWorkspace({ repeat: REPEAT });
+  const stub = await stubServer({ ...GOOD }, { sampling: REPEAT });
+  const { transcriptPath } = await runEval(options(workspace, stub));
+  rewriteTranscript(transcriptPath, (lines) => [...lines.slice(0, 7), { type: 'complete', date: '2026-11-10' }]);
+  await assert.rejects(runEval(options(workspace, stub)), /marked complete with 6 of 9 answers/);
+});
+
+test('a single-run benchmark sends no sampling and writes no repeat fields', async () => {
+  const workspace = makeWorkspace();
+  const stub = await stubServer({ ...GOOD });
+  const outcome = await runEval(options(workspace, stub));
+  assert.equal(outcome.runs, 1);
+  assert.equal(stub.bodies.some((body) => 'seed' in body || 'top_p' in body), false);
+  assert.equal(itemLines(workspace).some((line) => 'run' in line || 'seed' in line || 'prompt_tokens' in line), false);
+  assert.equal('repeat' in transcriptLines(workspace)[0], false);
+  assert.equal('repeat' in JSON.parse(readFileSync(outcome.resultPath, 'utf8')), false);
 });

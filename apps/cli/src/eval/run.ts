@@ -1,13 +1,15 @@
 import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { benchmarkSchema, evalResultSchema, type EvalResult } from '@unite4ai/schema';
+import { benchmarkSchema, evalResultSchema, type EvalResult, type RepeatResult } from '@unite4ai/schema';
+import { repeatSummary, tallyAttempts } from '@unite4ai/core/repeat';
 import { listModels, serverStatus, streamChat, withoutCredentials } from './client.ts';
 import { detectHardware, type Hardware } from './hardware.ts';
 import { speedResultFrom } from './speed.ts';
 import { SUITES } from './suites.ts';
 
-export const HARNESS = { name: 'unite4ai-eval', version: '0.2.0' };
+/** 0.3.0 adds repeat runs; 0.2.0 had per-suite token limits and the cut-off rule. */
+export const HARNESS = { name: 'unite4ai-eval', version: '0.3.0' };
 
 /**
  * Seconds one invocation may run: four hours, because a 2048-token benchmark can take hours on
@@ -48,10 +50,15 @@ export interface EvalOutcome {
   score: number;
   correct: number;
   n: number;
+  /** Runs per item: 1 for a single-run benchmark. */
+  runs: number;
 }
 
 interface TranscriptItem {
   type: 'item';
+  /** Repeat runs only: which run the answer belongs to, counted from 0, and the seed it was sent with. */
+  run?: number;
+  seed?: number;
   index: number;
   /** sha256 of the JSON of the messages that were sent, so a reader can check the prompt. */
   prompt_sha256: string;
@@ -64,6 +71,8 @@ interface TranscriptItem {
   ttft_ms: number | null;
   seconds: number;
   completion_tokens: number | null;
+  /** Repeat runs only: the server's prompt token count. */
+  prompt_tokens?: number | null;
 }
 
 /** The last line of a finished transcript. */
@@ -177,12 +186,19 @@ async function checkServer(baseUrl: string, servedModel: string): Promise<void> 
   }
 }
 
-/** A transcript line that is the item at this position; the fields the runner wrote are trusted beyond that. */
-function isItemAt(line: unknown, index: number): line is TranscriptItem {
-  return typeof line === 'object' && line !== null
-    && 'type' in line && line.type === 'item'
-    && 'index' in line && line.index === index
-    && 'correct' in line && typeof line.correct === 'boolean';
+/**
+ * A transcript line that is the answer at this position; the fields the runner wrote are
+ * trusted beyond that. In a repeat run, position p is item p mod n of run p div n, sent with seed p.
+ */
+function isAttemptAt(line: unknown, position: number, itemCount: number, repeated: boolean): line is TranscriptItem {
+  if (typeof line !== 'object' || line === null) return false;
+  if (!('type' in line) || line.type !== 'item' || !('correct' in line) || typeof line.correct !== 'boolean') return false;
+  const index = 'index' in line ? line.index : undefined;
+  const run = 'run' in line ? line.run : undefined;
+  const seed = 'seed' in line ? line.seed : undefined;
+  return repeated
+    ? index === position % itemCount && run === Math.floor(position / itemCount) && seed === position
+    : index === position && run === undefined;
 }
 
 /** The date on a transcript's completion line; null for any other line. */
@@ -193,11 +209,17 @@ function completionDate(line: unknown): string | null {
 }
 
 /**
- * Reads this configuration's transcript, creating it when there is none: the finished items,
- * and the completion date once every item has been answered. A last line that a killed run
+ * Reads this configuration's transcript, creating it when there is none: the finished answers,
+ * and the completion date once every answer has been given. A last line that a killed run
  * left cut short is dropped; any other damage is refused, because the file is the evidence.
  */
-function readTranscript(path: string, header: string, total: number): { done: TranscriptItem[]; completedOn: string | null } {
+function readTranscript(
+  path: string,
+  header: string,
+  itemCount: number,
+  repeated: boolean,
+  total: number,
+): { done: TranscriptItem[]; completedOn: string | null } {
   const damaged = (problem: string) => new Error(`${path}: ${problem}; move or delete the file to start over`);
   const text = existsSync(path) ? readFileSync(path, 'utf8') : '';
   const lines = text.split('\n');
@@ -218,11 +240,19 @@ function readTranscript(path: string, header: string, total: number): { done: Tr
   const records = parsed.slice(1);
   const completedOn = completionDate(records.at(-1));
   if (completedOn !== null) records.pop();
-  const done = records.filter((record, index): record is TranscriptItem => isItemAt(record, index));
-  if (done.length !== records.length) throw damaged('its item lines are not items 0, 1, 2, … in order');
-  if (done.length > total) throw damaged('it has more items than the benchmark');
+  const done = records.filter((record, index): record is TranscriptItem => isAttemptAt(record, index, itemCount, repeated));
+  if (done.length !== records.length) {
+    throw damaged(repeated
+      ? `its answer lines are not run 0 items 0 to ${itemCount - 1}, then run 1, and so on, in order`
+      : 'its item lines are not items 0, 1, 2, … in order');
+  }
+  if (done.length > total) {
+    throw damaged(repeated
+      ? `it has more answers than ${total / itemCount} runs of ${itemCount} items`
+      : 'it has more items than the benchmark');
+  }
   if (completedOn !== null && done.length !== total) {
-    throw damaged(`it is marked complete with ${done.length} of ${total} items`);
+    throw damaged(`it is marked complete with ${done.length} of ${total} ${repeated ? 'answers' : 'items'}`);
   }
 
   // Rewritten without the fragment, and with the newline a kept last line may have lost.
@@ -292,9 +322,9 @@ const FLAG_OF: Record<string, string> = {
 };
 
 /**
- * Runs one benchmark against one served model. Completed items are appended to a transcript
+ * Runs one benchmark against one served model. Completed answers are appended to a transcript
  * as they finish, so an interrupted run resumes; a result file is written only when every
- * item has been answered.
+ * answer has been given.
  */
 export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
   const log = options.log ?? (() => {});
@@ -312,6 +342,7 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
     date: string;
     perf: NonNullable<EvalResult['perf']>;
     evidence: EvalResult['evidence'];
+    repeat?: RepeatResult;
   }) => ({
     schema_version: 1,
     model: options.model,
@@ -329,6 +360,7 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
       ...(options.notes === undefined ? {} : { notes: options.notes }),
     },
     ...(Object.keys(measured.perf).length > 0 ? { perf: measured.perf } : {}),
+    ...(measured.repeat === undefined ? {} : { repeat: measured.repeat }),
     evidence: measured.evidence,
   });
   // A value the schema rejects would otherwise surface only after every item had been answered.
@@ -348,8 +380,17 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
   }
   const source = await loadSource(options, definition.source_url, definition.source_sha256, suite.localSource);
   const items = suite.items(source, definition.items);
+  const method = definition.repeat;
+  const runs = method?.runs ?? 1;
+  const unit = method === undefined ? 'items' : 'answers';
+  /** Every request of the run, in order: each run is one full pass over the items. */
+  const attempts = Array.from({ length: items.length * runs }, (_, position) => ({
+    position,
+    run: Math.floor(position / items.length),
+    item: items[position % items.length],
+  }));
 
-  // Transcript: a header that identifies the configuration, one line per finished item, and a
+  // Transcript: a header that identifies the configuration, one line per answer, and a
   // last line with the completion date. The file is named after the header's hash and not the
   // day, so a configuration resumes only itself, on whatever day it is picked up again.
   const header = JSON.stringify({
@@ -368,24 +409,27 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
     quantization: options.quantization,
     notes: options.notes ?? null,
     max_tokens: suite.maxTokens,
+    // Only a repeat-run benchmark adds this, so a single-run configuration keeps its file name and resumes.
+    ...(method === undefined ? {} : { repeat: method }),
   });
   const name = `${options.model}--${options.benchmark}--${options.submitter}`;
   const transcriptPath = join(options.workDir, `${name}--${sha256(header).slice(0, 8)}.jsonl`);
   mkdirSync(options.workDir, { recursive: true });
   const unlock = lockTranscript(`${transcriptPath}.lock`);
   try {
-    const { done, completedOn } = readTranscript(transcriptPath, header, items.length);
+    const { done, completedOn } = readTranscript(transcriptPath, header, items.length, method !== undefined, attempts.length);
     if (completedOn !== null) {
       log(`this configuration completed on ${completedOn}; move ${transcriptPath} away to run it again`);
     } else if (done.length > 0) {
-      log(`resuming after ${done.length} of ${items.length} items`);
+      log(`resuming after ${done.length} of ${attempts.length} ${unit}`);
     }
 
-    if (done.length < items.length) await checkServer(options.baseUrl, options.servedModel);
+    if (done.length < attempts.length) await checkServer(options.baseUrl, options.servedModel);
     const started = Date.now();
-    for (const item of items.slice(done.length)) {
+    for (const { position, run, item } of attempts.slice(done.length)) {
+      const label = method === undefined ? `item ${item.index + 1}` : `run ${run + 1} item ${item.index + 1}`;
       if ((Date.now() - started) / 1000 >= maxSeconds) {
-        throw new Error(`time limit of ${maxSeconds}s reached after ${done.length} of ${items.length} items; rerun to resume`);
+        throw new Error(`time limit of ${maxSeconds}s reached after ${done.length} of ${attempts.length} ${unit}; rerun to resume`);
       }
       let completion;
       try {
@@ -395,21 +439,24 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
           messages: item.messages,
           maxTokens: suite.maxTokens,
           timeoutMs: options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_SECONDS * 1000,
+          // The seed is the answer's position: each answer of each run has its own, and a resumed run sends the same.
+          ...(method === undefined ? {} : { sampling: { temperature: method.temperature, topP: method.top_p, seed: position } }),
         });
       } catch (error) {
-        throw new Error(`item ${item.index + 1} failed: ${(error as Error).message}; rerun to resume`);
+        throw new Error(`${label} failed: ${(error as Error).message}; rerun to resume`);
       }
       const end = { finishReason: completion.finishReason, completionTokens: completion.completionTokens, maxTokens: suite.maxTokens };
       if (suite.needsEndSignal && end.finishReason === null && end.completionTokens === null) {
         // Running it again would get the same answer from the same server, so nothing says to.
         throw new Error(
-          `item ${item.index + 1} failed: the server reported neither why the reply ended nor its token count; `
+          `${label} failed: the server reported neither why the reply ended nor its token count; `
           + `${options.benchmark} version ${definition.version} cannot be scored against it`,
         );
       }
       const verdict = item.judge(completion.text, end);
       const line: TranscriptItem = {
         type: 'item',
+        ...(method === undefined ? {} : { run, seed: position }),
         index: item.index,
         prompt_sha256: sha256(JSON.stringify(item.messages)),
         reply: completion.text,
@@ -420,13 +467,17 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
         ttft_ms: completion.ttftMs === null ? null : Number(completion.ttftMs.toFixed(1)),
         seconds: Number(completion.seconds.toFixed(3)),
         completion_tokens: completion.completionTokens,
+        ...(method === undefined ? {} : { prompt_tokens: completion.promptTokens }),
       };
       appendFileSync(transcriptPath, `${JSON.stringify(line)}\n`);
       done.push(line);
-      log(`${done.length}/${items.length} ${verdict.correct ? 'correct' : 'wrong'}`);
+      const word = verdict.correct ? 'correct' : 'wrong';
+      log(method === undefined
+        ? `${done.length}/${items.length} ${word}`
+        : `run ${run + 1}/${runs} item ${item.index + 1}/${items.length} ${word}`);
     }
 
-    // The run is dated when its last item is answered, and the transcript records that date:
+    // The run is dated when its last answer is given, and the transcript records that date:
     // running a finished configuration again rewrites the same result instead of a newer copy.
     const date = completedOn ?? options.today ?? new Date().toISOString().slice(0, 10);
     if (completedOn === null) {
@@ -434,15 +485,26 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
       appendFileSync(transcriptPath, `${JSON.stringify(end)}\n`);
     }
 
-    const correct = done.filter((line) => line.correct).length;
-    const score = Number(((100 * correct) / done.length).toFixed(2));
+    const n = items.length;
+    const repeat = method === undefined ? undefined : repeatSummary(method, tallyAttempts(done.map((line) => ({
+      run: line.run ?? 0,
+      index: line.index,
+      correct: line.correct,
+      seconds: line.seconds,
+      promptTokens: line.prompt_tokens ?? null,
+      completionTokens: line.completion_tokens,
+    })), n, runs));
+    // A repeat run's score is the share of items answered correctly on every run.
+    const correct = repeat === undefined ? done.filter((line) => line.correct).length : repeat.item_pass_histogram[runs];
+    const score = repeat === undefined ? Number(((100 * correct) / n).toFixed(2)) : repeat.pass_k;
     const transcript = readFileSync(transcriptPath);
     const result = evalResultSchema.parse(resultWith({
       score,
-      n: done.length,
+      n,
       date,
       perf: measure(done),
       evidence: { sha256: sha256(transcript), bytes: transcript.length },
+      repeat,
     }));
     const speed = speedBenchmark === null ? null : speedResultFrom(result, speedBenchmark);
 
@@ -465,7 +527,8 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
       transcriptPath,
       score,
       correct,
-      n: done.length,
+      n,
+      runs,
       ...(speed === null ? {} : { speedResultPath: pathOf(speed) }),
     };
   } finally {

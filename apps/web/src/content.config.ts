@@ -8,6 +8,7 @@ import {
   EVAL_RUNTIMES,
   EVAL_SCORING,
   OPEN_LICENSES,
+  REPEAT_MAX_RUNS,
   FINDING_VERDICTS,
   REVIEW_VERDICTS,
   REVIEW_CHECKS,
@@ -195,6 +196,30 @@ const line = (max: number, wrongType?: string) => z.string(wrongType ? { error: 
 /** A contributor's link, printed as an href. */
 const evidenceUrl = line(500).url().refine((value) => value.startsWith('https://'), { message: 'must be an https URL' });
 
+/** Mirrors repeatMethodSchema and repeatResultSchema in @unite4ai/schema field for field. */
+const percentage = z.number().min(0).max(100);
+const repeatMethodShape = {
+  runs: z.number().int().min(2).max(REPEAT_MAX_RUNS),
+  temperature: z.number().min(0).max(2),
+  top_p: z.number().gt(0).max(1),
+};
+const repeatResult = z.strictObject({
+  ...repeatMethodShape,
+  item_pass_histogram: z.array(z.number().int().nonnegative()).max(REPEAT_MAX_RUNS + 1),
+  run_correct: z.array(z.number().int().nonnegative()).max(REPEAT_MAX_RUNS),
+  pass_1: percentage,
+  pass_1_ci: z.tuple([percentage, percentage]),
+  pass_k: percentage,
+  pass_k_ci: z.tuple([percentage, percentage]),
+  run_score_sd: z.number().nonnegative(),
+  seconds_total: z.number().nonnegative(),
+  seconds_per_success: z.number().nonnegative().optional(),
+  prompt_tokens_total: z.number().int().nonnegative().optional(),
+  completion_tokens_total: z.number().int().nonnegative().optional(),
+  prompt_tokens_per_success: z.number().nonnegative().optional(),
+  completion_tokens_per_success: z.number().nonnegative().optional(),
+});
+
 /**
  * A benchmark definition. Mirrors benchmarkSchema in @unite4ai/schema field for field.
  * The directory is flat: the validator rejects subfolders, so the loader does not read them.
@@ -220,6 +245,7 @@ const benchmarks = defineCollection({
     scoring: z.enum(EVAL_SCORING),
     items: z.number().int().nonnegative(),
     measured_on: contentId.optional(),
+    repeat: z.strictObject(repeatMethodShape).optional(),
     source_url: httpsUrl,
     source_sha256: sha256Hex.optional(),
     license: openLicenseEnum,
@@ -236,6 +262,9 @@ const benchmarks = defineCollection({
   }).refine((benchmark) => benchmark.scoring === 'measured' || benchmark.measured_on === undefined, {
     path: ['measured_on'],
     message: 'is only for benchmarks whose scoring is "measured"',
+  }).refine((benchmark) => benchmark.scoring !== 'measured' || benchmark.repeat === undefined, {
+    path: ['repeat'],
+    message: 'is only for benchmarks that score items; a measured benchmark has none',
   }),
 });
 
@@ -278,6 +307,7 @@ const evals = defineCollection({
       peak_memory_gb: z.number().positive().optional(),
       energy_wh_per_1k_tokens: z.number().positive().optional(),
     }).optional(),
+    repeat: repeatResult.optional(),
     evidence: z.strictObject({
       sha256: sha256Hex,
       url: evidenceUrl.optional(),

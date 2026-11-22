@@ -11,6 +11,7 @@ export { buildRegistryIndex, type RegistryEntry, type RegistryIndexItem } from '
 export {
   byCodeUnit,
   groupEvals,
+  indistinguishableFrom,
   leaderboard,
   localSetups,
   median,
@@ -21,3 +22,14 @@ export {
   type GroupOptions,
   type LocalSetup,
 } from './evals.ts';
+export {
+  BOOTSTRAP_RESAMPLES,
+  BOOTSTRAP_SEED,
+  bootstrapPass1Percent,
+  repeatProblems,
+  repeatSummary,
+  tallyAttempts,
+  wilsonPercent,
+  type Attempt,
+  type RepeatCounts,
+} from './repeat.ts';

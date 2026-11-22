@@ -2,6 +2,7 @@
  * Aggregation of evaluation runs. Pure functions over plain data, so pages, the feed and
  * tests share one definition of "a group" and "a ranking".
  */
+import type { RepeatResult } from '@unite4ai/schema';
 
 export interface EvalRun {
   id: string;
@@ -25,6 +26,8 @@ export interface EvalRun {
     peak_memory_gb?: number;
     energy_wh_per_1k_tokens?: number;
   };
+  /** Present on results of repeat-run benchmark versions. */
+  repeat?: RepeatResult;
   evidence: { sha256: string; url?: string; bytes?: number };
 }
 
@@ -59,6 +62,11 @@ export interface EvalGroup {
   accelerators: string[];
   /** Median of the runs that measured it; null when none did. */
   tokens_per_second: number | null;
+  /**
+   * For a repeat-run group, the envelope of its members' 95% score intervals (lowest low,
+   * highest high), in percent; null when any member is a single-run result.
+   */
+  pass_k_ci: [number, number] | null;
   latest: string;
   run_ids: string[];
 }
@@ -126,6 +134,8 @@ export function groupEvals(runs: EvalRun[], options: GroupOptions = {}): EvalGro
       const [first] = members;
       const byHardware = options.byHardware?.has(first.benchmark) ?? false;
       const scores = members.map((m) => m.score);
+      const intervals = members.map((m) => m.repeat?.pass_k_ci);
+      const repeated = intervals.every((ci): ci is [number, number] => ci !== undefined);
       const speeds = members
         .map((m) => m.perf?.tokens_per_second)
         .filter((value): value is number => typeof value === 'number');
@@ -149,6 +159,9 @@ export function groupEvals(runs: EvalRun[], options: GroupOptions = {}): EvalGro
         runtimes: unique(members.map((m) => m.setup.runtime)),
         accelerators: unique(members.map((m) => m.setup.hardware.accelerator)),
         tokens_per_second: speeds.length ? median(speeds) : null,
+        pass_k_ci: repeated
+          ? [Math.min(...intervals.map((ci) => ci[0])), Math.max(...intervals.map((ci) => ci[1]))] satisfies [number, number]
+          : null,
         latest: members.map((m) => m.run.date).sort().at(-1) as string,
         run_ids: members.map((m) => m.id),
       };
@@ -169,6 +182,22 @@ export function leaderboard(groups: EvalGroup[], benchmark: BenchmarkRef): EvalG
       || b.submitters.length - a.submitters.length
       || byCodeUnit(a.model, b.model)
       || byCodeUnit(a.key, b.key));
+}
+
+/**
+ * For leaderboard rows in rank order, the index of the highest-ranked earlier row whose 95%
+ * interval overlaps each row's own; null when none does or either row has no interval.
+ * By the site's rule, rows whose 95% intervals overlap are shown as not distinguishable. This
+ * is conservative: two intervals can overlap while the difference is still significant.
+ */
+export function indistinguishableFrom(rows: EvalGroup[]): (number | null)[] {
+  return rows.map(({ pass_k_ci: own }, index) => {
+    if (own === null) return null;
+    const above = rows
+      .slice(0, index)
+      .findIndex(({ pass_k_ci: other }) => other !== null && own[0] <= other[1] && other[0] <= own[1]);
+    return above === -1 ? null : above;
+  });
 }
 
 /** Results are self-reported; independent submitters are the trust signal, however many runs one of them made. */

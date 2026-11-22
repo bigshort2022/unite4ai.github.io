@@ -187,6 +187,41 @@ export const EVAL_FORMATS = ['mlx', 'gguf', 'safetensors', 'other'] as const;
 export const EVAL_ACCELERATORS = ['apple-silicon', 'nvidia', 'amd', 'cpu', 'other'] as const;
 /** Result files above this size are rejected: raw output is referenced by hash, never stored in git. */
 export const EVAL_RESULT_MAX_BYTES = 16 * 1024;
+/** Most runs per item a repeat-run benchmark may ask for; each run is one full pass over the items. */
+export const REPEAT_MAX_RUNS = 20;
+const percentage = z.number().min(0).max(100);
+const repeatMethodShape = {
+  runs: z.number().int().min(2).max(REPEAT_MAX_RUNS),
+  temperature: z.number().min(0).max(2),
+  top_p: z.number().gt(0).max(1),
+};
+/** How a repeat-run benchmark samples. Part of the method, so changing it is a new benchmark version. */
+export const repeatMethodSchema = z.strictObject(repeatMethodShape);
+export type RepeatMethod = z.infer<typeof repeatMethodSchema>;
+
+/**
+ * What a repeat-run result adds. The counts are the evidence; every rate and interval is
+ * derived from them by `repeatSummary` in @unite4ai/core, and the content gate recomputes them.
+ */
+export const repeatResultSchema = z.strictObject({
+  ...repeatMethodShape,
+  /** Entry j is the number of items answered correctly in exactly j of the runs. */
+  item_pass_histogram: z.array(z.number().int().nonnegative()).max(REPEAT_MAX_RUNS + 1),
+  /** Items answered correctly in each run, in run order. */
+  run_correct: z.array(z.number().int().nonnegative()).max(REPEAT_MAX_RUNS),
+  pass_1: percentage,
+  pass_1_ci: z.tuple([percentage, percentage]),
+  pass_k: percentage,
+  pass_k_ci: z.tuple([percentage, percentage]),
+  run_score_sd: z.number().nonnegative(),
+  seconds_total: z.number().nonnegative(),
+  seconds_per_success: z.number().nonnegative().optional(),
+  prompt_tokens_total: z.number().int().nonnegative().optional(),
+  completion_tokens_total: z.number().int().nonnegative().optional(),
+  prompt_tokens_per_success: z.number().nonnegative().optional(),
+  completion_tokens_per_success: z.number().nonnegative().optional(),
+});
+export type RepeatResult = z.infer<typeof repeatResultSchema>;
 
 /** Unknown keys are rejected throughout, so a misspelt field fails instead of being dropped. */
 export const benchmarkSchema = z.strictObject({
@@ -211,6 +246,8 @@ export const benchmarkSchema = z.strictObject({
   items: z.number().int().nonnegative(),
   /** For a "measured" benchmark: the benchmark whose runs it is measured on. Each of its results sits beside that run's result. */
   measured_on: contentId.optional(),
+  /** Set for a repeat-run benchmark: every item is answered `runs` times with this sampling. */
+  repeat: repeatMethodSchema.optional(),
   source_url: httpsUrl,
   source_sha256: sha256Hex.optional(),
   license: openLicenseEnum,
@@ -227,6 +264,9 @@ export const benchmarkSchema = z.strictObject({
 }).refine((benchmark) => benchmark.scoring === 'measured' || benchmark.measured_on === undefined, {
   path: ['measured_on'],
   message: 'is only for benchmarks whose scoring is "measured"',
+}).refine((benchmark) => benchmark.scoring !== 'measured' || benchmark.repeat === undefined, {
+  path: ['repeat'],
+  message: 'is only for benchmarks that score items; a measured benchmark has none',
 });
 export type BenchmarkData = z.infer<typeof benchmarkSchema>;
 
@@ -262,6 +302,8 @@ export const evalResultSchema = z.strictObject({
     peak_memory_gb: z.number().positive().optional(),
     energy_wh_per_1k_tokens: z.number().positive().optional(),
   }).optional(),
+  /** Present exactly when the benchmark version is a repeat-run one; see repeatResultSchema. */
+  repeat: repeatResultSchema.optional(),
   evidence: z.strictObject({
     sha256: sha256Hex,
     url: evidenceUrl.optional(),

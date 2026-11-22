@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { evalResultSchema } from '@unite4ai/schema';
+import { repeatSummary } from '@unite4ai/core/repeat';
 import { speedResultFrom } from '../src/eval/speed.ts';
 
 const SPEED = { id: 'decode-speed-gsm8k-200', version: '1' };
@@ -42,4 +43,10 @@ test('a note about the setup is repeated on the speed result', () => {
 test('a run that did not measure speed has no speed result', () => {
   assert.equal(speedResultFrom(main({ perf: undefined }), SPEED), null);
   assert.equal(speedResultFrom(main({ perf: { time_to_first_token_ms: 400 } }), SPEED), null);
+});
+
+test('a speed result does not carry the repeat block of the run it was measured on', () => {
+  const repeat = repeatSummary({ runs: 2, temperature: 0.7, top_p: 1 }, { item_pass_histogram: [0, 0, 200], run_correct: [200, 200], seconds_total: 10 });
+  const repeated = main({ repeat, score: repeat.pass_k });
+  assert.equal('repeat' in speedResultFrom(repeated, SPEED), false);
 });

@@ -8,6 +8,8 @@ export interface Completion {
   seconds: number;
   /** From the stream's usage chunk; null when the server does not send one. */
   completionTokens: number | null;
+  /** From the stream's usage chunk; null when the server does not send one. */
+  promptTokens: number | null;
   /** Why the server stopped, e.g. "stop" or "length"; null when it sent only `[DONE]`. */
   finishReason: string | null;
 }
@@ -71,12 +73,18 @@ export interface ChatRequest {
   maxTokens: number;
   /** Limit for the whole request, from sending it to the end of the reply. */
   timeoutMs: number;
+  /**
+   * The sampling of a repeat-run benchmark. Absent: temperature 0 and nothing else, the
+   * single-run method, so a single-run request is unchanged.
+   */
+  sampling?: { temperature: number; topP: number; seed: number };
 }
 
 /**
- * One streamed chat completion at temperature 0. Throws when the server reports an error inside
- * the stream, the stream ends without a finish_reason or `[DONE]`, or the reply is not complete
- * within the timeout, so a failed or partial reply is never scored.
+ * One streamed chat completion, at temperature 0 unless the request carries sampling. Throws
+ * when the server reports an error inside the stream, the stream ends without a finish_reason
+ * or `[DONE]`, or the reply is not complete within the timeout, so a failed or partial reply is
+ * never scored.
  */
 export async function streamChat(request: ChatRequest): Promise<Completion> {
   const signal = AbortSignal.timeout(request.timeoutMs);
@@ -98,7 +106,9 @@ async function readCompletion(request: ChatRequest, signal: AbortSignal): Promis
       model: request.model,
       messages: request.messages,
       max_tokens: request.maxTokens,
-      temperature: 0,
+      ...(request.sampling === undefined
+        ? { temperature: 0 }
+        : { temperature: request.sampling.temperature, top_p: request.sampling.topP, seed: request.sampling.seed }),
       stream: true,
       stream_options: { include_usage: true },
     }),
@@ -111,6 +121,7 @@ async function readCompletion(request: ChatRequest, signal: AbortSignal): Promis
   let text = '';
   let ttftMs: number | null = null;
   let completionTokens: number | null = null;
+  let promptTokens: number | null = null;
   let finishReason: string | null = null;
   let finished = false;
   for await (const payload of dataPayloads(response.body)) {
@@ -121,7 +132,7 @@ async function readCompletion(request: ChatRequest, signal: AbortSignal): Promis
     }
     const event = JSON.parse(payload) as {
       choices?: { delta?: { content?: unknown; reasoning?: unknown; reasoning_content?: unknown }; finish_reason?: unknown }[];
-      usage?: { completion_tokens?: unknown };
+      usage?: { completion_tokens?: unknown; prompt_tokens?: unknown };
       error?: unknown;
     };
     if (event.error != null) {
@@ -140,7 +151,8 @@ async function readCompletion(request: ChatRequest, signal: AbortSignal): Promis
     }
     if (typeof delta?.content === 'string') text += delta.content;
     if (typeof event.usage?.completion_tokens === 'number') completionTokens = event.usage.completion_tokens;
+    if (typeof event.usage?.prompt_tokens === 'number') promptTokens = event.usage.prompt_tokens;
   }
   if (!finished) throw new Error('stream ended before the reply was complete');
-  return { text, ttftMs, seconds: (performance.now() - started) / 1000, completionTokens, finishReason };
+  return { text, ttftMs, seconds: (performance.now() - started) / 1000, completionTokens, promptTokens, finishReason };
 }
