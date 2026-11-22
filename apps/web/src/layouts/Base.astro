@@ -60,7 +60,7 @@ const section = Object.entries(sections).find(([child]) => path === child || pat
             <a href={href(n.href)} aria-current={path === n.href ? 'page' : section === n.href ? 'location' : undefined}>{n.label}</a>
           ))}
         </nav>
-        <button class="theme-toggle" data-theme-toggle type="button" role="switch" aria-checked="false" hidden>Light mode</button>
+        <button class="theme-toggle" data-theme-toggle type="button" hidden></button>
       </div>
     </header>
 

@@ -27,8 +27,7 @@
     root.dataset.theme = theme;
     sheet.media = theme === 'light' ? 'all' : 'not all';
     if (button) {
-      button.setAttribute('aria-checked', String(theme === 'light'));
-      button.setAttribute('title', `Switch to ${theme === 'light' ? 'dark' : 'light'} mode`);
+      button.textContent = theme === 'light' ? 'Dark mode' : 'Light mode';
       syncEmbeds();
     }
   };

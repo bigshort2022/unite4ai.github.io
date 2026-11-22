@@ -35,11 +35,12 @@ bun run dev                        # fast iteration; /search needs build first
 
 ### Hub appearance
 
-The header's **Light mode** switch selects the editorial paper theme or the original
-dark design. A saved `u4ai-theme` choice in local storage overrides the OS preference;
+The header's theme button switches between the editorial paper theme and the original
+dark design; its label names the theme it switches to (**Dark mode** while light is
+active, **Light mode** while dark is active). A saved `u4ai-theme` choice in local storage overrides the OS preference;
 without one, an explicit light preference selects light and everything else selects dark.
-Storage is optional: when blocked, the switch works until navigation. With scripts
-disabled, the OS preference still styles the page and the inactive switch stays hidden.
+Storage is optional: when blocked, the button works until navigation. With scripts
+disabled, the OS preference still styles the page and the inactive button stays hidden.
 
 `Base.astro` loads `styles/light.css` with a media query and inlines `lib/theme.js`
 before page content. Keep original dark rules in `global.css`; light-only layout and
