@@ -70,7 +70,7 @@ at most 32 KiB. The id must match an entry in `apps/web/src/data/global-exchange
 | `meta` | `schemaVersion: 1`, `directoryId`, `researchedAt`, `agent {model, harness}`, `author`, `status` (`draft` or `published`), `reviewedBy` and `reviewedAt` (required when published) |
 | `identity` | Facts: official URL, operating entity, headquarters, date of formation |
 | `legal` | Facts: registered jurisdiction, governing law in terms of service, licenses held, stated restricted jurisdictions, sanctions screening, KYC requirement |
-| `marketData` | Reported: token symbol, market cap (USD), token price (USD), as-of timestamp, source; all `not-published` for entries without a token |
+| `marketData` | Token symbol (`stated` by the operator or `reported`); market cap (USD) and token price (USD), always `reported` from a named source with its date; all `not-published` for entries without a token |
 | `usage` | Metrics: average weekly users, trading/transaction volume, number of traders/buyers — each with unit, window, level and evidence, or `not-published` |
 | `priceQuotes` | Workload-specific quotes in their own currency and unit (e.g. USD per GPU-hour for a named GPU, EUR per 400 OctaneBench-hours, USDC per API call) |
 | `costComponents` | Fees by kind (platform fee, take rate, payment processor, facilitator, network gas, withdrawal, minimum charge), basis (percent, fixed, per-unit), currency, who pays, evidence |

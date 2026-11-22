@@ -24,8 +24,9 @@ with the directory source page; replace every `searched` list with the pages act
   registries/regulators = `reported`.
 - **Usage & Market:** average weekly active users, transaction/trading volume, number of
   traders/buyers — only where the operator, an official dashboard or a named aggregator
-  publishes them, with exact unit and window. Token symbol, market cap (USD) and token price
-  (USD) from a named free aggregator, level `reported`, with the retrieval date. Projects
+  publishes them, with exact unit and window. Token symbol from the operator's own docs
+  (`stated`) or a named aggregator (`reported`); market cap (USD) and token price (USD) only
+  from a named free aggregator, level `reported`, with the retrieval date. Projects
   without a token: all three `not-published`. Never compute, sum or convert.
 - **Prices & Costs:** quotes for the reference workloads in `packages/core/src/profile-rubrics.ts`,
   in their own currency and unit, with statistic and sample size; public offer listings or
