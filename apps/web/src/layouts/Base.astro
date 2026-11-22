@@ -1,5 +1,7 @@
 ---
 import '../styles/global.css';
+import lightStyles from '../styles/light.css?url';
+import themeScript from '../lib/theme.js?raw';
 import { REPO } from '../lib/site';
 
 interface Props {
@@ -44,6 +46,8 @@ const section = Object.entries(sections).find(([child]) => path === child || pat
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <!-- GitHub Pages cannot set HTTP headers, so CSP ships as a meta tag. -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://giscus.app; worker-src 'self' blob:; frame-src https://giscus.app; connect-src 'self' https://api.github.com; base-uri 'self'; form-action 'self'" />
+    <link id="light-theme" rel="stylesheet" href={lightStyles} media="(prefers-color-scheme: light)" />
+    <script is:inline set:html={themeScript}></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -56,6 +60,7 @@ const section = Object.entries(sections).find(([child]) => path === child || pat
             <a href={href(n.href)} aria-current={path === n.href ? 'page' : section === n.href ? 'location' : undefined}>{n.label}</a>
           ))}
         </nav>
+        <button class="theme-toggle" data-theme-toggle type="button" role="switch" aria-checked="false" hidden>Light mode</button>
       </div>
     </header>
 

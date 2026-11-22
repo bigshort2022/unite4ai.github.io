@@ -86,7 +86,7 @@ const modelName = (id: string) => modelNames.get(id) ?? id;
 
     <div class="prose" style="margin-top:2.5rem"><Content /></div>
 
-    <p style="margin-top:1.5rem;font-size:.88rem;color:var(--u-text-faint)">
+    <p class="eval-provenance" style="margin-top:1.5rem;font-size:.88rem;color:var(--u-text-faint)">
       Source: <a href={d.source_url}>{d.source_url}</a>
       {d.source_sha256 && <> · sha256 <code>{d.source_sha256}</code></>}
       · Updated {d.updated.toISOString().slice(0, 10)}

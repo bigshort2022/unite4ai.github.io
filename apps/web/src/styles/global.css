@@ -155,6 +155,8 @@ p  { margin: 0 0 1.1em; }
   transition: border-color .18s ease, transform .18s ease, background .18s ease;
 }
 .card:hover { border-color: var(--u-border-bright); background: var(--u-bg-elev-2); transform: translateY(-2px); }
+/* Author display:flex must not override a registry filter's native hidden state. */
+.card[hidden] { display: none; }
 .card h3 { margin: 0; font-size: 1.08rem; }
 .card h3 a { color: var(--u-text); text-decoration: none; }
 .card h3 a::after { content: ''; position: absolute; inset: 0; } /* whole-card click */
@@ -258,6 +260,24 @@ p  { margin: 0 0 1.1em; }
   .site-nav::-webkit-scrollbar { display: none; }
   .site-nav a { flex: none; white-space: nowrap; }
 }
+
+/* The only shared layout addition: an optional, progressively enhanced switch. */
+.theme-toggle {
+  flex: none; min-height: 44px; padding: .4rem .65rem;
+  font: 500 .8rem var(--u-font); color: var(--u-text);
+  background: var(--u-bg-elev); border: 1px solid var(--u-border-bright);
+  border-radius: var(--u-radius-sm); cursor: pointer;
+}
+.theme-toggle[hidden] { display: none; }
+.theme-toggle[aria-checked="true"] { border-color: var(--u-blue); }
+@media (max-width: 620px) {
+  .site-header .bar { position: relative; }
+  .theme-toggle { position: absolute; right: clamp(1rem, 4vw, 2rem); top: .25rem; }
+}
+
+/* Light-only context and record disclosures never change the original dark flow. */
+.exchange-context, .exchange-reading-notes { display: none; }
+.exchange-shell, .exchange-feed { display: contents; }
 
 /* ─── Blog comments (newspaper-style tray) ─── */
 .blog-comments-link {
@@ -489,3 +509,6 @@ p  { margin: 0 0 1.1em; }
 .exchange-latency summary { cursor: pointer; }
 .exchange-latency li { margin-block: .5rem; }
 .exchange .eval-table { min-width: 56rem; overflow-wrap: normal; }
+
+/* Source URLs and content hashes are unbroken identifiers, not table columns. */
+.eval-provenance { overflow-wrap: anywhere; }
