@@ -81,9 +81,10 @@ export interface ChatRequest {
 }
 
 /**
- * One streamed chat completion, at temperature 0 unless the request carries sampling. Throws when the server reports an error inside
- * the stream, the stream ends without a finish_reason or `[DONE]`, or the reply is not complete
- * within the timeout, so a failed or partial reply is never scored.
+ * One streamed chat completion, at temperature 0 unless the request carries sampling. Throws
+ * when the server reports an error inside the stream, the stream ends without a finish_reason
+ * or `[DONE]`, or the reply is not complete within the timeout, so a failed or partial reply is
+ * never scored.
  */
 export async function streamChat(request: ChatRequest): Promise<Completion> {
   const signal = AbortSignal.timeout(request.timeoutMs);
