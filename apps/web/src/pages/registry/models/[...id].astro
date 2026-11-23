@@ -3,7 +3,7 @@ import Base from '../../../layouts/Base.astro';
 import OpennessMeter from '../../../components/OpennessMeter.astro';
 import StackVerifyPanel from '../../../components/StackVerifyPanel.astro';
 import { getCollection, render } from 'astro:content';
-import { byCodeUnit, localSetups, opennessScore, reproductionLabel } from '@unite4ai/core';
+import { byCodeUnit, localSetups, opennessScore } from '@unite4ai/core';
 import { deviceLine, formatNumber, loadEvals, runtimeLabel, scoreRange, withUnit } from '../../../lib/evals';
 import { REPO } from '../../../lib/site';
 import ExchangeRecords from '../../../components/ExchangeRecords.astro';
@@ -20,9 +20,6 @@ const d = entry.data;
 const score = opennessScore(d.openness);
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const href = (p: string) => `${base}${p}` || '/';
-const localGuide = d.inference?.run_local_guide?.startsWith('/')
-  ? href(d.inference.run_local_guide)
-  : d.inference?.run_local_guide;
 const evalData = await loadEvals();
 const benchmarkById = new Map(evalData.benchmarks.map((b) => [b.id, b]));
 const ownGroups = evalData.groups.filter((g) => g.model === entry.id);
@@ -56,7 +53,7 @@ const findings = exchange.structure.findings.filter((record) => hypothesisIds.ha
     <p class="lede">{d.summary}</p>
 
     <div class="card-meta" style="margin:1.2rem 0 2rem">
-      <span class="tag tag-open">{d.license}</span>
+      <span class="tag">Listed license: {d.license}</span>
       {d.tasks.map((t) => <span class="tag">{t}</span>)}
       {d.domains.map((x) => <span class="tag">{x}</span>)}
       {d.sdg_alignment.map((s) => <span class="tag">SDG {s}</span>)}
@@ -69,9 +66,8 @@ const findings = exchange.structure.findings.filter((record) => hypothesisIds.ha
       </div>
       <StackVerifyPanel
         artifacts={d.artifacts}
-        inference={d.inference ? { ...d.inference, run_local_guide: localGuide } : undefined}
+        inference={d.inference}
         evalBundle={d.eval_bundle}
-        modelName={d.name}
       />
     </div>
 
@@ -86,6 +82,7 @@ const findings = exchange.structure.findings.filter((record) => hypothesisIds.ha
 
     <section style="margin-top:3rem" data-pagefind-ignore>
       <h2>Evaluations</h2>
+      <p style="color:var(--u-text-dim)">Runs are self-reported by contributors. Run and submitter counts do not establish that a score was independently reproduced. Reviews of findings, when available, are shown above.</p>
       {modelGroups.length === 0 ? (
         <p style="color:var(--u-text-dim)">
           {earlier.length === 0 ? 'No evaluation results yet.' : 'No results for the current benchmark versions yet.'} <a href={href('/evals')}>See the benchmarks and how results are submitted.</a>
@@ -102,7 +99,7 @@ const findings = exchange.structure.findings.filter((record) => hypothesisIds.ha
                 const benchmark = benchmarkById.get(group.benchmark)!;
                 return (
                   <tr>
-                    <td><a href={href(`/evals/${group.benchmark}`)}>{benchmark.data.name}</a></td>
+                    <td><a href={href(`/evals/${group.benchmark}`)}>{benchmark.data.name}</a><small>Version {group.benchmark_version}</small></td>
                     <td class="num">
                       <span class="score">{withUnit(formatNumber(group.score), benchmark.data.metric.unit)}</span>
                       {scoreRange(group) && <small>range {scoreRange(group)}</small>}
@@ -113,7 +110,12 @@ const findings = exchange.structure.findings.filter((record) => hypothesisIds.ha
                       {deviceLine(group) && <small>{deviceLine(group)}</small>}
                     </td>
                     <td class="num">{benchmark.data.scoring === 'measured' || group.tokens_per_second === null ? '—' : `${formatNumber(group.tokens_per_second)} tok/s`}</td>
-                    <td><span class={`tag${group.submitters.length > 1 ? ' tag-open' : ''}`}>{reproductionLabel(group)}</span></td>
+                    <td>
+                      {group.run_ids.length === 1 ? (
+                        <a href={href(`/evals/${group.benchmark}/#run-${group.run_ids[0]}`)}>1 reported run</a>
+                      ) : `${group.runs} reported runs`}
+                      <small>{group.submitters.length} {group.submitters.length === 1 ? 'submitter' : 'submitters'}</small>
+                    </td>
                   </tr>
                 );
               })}
@@ -158,7 +160,7 @@ const findings = exchange.structure.findings.filter((record) => hypothesisIds.ha
 
     <p style="margin-top:3rem;font-size:.88rem;color:var(--u-text-faint)">
       Maintained by {d.maintainers.join(', ')} · Updated {d.updated.toISOString().slice(0, 10)} ·
-      <a href={`${REPO}/edit/main/apps/web/src/content/models/${entry.id}.md`}>Suggest an edit</a>
+      <a href={`${REPO}/edit/main/apps/web/src/content/models/${entry.id}.md`}>Sign in on GitHub to suggest an edit</a>
     </p>
   </article>
 </Base>

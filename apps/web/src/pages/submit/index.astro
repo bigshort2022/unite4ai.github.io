@@ -2,62 +2,94 @@
 import Base from '../../layouts/Base.astro';
 import { RESULT_ISSUE_FORM, SUBMIT_GUIDE } from '../../lib/evals';
 import { REPO } from '../../lib/site';
-
-const base = import.meta.env.BASE_URL.replace(/\/$/, '');
-const href = (p: string) => `${base}${p}` || '/';
 ---
-<Base title="Submit a model">
+<Base title="Submit to the registry">
   <section class="wrap section">
     <p class="eyebrow">Contribute</p>
     <h1>Submit to the registry</h1>
     <p class="lede">
-      No account required. Fill this form and we'll open a GitHub issue with your submission —
-      a maintainer turns it into a pull request. Git users can still <a href={href('/contribute')}>PR directly</a>.
+      Draft a model, dataset, or compute listing on this page without an account.
+      Nothing you type is sent or saved by this site. Posting is a separate step on GitHub.
     </p>
 
-    <form class="card submit-form" style="margin-top:2rem" id="submit-form">
-      <label>
-        Submission type
-        <select name="type" required>
-          <option value="model">Open model</option>
-          <option value="dataset">Open dataset</option>
-          <option value="compute">Compute option</option>
-        </select>
-      </label>
-      <label>
-        Name
-        <input name="name" type="text" required maxlength="120" placeholder="My Open Model" />
-      </label>
-      <label>
-        Summary (max 300 chars)
-        <textarea name="summary" required maxlength="300" rows="3" placeholder="One-line description"></textarea>
-      </label>
-      <label>
-        License (SPDX)
-        <input name="license" type="text" required placeholder="apache-2.0" />
-      </label>
-      <label>
-        Maintainer GitHub handle(s)
-        <input name="maintainers" type="text" required placeholder="your-handle" />
-      </label>
-      <label>
-        Artifact URL (weights, dataset, or repo)
-        <input name="artifact_url" type="url" placeholder="https://..." />
-      </label>
-      <label>
-        SHA-256 checksum (optional, 64 hex chars)
-        <input name="sha256" type="text" pattern="[a-f0-9]{64}" placeholder="64-character hex digest" />
-      </label>
-      <label>
-        Domains (comma-separated)
-        <input name="domains" type="text" placeholder="healthcare, climate" />
-      </label>
-      <label>
-        Additional notes
-        <textarea name="notes" rows="4" placeholder="Openness details, eval bundle links, inference setup…"></textarea>
-      </label>
-      <button type="submit" class="btn btn-primary">Open GitHub submission issue</button>
+    <h2 style="margin-top:2rem">1. Fill in the details</h2>
+    <noscript><p>Enable JavaScript to build a local draft, or write one in your own editor and use the GitHub link below.</p></noscript>
+    <form class="card submit-form" style="margin-top:1rem" id="submit-form" method="post" autocomplete="off" spellcheck="false">
+      <fieldset id="submission-fields" disabled>
+        <label>
+          Submission type
+          <select name="type" required>
+            <option value="model">Open model</option>
+            <option value="dataset">Open dataset</option>
+            <option value="compute">Compute option</option>
+          </select>
+        </label>
+        <label>
+          Name
+          <input name="name" type="text" required maxlength="120" placeholder="My Open Model" />
+        </label>
+        <label>
+          Summary (max 300 chars)
+          <textarea name="summary" required maxlength="300" rows="3" placeholder="One-line description"></textarea>
+        </label>
+        <label>
+          License (SPDX)
+          <input name="license" type="text" required placeholder="apache-2.0" />
+        </label>
+        <label>
+          Maintainer GitHub handle(s)
+          <input name="maintainers" type="text" required placeholder="your-handle" />
+        </label>
+        <label>
+          Artifact URL (weights, dataset, or repo)
+          <input name="artifact_url" type="url" placeholder="https://..." />
+        </label>
+        <label>
+          SHA-256 checksum (optional, 64 hex chars)
+          <input name="sha256" type="text" pattern="[a-f0-9]{64}" placeholder="64-character hex digest" />
+        </label>
+        <label>
+          Domains (comma-separated)
+          <input name="domains" type="text" placeholder="healthcare, climate" />
+        </label>
+        <label>
+          Additional notes
+          <textarea name="notes" rows="4" placeholder="Openness details, eval bundle links, inference setup…"></textarea>
+        </label>
+        <button type="submit" class="btn btn-primary">Build local draft</button>
+      </fieldset>
     </form>
+
+    <section class="card submit-form" style="margin-top:1.5rem" id="submission-draft" aria-labelledby="draft-heading" spellcheck="false" hidden>
+      <h2 id="draft-heading">2. Review and copy your draft</h2>
+      <p>Edit either field before copying. Building a new draft replaces these edits, not the original form.</p>
+      <div class="draft-fields">
+        <label>
+          Issue title
+          <input id="draft-title" type="text" autocomplete="off" />
+        </label>
+        <button id="copy-draft-title" type="button" class="btn btn-ghost">Copy title</button>
+        <label>
+          Issue body
+          <textarea id="draft-body" rows="12" autocomplete="off"></textarea>
+        </label>
+        <button id="copy-draft-body" type="button" class="btn btn-ghost">Copy body</button>
+      </div>
+      <p id="draft-status" role="status"></p>
+    </section>
+
+    <section style="margin-top:2rem" aria-labelledby="post-heading">
+      <h2 id="post-heading">3. Post on GitHub (optional)</h2>
+      <p>
+        Posting requires a GitHub account. The issue will be public under your GitHub identity.
+        Leave out personal information, credentials, and anything else you don't want published.
+        The link opens a blank issue in a new tab; paste your title and body there only when you're ready.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-ghost" href={`${REPO}/issues`}>Read public issues</a>
+        <a class="btn btn-ghost" href={`${REPO}/issues/new?blank=1`} target="_blank" rel="noopener noreferrer">Sign in on GitHub to post a public issue</a>
+      </div>
+    </section>
 
     <p style="margin-top:1.5rem;font-size:.88rem;color:var(--u-text-faint)">
       Or run locally: <code>bun run publish:cli -- validate</code> then <code>bun run publish:cli -- new-model my-slug</code>
@@ -66,53 +98,83 @@ const href = (p: string) => `${base}${p}` || '/';
     <section style="margin-top:3rem" aria-labelledby="submit-evals-title">
       <h2 id="submit-evals-title">Evaluation results</h2>
       <p style="max-width:62ch;color:var(--u-text-dim)">
-        A benchmark result is not typed into the form above: the runner writes the result file
-        on your machine. Send that file by pull request, or paste it into an issue form and a
-        maintainer turns it into one.
+        The runner writes a result file on your machine. Send it in a public pull request or sign
+        in to GitHub and paste it into the public issue form. Check the file for private data first.
       </p>
       <p style="margin-top:1rem">
         <a class="btn btn-ghost" href={SUBMIT_GUIDE}>Read the runner guide</a>
-        <a class="btn btn-ghost" href={RESULT_ISSUE_FORM}>Paste a result into the issue form</a>
+        <a class="btn btn-ghost" href={RESULT_ISSUE_FORM}>Sign in on GitHub to post an evaluation result</a>
       </p>
     </section>
   </section>
 
   <style>
-    .submit-form { display: grid; gap: 1rem; max-width: 36rem; }
+    .submit-form { max-width: 40rem; }
+    .submit-form fieldset, .draft-fields { display: grid; gap: 1rem; min-inline-size: 0; }
+    .submit-form fieldset { border: 0; margin: 0; padding: 0; }
+    .draft-fields { margin: 1rem 0; }
+    .draft-fields button { justify-self: start; }
     .submit-form label { display: grid; gap: .35rem; font-size: .88rem; font-weight: 500; }
     .submit-form input, .submit-form select, .submit-form textarea {
       font: inherit; padding: .55rem .65rem; border: 1px solid var(--u-line);
-      border-radius: 4px; background: var(--u-bg);
+      min-inline-size: 0; border-radius: 4px; background: var(--u-bg);
     }
   </style>
 
-  <script is:inline define:vars={{ REPO }}>
-    document.getElementById('submit-form')?.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      const type = fd.get('type');
-      const title = `[${type}] ${fd.get('name')}`;
-      const body = [
-        '## Submission',
-        '',
-        `- **Type:** ${type}`,
-        `- **Name:** ${fd.get('name')}`,
-        `- **Summary:** ${fd.get('summary')}`,
-        `- **License:** ${fd.get('license')}`,
-        `- **Maintainers:** ${fd.get('maintainers')}`,
-        `- **Artifact URL:** ${fd.get('artifact_url') || '—'}`,
-        `- **SHA-256:** ${fd.get('sha256') || '—'}`,
-        `- **Domains:** ${fd.get('domains') || '—'}`,
-        '',
-        '## Notes',
-        '',
-        String(fd.get('notes') || '—'),
-        '',
-        '---',
-        '*Submitted via unite4ai.com/submit — a maintainer will scaffold the PR.*',
-      ].join('\n');
-      const url = `${REPO}/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
-      window.open(url, '_blank', 'noopener,noreferrer');
-    });
+  <script is:inline id="submission-draft-script">
+    (() => {
+      const form = document.getElementById('submit-form');
+      const fields = document.getElementById('submission-fields');
+      const draft = document.getElementById('submission-draft');
+      const draftTitle = document.getElementById('draft-title');
+      const draftBody = document.getElementById('draft-body');
+      const copyStatus = document.getElementById('draft-status');
+
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const fd = new FormData(form);
+        const type = fd.get('type');
+        draftTitle.value = `[${type}] ${fd.get('name')}`;
+        draftBody.value = [
+          '## Submission',
+          '',
+          `- **Type:** ${type}`,
+          `- **Name:** ${fd.get('name')}`,
+          `- **Summary:** ${fd.get('summary')}`,
+          `- **License:** ${fd.get('license')}`,
+          `- **Maintainers:** ${fd.get('maintainers')}`,
+          `- **Artifact URL:** ${fd.get('artifact_url') || '—'}`,
+          `- **SHA-256:** ${fd.get('sha256') || '—'}`,
+          `- **Domains:** ${fd.get('domains') || '—'}`,
+          '',
+          '## Notes',
+          '',
+          String(fd.get('notes') || '—'),
+        ].join('\n');
+        draft.hidden = false;
+        copyStatus.textContent = '';
+        draftTitle.focus();
+      });
+
+      function addCopy(button, field, label) {
+        button.addEventListener('click', async () => {
+          if (navigator.clipboard) {
+            try {
+              await navigator.clipboard.writeText(field.value);
+              copyStatus.textContent = `${label} copied.`;
+              return;
+            } catch {
+              // Selecting the editable text lets visitors copy it without clipboard permission.
+            }
+          }
+          field.focus();
+          field.select();
+          copyStatus.textContent = `Use your browser’s copy command to copy the selected ${label.toLowerCase()}.`;
+        });
+      }
+      addCopy(document.getElementById('copy-draft-title'), draftTitle, 'Title');
+      addCopy(document.getElementById('copy-draft-body'), draftBody, 'Body');
+      fields.disabled = false;
+    })();
   </script>
 </Base>

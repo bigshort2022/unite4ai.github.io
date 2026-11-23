@@ -30,9 +30,11 @@ function success(result) {
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   return JSON.parse(result.stdout);
 }
-function rejected(result, pattern) {
-  assert.notEqual(result.status, 0, result.stdout);
-  assert.match(result.stderr, pattern);
+function rejected(result, pattern, status = 1) {
+  assert.equal(result.status, status, `${result.stdout}\n${result.stderr}`);
+  assert.match(result.stdout, /^status: error$/m);
+  assert.match(result.stdout, status === 2 ? /^kind: usage$/m : /^kind: domain$/m);
+  assert.match(result.stdout, pattern);
 }
 function fixture(t, options) {
   const root = makeExchangeRoot(options);
@@ -41,17 +43,23 @@ function fixture(t, options) {
 }
 
 // Oracle: approved task-3 CLI contract. Exercise the public root script, not a parser mock.
-test('exchange help describes all commands and does not create records', (t) => {
+test('exchange parent help lists commands, leaf help scopes flags, and neither creates records', (t) => {
   const root = fixture(t);
-  for (const command of ['--help', 'new-hypothesis', 'new-finding', 'review', 'graft']) {
-    const result = cli(root, command, {}, command === '--help' ? [] : ['--help']);
+  const commands = ['new-hypothesis', 'new-finding', 'review', 'graft'];
+  const help = cli(root, '--help');
+  assert.equal(help.status, 0, help.stderr);
+  for (const command of commands) assert.match(help.stdout, new RegExp(command));
+  for (const command of commands) {
+    const result = cli(root, command, {}, ['--help']);
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /new-hypothesis/);
-    assert.match(result.stdout, /new-finding/);
-    assert.match(result.stdout, /review/);
-    assert.match(result.stdout, /graft/);
+    assert.match(result.stdout, new RegExp(`^usage: bun run exchange -- ${command} `));
     assert.match(result.stdout, /--agent-model/);
+    assert.match(result.stdout, /Examples:/);
   }
+  const reviewHelp = cli(root, 'review', {}, ['--help']);
+  assert.match(reviewHelp.stdout, /--finding-sha256/);
+  assert.doesNotMatch(reviewHelp.stdout, /new-hypothesis|new-finding|graft|--source-sha256/);
+  rejected(cli(root, 'unrecognized-command', {}, ['--help']), /unknown command/, 2);
   assert.deepEqual(readdirSync(join(root, 'findings')), []);
 });
 
@@ -63,6 +71,7 @@ test('hypothesis and finding scaffolds preserve explicit attribution and source 
   assert.equal(created.id, 'fixture-new-hypothesis');
   const output = cli(root, 'new-finding', { ...findingFlags, hypothesis: created.id });
   const result = success(output);
+  assert.deepEqual(Object.keys(result).sort(), ['id', 'path', 'sha256']);
   assert.match(output.stderr, /bun run validate/);
   assert.match(output.stderr, /verify\.mjs/);
   assert.match(output.stderr, /pull request/i);
@@ -96,27 +105,27 @@ test('review refuses self-review, incorrect inspected hash and missing or malfor
   rejected(cli(root, 'review', { ...reviewFlags, reviewer: 'fixture-author' }), /reviewer must differ/);
   rejected(cli(root, 'review', { ...reviewFlags, 'finding-sha256': '0'.repeat(64) }), /hash|sha256/);
   rejected(cli(root, 'review', { ...reviewFlags, finding: 'unknown-finding' }), /unknown finding/);
-  rejected(cli(root, 'review', { ...reviewFlags, finding: '../fixture-finding' }), /id/);
+  rejected(cli(root, 'review', { ...reviewFlags, finding: '../fixture-finding' }), /finding.*id/, 2);
   assert.deepEqual(readdirSync(join(root, 'reviews')), []);
 });
 
 test('bad inputs fail closed without records: unknown references, malformed results, incomplete attribution, flags and dates', (t) => {
   const root = fixture(t);
-  for (const flags of [
-    { ...findingFlags, results: '../escape' },
-    { ...findingFlags, results: 'model-a--bench-a--alice--2026-11-10--bbbbbbbb' },
-    { ...findingFlags, hypothesis: 'missing' },
-    { ...findingFlags, 'agent-model': 'fixture-model' },
-    { ...findingFlags, date: '2026-02-30' },
-    { ...findingFlags, summary: '<script>bad</script>' },
-    { ...findingFlags, id: '../outside' },
-  ]) rejected(cli(root, 'new-finding', flags), /exchange failed:/);
+  for (const [flags, pattern] of [
+    [{ ...findingFlags, results: '../escape' }, /results.*result file id/],
+    [{ ...findingFlags, 'agent-model': 'fixture-model' }, /supplied together/],
+    [{ ...findingFlags, date: '2026-02-30' }, /real calendar date/],
+    [{ ...findingFlags, summary: '<script>bad</script>' }, /plain text/],
+    [{ ...findingFlags, id: '../outside' }, /record id/],
+  ]) rejected(cli(root, 'new-finding', flags), pattern, 2);
+  rejected(cli(root, 'new-finding', { ...findingFlags, results: 'model-a--bench-a--alice--2026-11-10--bbbbbbbb' }), /result/);
+  rejected(cli(root, 'new-finding', { ...findingFlags, hypothesis: 'missing' }), /hypothesis/);
   rejected(cli(root, 'new-hypothesis', { ...hypothesisFlags, models: 'missing-model' }), /unknown model/);
   rejected(cli(root, 'new-hypothesis', { ...hypothesisFlags, benchmark: 'missing-benchmark' }), /unknown benchmark/);
-  rejected(cli(root, 'new-finding', findingFlags, ['--date', '2026-11-11']), /duplicate/);
-  rejected(cli(root, 'new-finding', { ...findingFlags, force: 'true' }), /unknown|unexpected/);
+  rejected(cli(root, 'new-finding', findingFlags, ['--date', '2026-11-11']), /duplicate/, 2);
+  rejected(cli(root, 'new-finding', { ...findingFlags, force: 'true' }), /unknown flag/, 2);
   const { date, ...noDate } = findingFlags;
-  rejected(cli(root, 'new-finding', noDate), /date/);
+  rejected(cli(root, 'new-finding', noDate), /missing.*--date/, 2);
   assert.deepEqual(readdirSync(join(root, 'findings')), []);
   assert.deepEqual(readdirSync(join(root, 'hypotheses')), ['fixture-hypothesis.md']);
 });

@@ -19,12 +19,14 @@ const registryIndex = models.map((m) => ({
     <p class="eyebrow">Registry</p>
     <h1>Open models</h1>
     <p class="lede">
-      Every entry is graded on four Model Openness Framework axes and carries a verifiable artifact
-      checksum. Restrictive licenses cannot be merged — CI blocks them.
+      Cards describe openness for weights, training data, training code, and evaluation.
+      A listed license or artifact link is not verification of the downloaded bytes. Some
+      artifacts have a SHA-256 checksum you can compare; others have no registered checksum.
+      A reported evaluation run is not proof of independent review or reproduction.
     </p>
     <p style="margin-top:1rem">
       <a class="btn btn-ghost" href={href('/registry/datasets')}>Datasets →</a>
-      <a class="btn btn-ghost" href={href('/contribute')}>Submit a model</a>
+      <a class="btn btn-ghost" href={href('/submit')}>Draft a model submission</a>
     </p>
 
     <div class="registry-controls" style="margin-top:1.5rem">
@@ -71,7 +73,7 @@ const registryIndex = models.map((m) => ({
               <div class="meter" style="margin-top:.6rem"><i style={`width:${score}%`}></i></div>
               <div class="card-meta">
                 <span class="tag tag-open">{score}% open</span>
-                <span class="tag">{m.data.license}</span>
+                <span class="tag">Listed license: {m.data.license}</span>
                 {m.data.community_led && <span class="tag tag-open">community-led</span>}
                 {m.data.featured && <span class="tag tag-open">featured</span>}
               </div>

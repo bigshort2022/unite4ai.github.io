@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { groupEvals, indistinguishableFrom, leaderboard, localSetups as setupsOfCurrent, median, reproductionLabel } from '../src/evals.ts';
+import { groupEvals, indistinguishableFrom, leaderboard, localSetups as setupsOfCurrent, median, submitterLabel } from '../src/evals.ts';
 import { result, run } from './fixtures/evals.mjs';
 
 const setup = (overrides = {}) => ({ ...result().setup, ...overrides });
@@ -119,12 +119,12 @@ test('a row is not distinguishable from the highest-ranked earlier row whose int
   assert.deepEqual(indistinguishableFrom([]), []);
 });
 
-test('reproduction label counts submitters other than the first, not runs', () => {
+test('submitter labels describe submitting accounts, not independent reproduction', () => {
   const single = groupEvals([run('a'), run('b')])[0];
   assert.equal(single.runs, 2);
-  assert.equal(reproductionLabel(single), 'not yet reproduced');
-  const reproduced = groupEvals([run('a'), run('b', { run: by('bob', '2026-11-11') }), run('c', { run: by('carol', '2026-11-12') })])[0];
-  assert.equal(reproductionLabel(reproduced), 'reproduced by 2');
+  assert.equal(submitterLabel(single), '1 submitting account');
+  const multiple = groupEvals([run('a'), run('b', { run: by('bob', '2026-11-11') }), run('c', { run: by('carol', '2026-11-12') })])[0];
+  assert.equal(submitterLabel(multiple), '3 submitting accounts');
 });
 
 test('leaderboard keeps only the current version and ranks by the metric direction', () => {

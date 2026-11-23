@@ -7,23 +7,118 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     <p class="eyebrow">Search</p>
     <h1>Find anything</h1>
     <p class="lede">
-      This search runs entirely in your browser. No query ever reaches a server — there is no
-      search server to reach. Privacy by architecture, not by policy.
+      Your search text stays in this browser. The browser downloads public index files from
+      Unite4AI and looks up matches locally.
     </p>
-    <div id="search" style="margin-top:2rem"></div>
-    <noscript><p class="empty" style="margin-top:2rem">Search needs JavaScript. Browse the <a href={`${base}/registry`}>registry</a> or <a href={`${base}/school`}>school</a> instead.</p></noscript>
+    <form id="site-search" role="search" hidden>
+      <label for="search-query">Search Unite4AI</label>
+      <div class="query-controls">
+        <input id="search-query" type="search" placeholder="Search" autocomplete="off" required />
+        <button class="btn btn-primary" type="submit">Search</button>
+      </div>
+    </form>
+    <p id="search-status" class="muted" role="status"></p>
+    <ol id="search-results"></ol>
+    <p class="muted">
+      Browse the <a href={`${base}/school`}>School</a>,
+      <a href={`${base}/registry`}>Registry</a>, or <a href={`${base}/exchange`}>Evidence Exchange</a>.
+    </p>
+    <noscript><p class="muted">Search needs JavaScript. The browse links work without it.</p></noscript>
   </section>
 
-  <link rel="stylesheet" href={`${base}/pagefind/pagefind-ui.css`} />
-  <script is:inline src={`${base}/pagefind/pagefind-ui.js`}></script>
+  <style>
+    #site-search { margin-top: 2rem; }
+    .query-controls { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .35rem; }
+    #search-query {
+      flex: 1;
+      min-width: min(100%, 15rem);
+      padding: .6rem .85rem;
+      font: inherit;
+      border: 1px solid var(--u-border-bright);
+      border-radius: var(--u-radius-sm);
+      background: var(--u-bg-elev);
+      color: var(--u-text);
+    }
+    #search-results li { margin-block: 1rem; }
+    #search-results p { margin: .25rem 0 0; }
+  </style>
+
   <script is:inline define:vars={{ base }}>
-    window.addEventListener('DOMContentLoaded', () => {
-      if (typeof PagefindUI === 'undefined') {
-        document.getElementById('search').innerHTML =
-          '<p class="empty">Search index builds during deployment. Run <code>bun run build</code> to generate it locally.</p>';
-        return;
+    const form = document.getElementById('site-search');
+    const input = document.getElementById('search-query');
+    const status = document.getElementById('search-status');
+    const results = document.getElementById('search-results');
+    const bundle = new URL(`${base}/pagefind/`, location.origin);
+    const limit = 10;
+    let engine;
+    let sequence = 0;
+
+    function loadSearch() {
+      engine ??= import(new URL('pagefind.js', bundle).href).then(async (pagefind) => {
+        // Use the supported main-thread mode: blob-backed workers cannot reliably load this index.
+        await pagefind.options({ basePath: bundle.href, baseUrl: `${base}/`, noWorker: true });
+        return pagefind;
+      });
+      return engine;
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const term = input.value.trim();
+      const id = ++sequence;
+      results.replaceChildren();
+      status.textContent = term ? 'Searching…' : '';
+      if (!term) return;
+
+      let timer;
+      try {
+        const { count, hits } = await Promise.race([
+          (async () => {
+            const pagefind = await loadSearch();
+            const { results: matches } = await pagefind.search(term);
+            const hits = await Promise.all(matches.slice(0, limit).map((match) => match.data()));
+            return { count: matches.length, hits };
+          })(),
+          new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error('Search timed out')), 8000);
+          }),
+        ]);
+        if (id !== sequence) return;
+
+        for (const hit of hits) {
+          const url = new URL(hit.url, location.origin);
+          if (url.origin !== location.origin || url.protocol !== location.protocol) continue;
+          const row = document.createElement('li');
+          const link = document.createElement('a');
+          link.href = url.href;
+          link.textContent = hit.meta?.title || url.pathname;
+          row.append(link);
+          if (hit.excerpt) {
+            const snippet = document.createElement('p');
+            snippet.className = 'muted';
+            // Pagefind escapes indexed text before inserting its own <mark> elements.
+            snippet.innerHTML = hit.excerpt;
+            row.append(snippet);
+          }
+          results.append(row);
+        }
+        status.textContent = !count ? `No results for “${term}”.`
+          : count > limit ? `Showing the first ${limit} of ${count} results for “${term}”. Refine your search for more specific results.`
+          : `${count} ${count === 1 ? 'result' : 'results'} for “${term}”.`;
+      } catch {
+        if (id !== sequence) return;
+        results.replaceChildren();
+        status.textContent = 'Search is unavailable. Reload to try again, or use the browse links below.';
+      } finally {
+        clearTimeout(timer);
       }
-      new PagefindUI({ element: '#search', showSubResults: true, showImages: false, bundlePath: base + '/pagefind/' });
     });
+
+    input.addEventListener('input', () => {
+      ++sequence;
+      results.replaceChildren();
+      status.textContent = '';
+    });
+    form.hidden = false;
   </script>
 </Base>

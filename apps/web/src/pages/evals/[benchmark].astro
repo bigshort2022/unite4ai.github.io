@@ -1,7 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
 import { getCollection, render } from 'astro:content';
-import { reproductionLabel } from '@unite4ai/core';
+import { submitterLabel } from '@unite4ai/core';
 import { CATEGORY_LABELS, SUBMIT_GUIDE, deviceLine, formatNumber, loadEvals, repeatLines, resourceLines, runsLabel, runtimeLabel, scoreRange, withUnit, type Board } from '../../lib/evals';
 
 export async function getStaticPaths() {
@@ -52,6 +52,7 @@ const disagreements = calibration?.agreement.flatMap((agreed, position) => agree
     </div>
 
     <h2>Leaderboard</h2>
+    <p class="muted">Results are self-reported. The number of submitting accounts does not establish independent reproduction.</p>
     {rows.length === 0 ? (
       <div class="empty" style="margin-top:1rem">
         No results for version {d.version} yet.{' '}
@@ -92,7 +93,7 @@ const disagreements = calibration?.agreement.flatMap((agreed, position) => agree
                 {!measured && (
                   <td class="num">{row.tokens_per_second === null ? '—' : `${formatNumber(row.tokens_per_second)} tok/s`}</td>
                 )}
-                <td><span class={`tag${row.submitters.length > 1 ? ' tag-open' : ''}`}>{reproductionLabel(row)}</span><small>{runsLabel(row.runs, d.repeat !== undefined)}</small></td>
+                <td><span class="tag">{submitterLabel(row)}</span><small>{runsLabel(row.runs, d.repeat !== undefined)}</small></td>
               </tr>;
             })}
           </tbody>

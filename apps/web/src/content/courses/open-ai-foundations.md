@@ -9,7 +9,7 @@ outcomes:
   - "Explain the four axes of the Model Openness Framework"
   - "Read a model card and identify what the publisher is not telling you"
   - "Distinguish genuinely open models from open-washed ones"
-  - "Run an open model locally with no cloud account"
+  - "Explain what a local model run does and does not keep private"
 author: unite4ai-team
 updated: 2026-08-01
 ---
@@ -56,21 +56,16 @@ Ask these four questions of any card:
 
 ## 4. Run one yourself
 
-The fastest way to internalize that open models are real is to run one on your own machine.
+To see what local inference looks like, follow [Run open weights locally](/school/run-open-weights/).
+It uses one pinned Qwen GGUF file and shows how to check its SHA-256 before sending
+a fictional prompt to the runner on your own machine. Local processing doesn't mean
+the prompt and reply leave no traces: check history, logs, sync, and backups.
 
-```bash
-# Install a local runner (macOS/Linux)
-curl -fsSL https://ollama.com/install.sh | sh
-
-# Pull and chat with an openly licensed model
-ollama run gemma3
-```
-
-No account, no API key, no network call after the download. Whatever you type stays on your
-hardware. That is what people mean when they say sovereignty over AI.
+Prefer not to install anything? Try the [paper rehearsal-planning exercise](/school/sovereign-ai/#data-privacy)
+and use its answer check to compare paper, local inference, and hosted chat.
 
 ## 5. What to do next
 
-- Browse our registry and find a model scoring below 50% openness — read its card and identify which axis it fails.
-- Take the next course, *Publishing Your First Open Model Card*, and add an entry yourself.
+- [Browse the model registry](/registry/), open a card, and choose an openness axis marked partial or closed. Compare the card with the publisher's evidence and note what's missing.
+- Take [Publishing Your First Open Model Card](/school/first-model-card/) and draft an entry yourself.
 - Bring one question to community office hours. Beginner questions make the best sessions.

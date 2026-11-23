@@ -1,18 +1,18 @@
 name: Submit a model
-description: Add an open model to the registry. No git required — a maintainer turns this into a pull request.
+description: Propose an open model for maintainer review. Sign in to GitHub to post publicly.
 title: "[Model] "
 labels: ["submission", "model"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thank you for contributing. Every field here becomes part of a public model card.
+        This issue is public under your GitHub identity. Include only information you want to share publicly.
         Honest gaps are welcome — **"unknown" is a valid and respected answer.**
   - type: input
     id: name
     attributes:
       label: Model name
-      placeholder: Darsy X-Ray Analysis
+      placeholder: My Open Model
     validations: { required: true }
   - type: textarea
     id: summary

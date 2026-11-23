@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
 
 const ROOT = new URL('..', import.meta.url);
 // Text that only the page tests' fixtures contain; none of it may reach a normal build. The rig
@@ -71,6 +72,46 @@ test('production build targets the unite4ai.com custom domain', { timeout: 120_0
   assert.ok(bytes < 250 * 1024 * 1024, `dist is ${bytes} bytes; the budget is 250 MB`);
 });
 
+test('the agent index leads to the deployed data and the same registry cards as the UI', async () => {
+  const dist = new URL('dist/', ROOT);
+  const origin = 'https://unite4ai.com';
+  const index = await readFile(new URL('llms.txt', dist), 'utf8');
+  const links = new Set([...index.matchAll(/\[[^\]]+\]\((https:\/\/unite4ai\.com\/[^)]+)\)/g)]
+    .map(([, href]) => new URL(href).pathname));
+  const readRoute = (path) => {
+    assert.ok(links.has(path), `${path} is discoverable in llms.txt`);
+    return readFile(new URL(path.endsWith('/') ? `${path.slice(1)}index.html` : path.slice(1), dist), 'utf8');
+  };
+
+  const pages = ['/school/', '/blog/', '/registry/', '/registry/datasets/', '/evals/', '/exchange/', '/global-exchange/'];
+  const html = new Map(await Promise.all(pages.map(async (path) => [path, await readRoute(path)])));
+  const feeds = new Map(await Promise.all([
+    ['/data/evals.json', 'schema_version'], ['/data/registry-index.json', 'schema_version'],
+    ['/data/exchange.json', 'schema_version'], ['/data/global-exchange.json', 'schemaVersion'],
+    ['/data/exchange-text.json', 'schema_version'],
+  ].map(async ([path, versionKey]) => {
+    const feed = JSON.parse(await readRoute(path));
+    assert.equal(feed[versionKey], 1, path);
+    return [path, feed];
+  })));
+
+  const registry = feeds.get('/data/registry-index.json');
+  for (const [kind, page] of [['models', '/registry/'], ['datasets', '/registry/datasets/']]) {
+    const prefix = `/registry/${kind}/`;
+    const cards = new Set([...html.get(page).matchAll(/\bhref="([^"]+)"/g)]
+      .map(([, href]) => new URL(href, origin))
+      .filter((url) => url.origin === origin && url.pathname.startsWith(prefix) && url.pathname !== prefix)
+      .map((url) => url.pathname.replace(/\/$/, '').slice(prefix.length)));
+    assert.deepEqual(registry[kind].map((record) => record.id).sort(), [...cards].sort(), kind);
+    for (const record of registry[kind]) {
+      const href = new URL(record.href, origin);
+      assert.equal(href.origin, origin);
+      assert.equal(href.pathname, `${prefix}${record.id}/`);
+      await readFile(new URL(`${href.pathname.slice(1)}index.html`, dist), 'utf8');
+    }
+  }
+});
+
 async function directorySize(dir) {
   let total = 0;
   for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -124,7 +165,7 @@ test('home leads with the wordmark and groups navigation under parent pages', as
     assert.deepEqual(await current(route), [expected], route);
   }
   assert.doesNotMatch(text, /exchange-preview-title|leading-results-title|data-exchange-metric|<table/);
-  const order = ['class="hero', 'id="stack-preview-title"', 'aria-label="Platform at a glance"', 'What makes us different', 'Featured models', 'Progress is not automatic.'];
+  const order = ['class="hero', 'id="stack-preview-title"', 'aria-label="Platform at a glance"', 'What makes us different', 'Progress is not automatic.'];
   const positions = order.map((marker) => text.indexOf(marker));
   assert.ok(positions.every((position, index) => position >= 0 && (index === 0 || position > positions[index - 1])));
   const exchange = await readFile(new URL('dist/exchange/index.html', ROOT), 'utf8');
@@ -209,12 +250,93 @@ test('every link to the repository comes from one constant, and none points at t
 
   const home = await readFile(new URL('dist/index.html', ROOT), 'utf8');
   assert.ok(home.includes(`<a href="${REPO}">Source on GitHub</a>`));
+});
 
-  // The registry form opens an issue on the repository, and so does the evaluation result form.
-  const submit = await readFile(new URL('dist/submit/index.html', ROOT), 'utf8');
-  assert.equal(submit.match(/const REPO = "([^"]+)";/)?.[1], REPO);
-  assert.ok(submit.includes('`${REPO}/issues/new?title='));
-  assert.match(submit, new RegExp(`href="${REPO.replaceAll('.', '\\.')}/issues/new\\?template=submit-eval-result\\.yml"`));
+test('public participation links separate reading from signing in to post', async () => {
+  const { REPO } = await import('../src/lib/site.ts');
+  const [community, article, submit] = await Promise.all([
+    'community', 'blog/what-an-ai-emissions-estimate-measures', 'submit',
+  ].map((path) => readFile(new URL(`dist/${path}/index.html`, ROOT), 'utf8')));
+  for (const html of [community, article, submit]) {
+    assert.ok(html.includes(`href="${REPO}/issues"`));
+    assert.match(html, /Sign in on GitHub to post/);
+    assert.doesNotMatch(html, /href="[^"]+\/discussions(?:[/?#"])/);
+  }
+  const handoff = [...submit.matchAll(/<a [^>]*href="([^"]*\/issues\/new\?[^"]+)"[^>]*>/g)];
+  assert.deepEqual(handoff.map((link) => link[1]), [
+    `${REPO}/issues/new?blank=1`,
+    `${REPO}/issues/new?template=submit-eval-result.yml`,
+  ]);
+  assert.match(handoff[0][0], /target="_blank"/);
+  assert.match(handoff[0][0], /rel="noopener noreferrer"/);
+});
+
+test('Darsy preserves the background source without asserting a released model or runnable setup', async () => {
+  const model = await readFile(new URL('dist/registry/models/darsy-xray-analysis/index.html', ROOT), 'utf8');
+  const main = model.match(/<main\b[^>]*>([\s\S]*?)<\/main>/)?.[1];
+  assert.ok(main);
+  assert.match(main, /Unreleased concept/);
+  assert.match(main, /href="https:\/\/www\.jacr\.org\/article\/S1546-1440\(22\)00404-4\/fulltext"/);
+  assert.match(main, /No weights listed\./);
+  assert.match(main, /No artifact checksum listed on this card\./);
+  assert.match(main, /No evaluation results yet\./);
+  assert.doesNotMatch(main, /href="[^"]*(?:unite4ai\/unite4ai\.github\.io|\/school\/run-open-weights)"/);
+});
+
+test('the deployed submission script generates and copies only the editable local draft', async () => {
+  const html = await readFile(new URL('dist/submit/index.html', ROOT), 'utf8');
+  const script = html.match(/<script\b[^>]*\bid="submission-draft-script"[^>]*>([\s\S]*?)<\/script>/)?.[1];
+  assert.ok(script);
+  assert.match(html, /<fieldset [^>]*disabled[^>]*>/);
+  const source = new Map([
+    ['type', 'dataset'], ['name', 'Synthetic example'], ['summary', 'Public summary'],
+    ['license', 'cc-by-4.0'], ['maintainers', 'example'],
+    ['notes', 'local-only <probe>\nsecond line'],
+  ]);
+  const elements = new Map();
+  for (const id of [
+    'submit-form', 'submission-fields', 'submission-draft', 'draft-title', 'draft-body',
+    'copy-draft-title', 'copy-draft-body', 'draft-status',
+  ]) {
+    elements.set(id, {
+      hidden: true, disabled: true,
+      addEventListener(type, fn) { this[type] = fn; },
+      focus() {},
+      select() { this.selected = true; },
+    });
+  }
+  const get = (id) => elements.get(id);
+  const copied = [];
+  let clipboardAvailable = true;
+  runInNewContext(script, {
+    document: { getElementById: get },
+    FormData: function (form) {
+      assert.equal(form, get('submit-form'));
+      return new Map(source);
+    },
+    navigator: { clipboard: { async writeText(text) {
+      if (!clipboardAvailable) throw new Error('Permission denied');
+      copied.push(text);
+    } } },
+  });
+  assert.equal(get('submission-fields').disabled, false);
+  let prevented = false;
+  get('submit-form').submit({ preventDefault() { prevented = true; } });
+  assert.ok(prevented);
+  assert.equal(get('submission-draft').hidden, false);
+  assert.equal(get('draft-title').value, '[dataset] Synthetic example');
+  assert.ok(get('draft-body').value.includes('local-only <probe>\nsecond line'));
+  assert.deepEqual(copied, []);
+
+  get('draft-body').value = 'Edited public draft';
+  await get('copy-draft-body').click();
+  await get('copy-draft-title').click();
+  assert.deepEqual(copied, ['Edited public draft', '[dataset] Synthetic example']);
+  assert.equal(source.get('notes'), 'local-only <probe>\nsecond line');
+  clipboardAvailable = false;
+  await get('copy-draft-body').click();
+  assert.equal(get('draft-body').selected, true);
+  assert.equal(get('draft-body').value, 'Edited public draft');
 });
 
 test('the governance metrics page computes its figures and prints no number of its own', async () => {

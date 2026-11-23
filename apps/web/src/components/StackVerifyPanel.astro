@@ -2,7 +2,7 @@
 /**
  * Stack verification panel — weights, eval, inference layers.
  */
-import { INFERENCE_PROTOCOLS, hasVerifiableArtifacts } from '@unite4ai/core';
+import { INFERENCE_PROTOCOLS } from '@unite4ai/core';
 import type { Artifact, EvalBundle } from '@unite4ai/schema';
 
 interface Inference {
@@ -16,65 +16,59 @@ interface Props {
   artifacts?: Artifact[];
   inference?: Inference;
   evalBundle?: EvalBundle;
-  modelName?: string;
 }
 
-const { artifacts = [], inference, evalBundle, modelName = 'this model' } = Astro.props;
-const weightArtifacts = artifacts.filter((a) => a.kind === 'weights' || a.kind === 'code');
-const hasWeights = weightArtifacts.length > 0;
-const hasEval = Boolean(evalBundle);
+const { artifacts = [], inference, evalBundle } = Astro.props;
+const hasWeights = artifacts.some((artifact) => artifact.kind === 'weights');
+const hasChecksum = artifacts.some((artifact) => artifact.sha256) || Boolean(evalBundle);
 const hasInference = Boolean(inference?.endpoint_url || inference?.run_local_guide || inference?.content_address);
-const verifiable = hasVerifiableArtifacts(artifacts) || evalBundle?.reproducible;
+const localGuide = inference?.run_local_guide;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (p: string) => `${base}${p}` || '/';
+const guideHref = localGuide?.startsWith('/') ? href(localGuide) : localGuide;
+const guideLabel = localGuide === '/school/run-open-weights' ? 'General course — not model-specific' : 'Setup guide';
 ---
 
-<section class="stack-verify card" aria-label="Open stack verification">
-  <p class="eyebrow" style="margin-bottom:.6rem">Open stack · Verify</p>
+<section class="stack-verify card" aria-label="Artifacts and evidence">
+  <p class="eyebrow" style="margin-bottom:.6rem">Artifacts and evidence</p>
   <div class="stack-verify-tabs">
-    <details open={hasWeights}>
-      <summary>Weights &amp; artifacts</summary>
-      {hasWeights ? (
+    <details open={artifacts.length > 0}>
+      <summary>Listed artifacts</summary>
+      {!hasWeights && <p>No weights listed.</p>}
+      {artifacts.length > 0 && (
         <ul class="stack-verify-list">
-          {weightArtifacts.map((a) => (
+          {artifacts.map((a) => (
             <li>
-              <a href={a.url}>{a.kind}</a>
+              <a href={a.url}>{a.kind === 'paper' ? 'Paper' : a.kind}</a>
               {a.sha256 ? (
                 <div class="verify-block" data-verify-artifact data-url={a.url} data-expected={a.sha256}>
                   <code class="verify-hash">sha256:{a.sha256}</code>
-                  <button type="button" class="btn btn-ghost verify-run" data-verify-btn>Verify in browser</button>
+                  <button type="button" class="btn btn-ghost verify-run" data-verify-btn>Check file checksum</button>
                   <p class="verify-status" data-verify-status hidden aria-live="polite"></p>
-                  <p class="verify-hint">Or verify locally:</p>
-                  <pre><code>{`curl -L -o weights.bin "${a.url}"\nsha256sum weights.bin\n# Expected: ${a.sha256}`}</code></pre>
                 </div>
               ) : (
-                <p class="verify-warn">No sha256 registered — download at your own risk.</p>
+                <p class="verify-hint">No SHA-256 checksum listed for this link.</p>
               )}
             </li>
           ))}
         </ul>
-      ) : (
-        <p>No weight artifacts registered yet.</p>
       )}
     </details>
 
-    <details open={hasEval}>
-      <summary>
-        Evaluation
-        {evalBundle?.reproducible && <span class="tag tag-open">reproducible</span>}
-      </summary>
-      {hasEval && evalBundle ? (
+    <details open={Boolean(evalBundle)}>
+      <summary>Evaluation bundle</summary>
+      {evalBundle ? (
         <div class="verify-block" data-verify-artifact data-url={evalBundle.url} data-expected={evalBundle.sha256}>
           <p><a href={evalBundle.url}>Download eval bundle</a></p>
           <code class="verify-hash">sha256:{evalBundle.sha256}</code>
-          <button type="button" class="btn btn-ghost verify-run" data-verify-btn>Verify in browser</button>
+          <button type="button" class="btn btn-ghost verify-run" data-verify-btn>Check bundle checksum</button>
           <p class="verify-status" data-verify-status hidden aria-live="polite"></p>
-          {evalBundle.reproducible ? (
-            <p class="verify-ok">CI can replay this evaluation — results are reproducible.</p>
-          ) : (
-            <p class="verify-hint">Checksum provided; full replay not yet confirmed in CI.</p>
+          {evalBundle.reproducible && (
+            <p class="verify-hint">Listed as replayable. This is not a record of a successful replay.</p>
           )}
         </div>
       ) : (
-        <p>No eval bundle registered. Publish a reproducible eval to enable independent verification.</p>
+        <p>No evaluation bundle listed. Reported runs, if available, are listed under Evaluations.</p>
       )}
     </details>
 
@@ -91,33 +85,30 @@ const verifiable = hasVerifiableArtifacts(artifacts) || evalBundle?.reproducible
           {inference?.content_address && (
             <div><dt>Content address</dt><dd><code>{inference.content_address}</code></dd></div>
           )}
-          {inference?.run_local_guide && (
-            <div><dt>Run locally</dt><dd><a href={inference.run_local_guide}>Setup guide</a></dd></div>
+          {guideHref && (
+            <div><dt>Local-running guidance</dt><dd><a href={guideHref}>{guideLabel}</a></dd></div>
           )}
         </dl>
       ) : (
-        <p>No open inference endpoint listed. See the <a href="/school/run-open-weights">Run open weights</a> course to run {modelName} locally.</p>
+        <p>No inference endpoint or setup guide listed.</p>
       )}
     </details>
   </div>
 
-  {verifiable ? (
-    <p class="verify-footer verify-ok">This entry includes verifiable artifacts — you can check them without trusting our word.</p>
+  {hasChecksum ? (
+    <p class="verify-footer">A matching SHA-256 checks the downloaded bytes, not the license, provenance, or result. If the browser blocks the check, download the file and compare its SHA-256 locally.</p>
   ) : (
-    <p class="verify-footer verify-warn">Verification incomplete — ask maintainers to add checksums or eval bundles.</p>
+    <p class="verify-footer">No artifact checksum listed on this card.</p>
   )}
 </section>
 
 <style>
   .stack-verify-tabs details { margin-bottom: .75rem; border-top: 1px solid var(--u-line); padding-top: .75rem; }
-  .stack-verify-tabs summary { cursor: pointer; font-weight: 600; display: flex; gap: .5rem; align-items: center; }
+  .stack-verify-tabs summary { cursor: pointer; font-weight: 600; }
   .stack-verify-list { margin: .5rem 0 0; padding-left: 1.1rem; font-size: .9rem; }
   .verify-block { margin-top: .5rem; }
   .verify-hash { display: block; font-size: .72rem; word-break: break-all; margin: .3rem 0; }
-  .verify-block pre { font-size: .72rem; overflow-x: auto; padding: .6rem; background: var(--u-bg-soft); border-radius: 4px; margin: .4rem 0 0; }
-  .verify-hint, .verify-warn, .verify-ok { font-size: .82rem; color: var(--u-text-faint); margin: .3rem 0 0; }
-  .verify-ok { color: var(--u-accent); }
-  .verify-warn { color: var(--u-verify-warn, #c96); }
+  .verify-hint { font-size: .82rem; color: var(--u-text-faint); margin: .3rem 0 0; }
   .verify-footer { margin-top: 1rem; font-size: .85rem; border-top: 1px solid var(--u-line); padding-top: .75rem; }
   .stack-verify-dl { display: grid; gap: .6rem; margin: .5rem 0 0; font-size: .9rem; }
   .stack-verify-dl dt { color: var(--u-text-faint); font-size: .78rem; }
@@ -151,16 +142,14 @@ const verifiable = hasVerifiableArtifacts(artifacts) || evalBundle?.reproducible
         });
         if (hash === expected) {
           status.dataset.state = 'ok';
-          status.textContent = 'Checksum match — artifact verified.';
+          status.textContent = 'The downloaded bytes match the listed checksum.';
         } else {
           status.dataset.state = 'fail';
           status.textContent = `Mismatch. Got ${hash.slice(0, 16)}… expected ${expected.slice(0, 16)}…`;
         }
       } catch (err) {
         status.dataset.state = 'fail';
-        status.textContent = err instanceof Error
-          ? `Verify failed: ${err.message} (CORS may block cross-origin downloads — use curl locally.)`
-          : 'Verify failed.';
+        status.textContent = err instanceof Error ? `Checksum check failed: ${err.message}` : 'Checksum check failed.';
       } finally {
         btn.disabled = false;
       }

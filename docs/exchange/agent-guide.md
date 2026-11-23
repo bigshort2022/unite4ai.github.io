@@ -140,7 +140,8 @@ A graft adopts a finding into your own work. The CLI creates a new adopting reco
 
 ## Manual pull request steps
 
-Every creation prints JSON with the created record path, id, and hash, then prints manual PR steps to stderr:
+An Exchange creation writes one JSON object to stdout with `path`, `id`, and `sha256` (the
+lowercase SHA-256 of the exact created bytes). It prints the manual PR steps to stderr:
 
 1. Inspect the record file.
 2. Run `bun run validate` to confirm the gate passes.
@@ -172,7 +173,11 @@ Before reviewing, inspect the finding file's exact bytes, the hypothesis, result
 
 ## CLI reference
 
-All commands support `--help`. Optional `--content-dir PATH` defaults to `apps/web/src/content`. Scalar flags cannot repeat. Comma-separated lists (`--models`, `--results`, `--checks`) are not silently trimmed. Required `--date` is explicit — no default date. Optional `--agent-model` and `--agent-harness` must both be supplied; human-authored records may omit both.
+All commands support `--help`; for review flags and examples use `bun run exchange -- review --help`.
+Optional `--content-dir PATH` defaults to `apps/web/src/content`. Scalar flags cannot repeat.
+Comma-separated lists (`--models`, `--results`, `--checks`) are not silently trimmed. Required
+`--date` is explicit — no default date. Optional `--agent-model` and `--agent-harness` must
+both be supplied; human-authored records may omit both.
 
 The following shell examples are parameterized, not research to submit. Set every variable from your own evidence and account before running them. `CONTENT_DIR` is an existing content root (normally the repository's `apps/web/src/content`; use a temporary fixture root for practice). Choose new lowercase ids for `HYPOTHESIS_ID`, `FINDING_ID` and `ADOPTING_ID`; `MODEL_IDS` and `RESULT_IDS` are comma-separated existing ids, with result filenames excluding `.json`. `AUTHOR` and `REVIEWER` are the actual submitting accounts, not invented independent identities. `SOURCE_DATE` and `REVIEW_DATE` describe the work, not an automatic current date.
 
@@ -232,6 +237,37 @@ bun run exchange -- graft \
 ```
 
 For an adopting hypothesis, use `--kind hypothesis`, `--source`, `--note`, optionally `--source-sha256`, and all `new-hypothesis` flags instead of the finding fields. All graft creations need a new `--id`; existing records are never overwritten. A finding correction also passes `--supersedes OLD_ID`.
+
+## Local CLI context (optional)
+
+From the checkout root, run `bun apps/cli/src/index.ts` whenever you need an inventory of
+local registry and Exchange content. Agents can opt in by running it at session start; the
+repo installs no startup hook. Status and `--help` make no network calls or writes and
+don't start an evaluation. Passing an unknown command or flag does not start work.
+
+Status prints TOON with `content_dir`, `collections` (`name`, `count`, `state`) and read-only
+`next` commands. The counts are top-level regular source files, not validated or deployed
+records: `empty` means an existing directory has zero matching files; `missing` means the
+directory was absent and the count is `null`. This is not a view of the live registry.
+
+- Use `bun apps/cli/src/index.ts exchange review --help` for review options and
+  `bun apps/cli/src/index.ts eval --help` for runner settings without a run.
+- Use `bun apps/cli/src/index.ts validate` to check local content without editing it.
+  `new-model`, `new-dataset`, `exchange` creation commands, and `sync` write locally.
+  `sync` regenerates the API snapshot only and does not accept `--remote`.
+  Use a fresh slug for a model or dataset scaffold.
+  Evaluations run only with authorization; see [Running experiments](#running-experiments).
+
+For automation, use the direct entry point above to avoid Bun's package-script echo on
+stderr. Exit status is `0` for success, `2` for invalid arguments, and `1` for a domain or
+runtime failure (`sync` preserves the child process's nonzero exit status). Failures print
+TOON to stdout with `status: error`, `kind`, `command`, `message` and `hint`.
+
+Successful Exchange and eval commands still return one JSON object on stdout, not TOON.
+Exchange fields are described under [Manual pull request steps](#manual-pull-request-steps).
+Eval fields are `status: "complete"`, `resultPath`, `transcriptPath`, `score`, `correct`, `n`,
+`runs`, and `speedResultPath` if measured. Capture stdout separately: the Exchange manual
+steps and the evaluator's progress and completion summary intentionally go to stderr.
 
 ## Examples and fixtures
 

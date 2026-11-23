@@ -100,6 +100,13 @@ test('missing flags are all named at once', () => {
   assert.throws(() => parseEvalArgs(['--benchmark', 'gsm8k-200'], { root: '/repo', env }), /missing: --model, --served-model, --submitter, --runtime, --runtime-version, --format, --quantization/);
 });
 
+test('eval parser rejects duplicate flags and a flag occupying another flag’s value as usage errors', () => {
+  const parse = (args) => parseEvalArgs([...REQUIRED, ...args], { root: '/repo', env });
+  assert.throws(() => parse(['--runtime', 'ollama']), { name: 'UsageError', message: /duplicate flag --runtime/ });
+  assert.throws(() => parse(['--notes', '--base-url', 'http://127.0.0.1:18082/v1']),
+    { name: 'UsageError', message: /--notes needs a value/ });
+});
+
 test('enumerated values, the handle and numbers are checked before anything runs', () => {
   const swap = (flag, value) => REQUIRED.map((arg, i) => (REQUIRED[i - 1] === flag ? value : arg));
   assert.throws(() => parseEvalArgs(swap('--runtime', 'lmstudio'), { root: '/repo', env }), /--runtime/);
