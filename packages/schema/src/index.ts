@@ -388,6 +388,7 @@ export const REVIEW_VERDICTS = ['accept', 'reject', 'needs-work'] as const;
 export const REVIEW_CHECKS = ['reran', 'read-transcript', 'read-results', 'read-page-only'] as const;
 export const EXCHANGE_RECORD_MAX_BYTES = 16 * 1024;
 export const RESULT_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*--[a-z0-9]+(?:-[a-z0-9]+)*--[a-z0-9]+(?:-[a-z0-9]+)*--\d{4}-\d{2}-\d{2}--[a-f0-9]{8}$/;
+const resultId = z.string().regex(RESULT_ID, 'must be a result file id without .json');
 
 /** Text is data, never Markdown or HTML. Newlines are allowed except in explicitly one-line fields. */
 const exchangeText = (max: number, oneLine = false) => z.string().min(1).max(max)
@@ -419,7 +420,8 @@ export const hypothesisSchema = z.strictObject({
 });
 export const findingSchema = z.strictObject({
   hypothesis: contentId,
-  results: z.array(z.string().regex(RESULT_ID, 'must be a result file id without .json')).min(1),
+  results: z.array(resultId).min(1),
+  switch: z.strictObject({ incumbent: resultId, candidate: resultId }).optional(),
   verdict: z.enum(FINDING_VERDICTS),
   summary: exchangeText(800),
   limitations: exchangeText(600),

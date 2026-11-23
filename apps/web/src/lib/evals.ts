@@ -1,5 +1,5 @@
 import { getCollection, type CollectionEntry } from 'astro:content';
-import { baselineVersionKey, byCodeUnit, groupEvals, indistinguishableFrom, leaderboard, matchingBaseline, type EvalGroup } from '@unite4ai/core';
+import { baselineVersionKey, buildReplicationIndex, byCodeUnit, groupEvals, indistinguishableFrom, leaderboard, matchingBaseline, type EvalGroup, type ReplicationEvidence } from '@unite4ai/core';
 import { EVAL_CATEGORIES, bfclCalibrationSchema, type BaselineData, type EvalResult, type RepeatResult } from '@unite4ai/schema';
 import { REPO } from './site';
 
@@ -28,6 +28,9 @@ const calibrationData = import.meta.glob('../content/calibrations/bfcl-multiple-
   import: 'default',
 })[calibrationPath];
 const bfclCalibration = calibrationData === undefined ? undefined : bfclCalibrationSchema.parse(calibrationData);
+
+// A production build uses a fixed content snapshot. Dev must see content edits on each load.
+const buildReplicationCache = import.meta.env.PROD ? new Map<string, ReadonlyMap<string, ReplicationEvidence>>() : undefined;
 
 /** A benchmark with the leaderboard of its current version and its runs, newest first (runs on one date order by id). */
 export interface Board {
@@ -74,7 +77,13 @@ export async function loadEvals() {
 
   const benchmarkIds = new Set(benchmarks.map((benchmark) => benchmark.id));
   const dangling: string[] = [];
+  const runsById = new Map<string, EvalPageRun>();
+  const runsByBenchmark = new Map<string, EvalPageRun[]>();
   for (const run of runs) {
+    runsById.set(run.id, run);
+    const own = runsByBenchmark.get(run.benchmark);
+    if (own === undefined) runsByBenchmark.set(run.benchmark, [run]);
+    else own.push(run);
     if (!modelNames.has(run.model) && !(run.setup.runtime === 'api' && run.api?.model_card !== undefined)) {
       dangling.push(`evals/${run.id}: model "${run.model}" has no card in models/`);
     }
@@ -93,19 +102,31 @@ export async function loadEvals() {
     || byCodeUnit(a.data.name, b.data.name)
     || byCodeUnit(a.id, b.id));
   const groups = groupEvals(runs, { byHardware });
+
+  // Summary pages don't materialize relationships; the detail page and feed share
+  // each benchmark's index when prerendered in the same build.
+  function replicationIndex(benchmarkId: string) {
+    const cached = buildReplicationCache?.get(benchmarkId);
+    if (cached !== undefined) return cached;
+    const scored = byHardware.has(benchmarkId) ? [] : runsByBenchmark.get(benchmarkId) ?? [];
+    const index = buildReplicationIndex(scored);
+    buildReplicationCache?.set(benchmarkId, index);
+    return index;
+  }
   return {
     benchmarks: ordered,
     runs,
+    runsById,
     /** Distinct runs: a run is one transcript, however many result files it backs. */
     runCount: new Set(runs.map((run) => run.evidence.sha256)).size,
     groups,
+    replicationIndex,
     modelReference,
     groupModelReference,
     bfclCalibration,
     /** One board per benchmark, in the same order. */
     boards: ordered.map((benchmark): Board => {
-      const own = runs
-        .filter((run) => run.benchmark === benchmark.id)
+      const own = (runsByBenchmark.get(benchmark.id) ?? [])
         .sort((a, b) => byCodeUnit(b.run.date, a.run.date) || byCodeUnit(a.id, b.id));
       const rows = leaderboard(groups, {
         id: benchmark.id,
@@ -146,6 +167,11 @@ export async function loadEvals() {
     }),
   };
 }
+
+/** Stable fragment for a result row, including results of previous benchmark versions. */
+export const evalRunAnchor = (id: string) => `run-${id}`;
+export const evalRunPath = (benchmark: string, id: string) => `/evals/${benchmark}#${evalRunAnchor(id)}`;
+export const evalRunLabel = ({ run, evidence }: EvalPageRun) => `${run.submitter} · ${run.date} · ${evidence.sha256.slice(0, 8)}`;
 
 /** Two decimals at most, without trailing zeros (62, 62.5, 62.25); three significant digits below 1 (0.123). */
 export function formatNumber(value: number): string {

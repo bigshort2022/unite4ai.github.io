@@ -5,11 +5,13 @@ import ExchangeIdentity from '../../../components/ExchangeIdentity.astro';
 import ExchangeLineage from '../../../components/ExchangeLineage.astro';
 import ExchangeReviews from '../../../components/ExchangeReviews.astro';
 import { loadExchange } from '../../../lib/exchange';
+import { getCollection } from 'astro:content';
 export async function getStaticPaths() {
-  const exchange = await loadExchange();
-  return exchange.structure.hypotheses.map((record) => ({ params: { id: record.id }, props: { exchange, record } }));
+  const [exchange, models] = await Promise.all([loadExchange(), getCollection('models')]);
+  const modelIds = new Set(models.map(({ id }) => id));
+  return exchange.structure.hypotheses.map((record) => ({ params: { id: record.id }, props: { exchange, record, modelIds } }));
 }
-const { exchange, record } = Astro.props;
+const { exchange, record, modelIds } = Astro.props;
 const text = exchange.text.hypotheses[record.id];
 const findings = exchange.structure.findings.filter((finding) => record.findings.includes(finding.id));
 const reviews = exchange.structure.reviews.filter((review) => record.findings.includes(review.finding));
@@ -26,7 +28,9 @@ const href = (p: string) => `${base}${p}` || '/';
     <h2>Claim</h2><p class="lede exchange-text">{text.claim}</p>
     <h2>Prediction</h2><p class="exchange-text">{text.prediction}</p>
     <p>Benchmark: <a href={href(`/evals/${record.benchmark}`)}>{record.benchmark}</a></p>
-    <p>Models: {record.models.map((model, index) => <>{index > 0 && ' · '}<a href={href(`/registry/models/${model}`)}>{model}</a></>)}</p>
+    <p>Models: {record.models.map((model, index) => <>{index > 0 && ' · '}
+      {modelIds.has(model) ? <a href={href(`/registry/models/${model}`)}>{model}</a> : <span>{model} (API-only)</span>}
+    </>)}</p>
     <p>Record SHA-256: <code>{record.sha256}</code></p>
     <section class="exchange-section" aria-labelledby="findings-heading">
       <h2 id="findings-heading">Findings ({findings.length})</h2>
