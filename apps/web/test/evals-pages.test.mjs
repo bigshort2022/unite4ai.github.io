@@ -549,7 +549,47 @@ test('a repeat-run result shows its interval, pass@1 with its interval, and the 
   otherFile.content.model = OTHER;
   otherFile.content.n = 50;
   otherFile.content.repeat = other;
-  const site = buildScratch('repeat', [file, steadyFile, otherFile]);
+  const tools = repeatSummary({ runs: 5, temperature: 0.7, top_p: 1 }, {
+    item_pass_histogram: [50, 0, 0, 0, 0, 50],
+    run_correct: [50, 50, 50, 50, 50],
+    seconds_total: 750,
+  });
+  const registered = result({
+    benchmark: 'tool-selection-v1', score: tools.pass_k, date: '2026-11-23',
+    hash: 'f', submitter: 'bigshort2022', quantization: '4bit-DWQ', device: 'Apple M5 Mac17,2',
+  });
+  registered.content.model = 'qwen3-6-35b-a3b';
+  registered.name = registered.name.replace(MODEL, registered.content.model);
+  registered.content.n = 100;
+  registered.content.repeat = tools;
+  registered.content.setup.served_model = 'mlx-community/Qwen3.6-35B-A3B-4bit-DWQ';
+  const paid = result({ benchmark: 'tool-selection-v1', score: tools.pass_k, date: '2026-11-23', hash: 'b', format: 'other', quantization: 'undisclosed' });
+  paid.content.n = 100;
+  paid.content.repeat = tools;
+  paid.content.model = 'example-frontier';
+  paid.name = paid.name.replace(MODEL, paid.content.model);
+  paid.content.setup.runtime = 'api';
+  paid.content.setup.served_model = 'example-frontier-2026';
+  paid.content.api = {
+    provider: 'example',
+    model_card: 'https://example.org/model-card',
+    terms_url: 'https://example.org/terms',
+    terms_checked_on: '2026-11-23',
+    expected_usd: 0.5,
+    approved_usd: 1,
+  };
+  paid.content.cost = { kind: 'invoice', invoice_sha256: '1'.repeat(64), total_usd: 0.5, usd_per_success: 0.002 };
+  const site = buildScratch('repeat', [file, steadyFile, otherFile, registered, paid]);
+  const toolPage = site('evals/tool-selection-v1/index.html');
+  assert.match(toolPage, /Registered baselines/);
+  assert.match(toolPage, /href="#baseline-1-[^"]+"/);
+  assert.ok(toolPage.includes(`href="#run-${registered.name.slice(0, -5)}"`), 'registered setup links back to the result');
+  assert.match(toolPage, /Not yet run/i);
+  assert.match(toolPage, /Unregistered setup/i);
+  assert.match(toolPage, /href="https:\/\/example\.org\/model-card"/);
+  assert.match(toolPage, /invoice/i);
+  assert.match(toolPage, /Expected \$0\.5 USD · Approved \$1 USD/);
+  assert.match(toolPage, /0\.002/);
   const detail = site('evals/canary-injection-v1/index.html');
 
   assert.match(detail, /<span class="tag">5 runs per item at temperature 0\.7<\/span>/);

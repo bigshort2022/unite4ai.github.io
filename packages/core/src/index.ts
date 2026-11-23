@@ -22,6 +22,7 @@ export {
   type GroupOptions,
   type LocalSetup,
 } from './evals.ts';
+export { baselineVersionKey, matchingBaseline } from './baselines.ts';
 export {
   BOOTSTRAP_RESAMPLES,
   BOOTSTRAP_SEED,

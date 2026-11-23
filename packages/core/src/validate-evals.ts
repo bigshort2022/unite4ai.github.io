@@ -6,11 +6,16 @@ import { isDeepStrictEqual } from 'node:util';
 import {
   CONTENT_ID,
   EVAL_RESULT_MAX_BYTES,
+  baselineSchema,
   benchmarkSchema,
   evalResultSchema,
+  type BaselineData,
   type BenchmarkData,
   type EvalResult,
 } from '@unite4ai/schema';
+import { baselineSetupKey, baselineVersionKey, matchingBaseline } from './baselines.ts';
+import { validateBfclCalibration } from './bfcl-calibration.ts';
+import { apiCostProblems } from './eval-cost.ts';
 import { repeatProblems } from './repeat.ts';
 
 interface SchemaIssue {
@@ -77,11 +82,31 @@ function isRealDate(date: string): boolean {
   return !Number.isNaN(parsed.valueOf()) && parsed.toISOString().slice(0, 10) === date;
 }
 
+/** Read frontmatter using the same delimiters as the Astro content loader. */
+async function readMarkdownData(contentRoot: string, dir: string, file: string, errors: string[]): Promise<unknown> {
+  const rel = `${dir}/${file}`;
+  const raw = await readFile(join(contentRoot, dir, file), 'utf8');
+  const frontmatter = raw.match(FRONTMATTER);
+  if (!frontmatter) {
+    errors.push(`${rel}: missing YAML frontmatter (the --- block at the top)`);
+    return;
+  }
+  if (/^\+\+\+/m.test(frontmatter[1])) {
+    errors.push(`${rel}: frontmatter contains a +++ line; Astro would stop parsing there`);
+    return;
+  }
+  try {
+    return Bun.YAML.parse(frontmatter[1]);
+  } catch (error) {
+    errors.push(`${rel}: frontmatter is not valid YAML (${(error as Error).message})`);
+  }
+}
+
 /**
- * Validates benchmark definitions and evaluation result files, including the rules a schema
- * cannot express: one id per model card, flat directories, size, cross-references, score
- * bounds, full runs, one result per transcript and benchmark, measured results that belong to
- * a published run, and filename/content agreement. `today` is a UTC date, `YYYY-MM-DD`.
+ * Validates benchmark definitions, baseline manifests and evaluation results, including rules
+ * a schema cannot express: flat directories, cross-references, score bounds, full runs,
+ * one result per transcript and benchmark, one manifest per version, and filename/content
+ * agreement. `today` is a UTC date, `YYYY-MM-DD`.
  */
 export async function validateEvals(
   contentRoot: string,
@@ -118,23 +143,9 @@ export async function validateEvals(
     const rel = `benchmarks/${file}`;
     const id = file.slice(0, -'.md'.length);
     if (!CONTENT_ID.test(id)) errors.push(`${rel}: filename must be a lowercase id like my-benchmark.md`);
-    const raw = await readFile(join(contentRoot, 'benchmarks', file), 'utf8');
-    const frontmatter = raw.match(FRONTMATTER);
-    if (!frontmatter) {
-      errors.push(`${rel}: missing YAML frontmatter (the --- block at the top)`);
-      continue;
-    }
-    if (/^\+\+\+/m.test(frontmatter[1])) {
-      errors.push(`${rel}: frontmatter contains a +++ line; Astro would stop parsing there`);
-      continue;
-    }
-    let data: unknown;
-    try {
-      data = Bun.YAML.parse(frontmatter[1]);
-    } catch (error) {
-      errors.push(`${rel}: frontmatter is not valid YAML (${(error as Error).message})`);
-      continue;
-    }
+    const errorCount = errors.length;
+    const data = await readMarkdownData(contentRoot, 'benchmarks', file, errors);
+    if (errors.length !== errorCount) continue;
     const parsed = benchmarkSchema.safeParse(data);
     if (!parsed.success) {
       errors.push(`${rel}: ${describe(parsed.error.issues)}`);
@@ -152,6 +163,61 @@ export async function validateEvals(
         `benchmarks/${id}.md: measured_on "${measuredOn}" is itself a measured benchmark; name the benchmark whose runs are measured`,
       );
     }
+  }
+
+  const baselines = new Map<string, BaselineData>();
+  const manifestOwners = new Map<string, string>();
+  for (const file of await listFlat(contentRoot, 'baselines', '.md', 'baseline manifest', errors)) {
+    const rel = `baselines/${file}`;
+    const errorCount = errors.length;
+    const data = await readMarkdownData(contentRoot, 'baselines', file, errors);
+    if (errors.length !== errorCount) continue;
+    const parsed = baselineSchema.safeParse(data);
+    if (!parsed.success) {
+      errors.push(`${rel}: ${describe(parsed.error.issues)}`);
+      continue;
+    }
+    const { benchmark, benchmark_version: version, entries } = parsed.data;
+    const expected = `${benchmark}-v${version}.md`;
+    if (file !== expected) errors.push(`${rel}: filename must be "${expected}"`);
+
+    const key = baselineVersionKey(benchmark, version);
+    const owner = manifestOwners.get(key);
+    if (owner !== undefined) errors.push(`${rel}: same benchmark version as baselines/${owner}; one version is one manifest`);
+    else manifestOwners.set(key, file);
+
+    const definition = benchmarks.get(benchmark);
+    if (definition === undefined) {
+      errors.push(`${rel}: benchmark "${benchmark}" is not defined (or failed validation) in benchmarks/`);
+    } else if (definition.scoring === 'measured') {
+      errors.push(`${rel}: registered baselines are not allowed for measured benchmarks`);
+    } else if (version !== definition.version && !definition.previous_versions.includes(version)) {
+      errors.push(`${rel}: benchmark_version "${version}" is not the current version "${definition.version}" nor one of its previous versions`);
+    }
+
+    const ids = new Set<string>();
+    const setups = new Map<string, string>();
+    for (const entry of entries) {
+      if (ids.has(entry.id)) errors.push(`${rel}: duplicate entry id "${entry.id}"`);
+      else ids.add(entry.id);
+
+      const setup = baselineSetupKey(entry);
+      const duplicate = setups.get(setup);
+      if (duplicate !== undefined) errors.push(`${rel}: entry "${entry.id}" has the same setup as entry "${duplicate}"`);
+      else setups.set(setup, entry.id);
+
+      if (entry.withdrawal !== undefined && entry.withdrawal.date < entry.registered_on) {
+        errors.push(`${rel}: entry "${entry.id}" withdrawal date must not precede registered_on`);
+      }
+
+      const hasLocalModel = models.has(entry.model);
+      if (!hasLocalModel && !(entry.runtime === 'api' && entry.model_card !== undefined)) {
+        errors.push(`${rel}: entry "${entry.id}" model "${entry.model}" has no card in models/; API entries can cite an upstream model_card`);
+      } else if (entry.model_card !== undefined && entry.runtime !== 'api') {
+        errors.push(`${rel}: entry "${entry.id}" model_card is only for API baselines`);
+      }
+    }
+    if (errors.length === errorCount) baselines.set(key, parsed.data);
   }
 
   // Read every result before checking any: a measured result is checked against another file.
@@ -190,10 +256,22 @@ export async function validateEvals(
    * of the benchmark that was run, and one of each benchmark measured on it.
    */
   const evidenceOwners = new Map<string, { ran: string; first: string; files: Map<string, string> }>();
+  const calibratedRuns = new Set<string>();
+  let hasBfclResults = false;
 
   for (const { file, result } of results) {
     const rel = `evals/${file}`;
     const benchmark = benchmarks.get(result.benchmark);
+    for (const problem of apiCostProblems(result)) errors.push(`${rel}: ${problem}`);
+    if (result.setup.runtime === 'api') {
+      if (benchmark?.scoring === 'measured') errors.push(`${rel}: API runs cannot provide measured speed companion results`);
+      if (result.repeat?.energy_wh_total !== undefined) errors.push(`${rel}: API runs cannot report inference energy measured on the client`);
+    }
+    if (result.benchmark === 'bfcl-multiple-50' && result.benchmark_version === '1') {
+      hasBfclResults = true;
+      const manifest = baselines.get(baselineVersionKey(result.benchmark, result.benchmark_version));
+      if (matchingBaseline(manifest, result, models.has(result.model)) !== undefined) calibratedRuns.add(result.evidence.sha256);
+    }
     const expected = [
       result.model,
       result.benchmark,
@@ -224,7 +302,7 @@ export async function validateEvals(
       errors.push(`${rel}: run.date ${result.run.date} is in the future`);
     }
 
-    if (!models.has(result.model)) {
+    if (!models.has(result.model) && !(result.setup.runtime === 'api' && result.api?.model_card !== undefined)) {
       errors.push(`${rel}: model "${result.model}" has no card in models/. Add the model card first.`);
     }
 
@@ -312,6 +390,7 @@ export async function validateEvals(
       }
     }
   }
+  await validateBfclCalibration(contentRoot, calibratedRuns, hasBfclResults, errors);
   return {
     models: new Set(models.keys()),
     benchmarks,

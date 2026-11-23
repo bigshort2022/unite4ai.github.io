@@ -1,11 +1,14 @@
 import { basename, join } from 'node:path';
 import { EVAL_ACCELERATORS, EVAL_FORMATS, EVAL_RUNTIMES, evalResultSchema } from '@unite4ai/schema';
-import { withoutCredentials } from './client.ts';
+import type { ApiRequestOptions } from './api.ts';
+import { publicBaseUrl } from './client.ts';
 import type { Hardware } from './hardware.ts';
 import { DEFAULT_MAX_SECONDS, DEFAULT_REQUEST_TIMEOUT_SECONDS, type EvalOptions } from './run.ts';
 
 const REQUIRED = ['benchmark', 'model', 'served-model', 'submitter', 'runtime', 'runtime-version', 'format', 'quantization'];
-const OPTIONAL = ['notes', 'base-url', 'max-seconds', 'request-timeout', 'source-file', 'device', 'accelerator', 'memory-gb'];
+const PRICE_FLAGS = ['price-snapshot', 'price-date', 'price-sha256'];
+const API_FLAGS = ['api-approval', ...PRICE_FLAGS];
+const OPTIONAL = ['notes', 'base-url', 'max-seconds', 'request-timeout', 'source-file', 'device', 'accelerator', 'memory-gb', ...API_FLAGS];
 
 export const EVAL_USAGE = `usage: bun run eval -- --benchmark <id> --model <model-card-id> --served-model <id of the model the server has loaded>
   --submitter <github-handle> --runtime <${EVAL_RUNTIMES.join('|')}> --runtime-version <version>
@@ -16,7 +19,12 @@ export const EVAL_USAGE = `usage: bun run eval -- --benchmark <id> --model <mode
       a 2048-token benchmark can take hours on a slow machine; the limit is checked between replies,
       so a run can overrun it by one reply timeout; re-running the same command resumes
   [--request-timeout ${DEFAULT_REQUEST_TIMEOUT_SECONDS}] (seconds allowed for one reply, at least 1; a slower reply fails its item)
-  [--device <text>] [--accelerator <${EVAL_ACCELERATORS.join('|')}>] [--memory-gb <number>]`;
+  [--device <text>] [--accelerator <${EVAL_ACCELERATORS.join('|')}>] [--memory-gb <number>]
+
+  Paid API (repeat-run benchmarks only): --runtime api --base-url <exact HTTPS URL> --api-approval <local JSON>
+  Use --format other --quantization undisclosed and report the client hardware.
+  Reads U4AI_EVAL_API_KEY from the environment. Set a provider-side spending cap first.
+  [--price-snapshot <local JSON> --price-date <YYYY-MM-DD> --price-sha256 <hex>] (all three or none)`;
 
 const quote = (arg: string) => (/^[\w./:@=,+-]+$/.test(arg) ? arg : `'${arg.replace(/'/g, `'\\''`)}'`);
 
@@ -67,19 +75,47 @@ export function parseEvalArgs(
   }
   if (flags.has('memory-gb')) hardware.memory_gb = positive('memory-gb', get('memory-gb'));
 
-  const baseUrl = (flags.get('base-url') ?? context.env.AGENT_MODEL_BASE_URL ?? 'http://127.0.0.1:18082/v1').replace(/\/$/, '');
+  let apiRequest: ApiRequestOptions | undefined;
+  const paid = get('runtime') === 'api';
+  if (paid) {
+    if (!flags.get('api-approval')) throw new Error('--runtime api requires --api-approval');
+    if (!flags.get('base-url')) throw new Error('--runtime api requires an explicit --base-url');
+    const key = context.env.U4AI_EVAL_API_KEY;
+    if (!key) throw new Error('--runtime api requires U4AI_EVAL_API_KEY from the environment');
+    const hasPrices = PRICE_FLAGS.some((flag) => flags.has(flag));
+    if (hasPrices && PRICE_FLAGS.some((flag) => !flags.get(flag))) {
+      throw new Error('--price-snapshot, --price-date and --price-sha256 are required together');
+    }
+    apiRequest = {
+      approvalFile: get('api-approval'),
+      key,
+      ...(hasPrices
+        ? { priceSnapshot: { file: get('price-snapshot'), date: get('price-date'), sha256: get('price-sha256') } }
+        : {}),
+    };
+  } else if (API_FLAGS.some((flag) => flags.has(flag))) {
+    throw new Error('--api-approval and price snapshot flags require --runtime api');
+  }
+  const baseUrl = paid
+    ? get('base-url')
+    : (flags.get('base-url') ?? context.env.AGENT_MODEL_BASE_URL ?? 'http://127.0.0.1:18082/v1').replace(/\/$/, '');
   if (!/^https?:\/\//.test(baseUrl) || !URL.canParse(baseUrl)) {
-    throw new Error('--base-url must be a URL like http://127.0.0.1:18082/v1');
+    throw new Error(paid ? 'API --base-url must be an exact HTTPS URL' : '--base-url must be a URL like http://127.0.0.1:18082/v1');
   }
   // The command is published with the result: it always says which server the run used, and
-  // it gives away neither a local path nor a password.
+  // it gives away neither a private file path nor URL secrets.
   const published = argv.map((arg, index) => {
     const flag = index % 2 === 1 ? argv[index - 1] : null;
     if (flag === '--source-file') return basename(arg);
-    if (flag === '--base-url') return withoutCredentials(baseUrl);
+    if (flag === '--base-url') {
+      const sanitized = publicBaseUrl(baseUrl);
+      return paid && baseUrl.endsWith('/') ? `${sanitized}/` : sanitized;
+    }
+    if (flag === '--api-approval') return '<local-approval.json>';
+    if (flag === '--price-snapshot') return '<local-price-snapshot.json>';
     return arg;
   });
-  if (!flags.has('base-url')) published.push('--base-url', withoutCredentials(baseUrl));
+  if (!flags.has('base-url')) published.push('--base-url', publicBaseUrl(baseUrl));
   return {
     benchmark: get('benchmark'),
     model: get('model'),
@@ -90,6 +126,7 @@ export function parseEvalArgs(
     format: get('format'),
     quantization: get('quantization'),
     baseUrl,
+    ...(apiRequest === undefined ? {} : { apiRequest }),
     contentRoot: join(context.root, 'apps/web/src/content'),
     workDir: join(context.root, '.agent/evals'),
     command: `bun run eval -- ${published.map(quote).join(' ')}`,

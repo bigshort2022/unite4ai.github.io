@@ -87,6 +87,23 @@ domains (files, web, calendar, git, messaging, tickets) of 4 to 7 tools each, re
 templates per tool, and pools of values. Every request is unique among the calls, and among
 the items with no call. The data file is generated from the script and checked in.
 
+## Tool-only reference floors
+
+These strategies choose only a tool name (or no call). A correct choice is given the gold
+arguments, so the numbers do not measure full-call performance.
+
+| Strategy | pass@1 | pass@5 (all five) |
+| --- | ---: | ---: |
+| Uniform random | 7.9635% | 0.000486% |
+| Always first listed tool | 15/100 (15%) | 15/100 (15%) |
+
+Random choice includes no call on every item, so the chance of a correct choice is
+`p = 1 / (tools.length + 1)`, including when no call is correct. The expected pass@1 is
+the mean of `p` across items; pass@5 is the mean of `p⁵`, with independent choices each
+run. The deterministic first-tool choice never abstains and gets the same items right
+on every run. `bun scripts/benchmarks/baseline-floors.ts` computes both from the
+SHA-256-verified local inputs without sampling or running a model.
+
 ## Known weaknesses
 
 - **Synthetic.** The tools, requests and values are written for this benchmark. Real tool

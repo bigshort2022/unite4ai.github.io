@@ -102,7 +102,8 @@ test('missing flags are all named at once', () => {
 
 test('enumerated values, the handle and numbers are checked before anything runs', () => {
   const swap = (flag, value) => REQUIRED.map((arg, i) => (REQUIRED[i - 1] === flag ? value : arg));
-  assert.throws(() => parseEvalArgs(swap('--runtime', 'lmstudio'), { root: '/repo', env }), /--runtime must be one of: mlx-lm, ollama, llama\.cpp, vllm, transformers, other/);
+  assert.throws(() => parseEvalArgs(swap('--runtime', 'lmstudio'), { root: '/repo', env }), /--runtime/);
+  assert.equal(parseEvalArgs(swap('--runtime', 'mlx-lm-go'), { root: '/repo', env }).runtime, 'mlx-lm-go');
   assert.throws(() => parseEvalArgs(swap('--format', 'onnx'), { root: '/repo', env }), /--format must be one of/);
   assert.throws(() => parseEvalArgs(swap('--submitter', 'not a handle'), { root: '/repo', env }), /--submitter must be a lowercase GitHub handle/);
   assert.throws(() => parseEvalArgs(swap('--submitter', 'Alice'), { root: '/repo', env }), /--submitter must be a lowercase GitHub handle/);

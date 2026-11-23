@@ -212,3 +212,26 @@ test('a result may carry a repeat block; its rates are percentages and its inter
   assert.equal(ok(evalResultSchema, result({ repeat: { ...REPEAT, run_correct: Array(REPEAT_MAX_RUNS + 1).fill(0) } })), false);
   assert.equal(ok(evalResultSchema, result({ repeat: { ...REPEAT, item_pass_histogram: Array(REPEAT_MAX_RUNS + 2).fill(0) } })), false);
 });
+
+test('API spending metadata records an approved estimate without leaking URL credentials', () => {
+  const api = {
+    provider: 'example',
+    model_card: 'https://example.org/models/demo',
+    terms_url: 'https://example.org/terms',
+    terms_checked_on: '2026-11-23',
+    expected_usd: 1.25,
+    approved_usd: 2,
+  };
+  const apiResult = (changes = {}) => result({
+    setup: { ...result().setup, runtime: 'api', served_model: 'demo-2026', format: 'other', quantization: 'undisclosed' },
+    api: { ...api, ...changes },
+  });
+  assert.equal(ok(evalResultSchema, apiResult()), true);
+  for (const changes of [
+    { expected_usd: 3 },
+    { approved_usd: 0 },
+    { terms_checked_on: '2026-02-30' },
+    { terms_url: 'https://user:secret@example.org/terms' },
+    { model_card: 'https://example.org/models/demo?token=secret' },
+  ]) assert.equal(ok(evalResultSchema, apiResult(changes)), false, JSON.stringify(changes));
+});

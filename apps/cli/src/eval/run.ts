@@ -2,8 +2,10 @@ import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { benchmarkSchema, evalResultSchema, type EvalResult, type RepeatResult } from '@unite4ai/schema';
+import { apiCostProblems, apiWeightProblem, estimatedApiCost } from '@unite4ai/core/eval-cost';
 import { repeatSummary, tallyAttempts } from '@unite4ai/core/repeat';
-import { listModels, serverStatus, streamChat, withoutCredentials } from './client.ts';
+import { containsApiKey, prepareApiRun, type ApiRequestOptions } from './api.ts';
+import { listModels, publicBaseUrl, serverStatus, streamChat } from './client.ts';
 import { detectHardware, type Hardware } from './hardware.ts';
 import { speedResultFrom } from './speed.ts';
 import { SUITES } from './suites.ts';
@@ -31,6 +33,7 @@ export interface EvalOptions {
   /** One line about the setup that the other fields cannot express, e.g. "thinking disabled". */
   notes?: string;
   baseUrl: string;
+  apiRequest?: ApiRequestOptions;
   contentRoot: string;
   workDir: string;
   command: string;
@@ -108,13 +111,13 @@ function loadDefinition(contentRoot: string, id: string) {
  * The definition and suite of the benchmark to run, and the measured benchmark that publishes
  * the run's decode speed: null when the suite names none or this content root does not define it.
  */
-function loadBenchmark(contentRoot: string, id: string) {
+function loadBenchmark(contentRoot: string, id: string, includeSpeed: boolean) {
   const suite = SUITES[id];
   if (!existsSync(definitionPath(contentRoot, id)) || !suite) {
     throw new Error(`benchmark "${id}" cannot be run: it needs a definition in benchmarks/ and a suite (supported: ${Object.keys(SUITES).join(', ')})`);
   }
   const definition = loadDefinition(contentRoot, id);
-  const speedId = suite.speedBenchmark;
+  const speedId = includeSpeed ? suite.speedBenchmark : undefined;
   if (speedId === undefined || !existsSync(definitionPath(contentRoot, speedId))) {
     return { definition, suite, speedBenchmark: null };
   }
@@ -232,9 +235,10 @@ function readTranscript(
   itemCount: number,
   repeated: boolean,
   total: number,
+  storedText?: string,
 ): { done: TranscriptItem[]; completedOn: string | null } {
   const damaged = (problem: string) => new Error(`${path}: ${problem}; move or delete the file to start over`);
-  const text = existsSync(path) ? readFileSync(path, 'utf8') : '';
+  const text = storedText ?? (existsSync(path) ? readFileSync(path, 'utf8') : '');
   const lines = text.split('\n');
   if (lines.at(-1) === '') lines.pop();
 
@@ -325,6 +329,7 @@ const FLAG_OF: Record<string, string> = {
   'run.submitter': '--submitter',
   'run.command': 'the command line',
   'setup.runtime': '--runtime',
+  'setup.served_model': '--served-model',
   'setup.runtime_version': '--runtime-version',
   'setup.format': '--format',
   'setup.quantization': '--quantization',
@@ -344,11 +349,30 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
   const maxSeconds = options.maxSeconds ?? DEFAULT_MAX_SECONDS;
 
   // Preflight: everything that can fail without touching the model server fails here.
-  const { definition, suite, speedBenchmark } = loadBenchmark(options.contentRoot, options.benchmark);
-  if (!['md', 'mdx'].some((ext) => existsSync(join(options.contentRoot, 'models', `${options.model}.${ext}`)))) {
-    throw new Error(`model "${options.model}" has no card in models/. Add the model card first.`);
+  const paid = options.runtime === 'api';
+  const key = paid ? options.apiRequest?.key : undefined;
+  if (key && [...Object.values(options), ...Object.values(options.hardware ?? {})].some((value) => containsApiKey(value, key))) {
+    throw new Error('the API key must not appear in run options or public evidence');
   }
-  const hardware = detectHardware(options.hardware);
+  if (!options.servedModel.trim()) throw new Error('--served-model must not be blank');
+  if (paid) {
+    const weights = apiWeightProblem(options.format, options.quantization);
+    if (weights !== undefined) throw new Error(weights);
+  }
+  const { definition, suite, speedBenchmark } = loadBenchmark(options.contentRoot, options.benchmark, !paid);
+  const method = definition.repeat;
+  const today = options.today ?? new Date().toISOString().slice(0, 10);
+  if (paid && method === undefined) throw new Error('--runtime api requires a repeat-run benchmark');
+  const api = paid ? prepareApiRun(options, definition.version, today) : undefined;
+  if (api?.metadata.model_card === undefined
+    && !['md', 'mdx'].some((ext) => existsSync(join(options.contentRoot, 'models', `${options.model}.${ext}`)))) {
+    throw new Error(paid
+      ? 'an API-only model needs an HTTPS model_card in the API approval'
+      : `model "${options.model}" has no card in models/. Add the model card first.`);
+  }
+  const { device, accelerator, memory_gb } = detectHardware(options.hardware);
+  const hardware = { device, accelerator, memory_gb };
+  if (key && containsApiKey(device, key)) throw new Error('the API key must not appear in public hardware evidence');
   const resultWith = (measured: {
     score: number;
     n: number;
@@ -356,6 +380,7 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
     perf: NonNullable<EvalResult['perf']>;
     evidence: EvalResult['evidence'];
     repeat?: RepeatResult;
+    cost?: EvalResult['cost'];
   }) => ({
     schema_version: 1,
     model: options.model,
@@ -367,6 +392,7 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
     setup: {
       runtime: options.runtime,
       runtime_version: options.runtimeVersion,
+      served_model: options.servedModel,
       format: options.format,
       quantization: options.quantization,
       hardware,
@@ -374,13 +400,15 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
     },
     ...(Object.keys(measured.perf).length > 0 ? { perf: measured.perf } : {}),
     ...(measured.repeat === undefined ? {} : { repeat: measured.repeat }),
+    ...(api === undefined ? {} : { api: api.metadata }),
+    ...(measured.cost === undefined ? {} : { cost: measured.cost }),
     evidence: measured.evidence,
   });
   // A value the schema rejects would otherwise surface only after every item had been answered.
   const dry = evalResultSchema.safeParse(resultWith({
     score: 0,
     n: definition.items,
-    date: options.today ?? new Date().toISOString().slice(0, 10),
+    date: today,
     perf: {},
     evidence: { sha256: '0'.repeat(64) },
   }));
@@ -391,26 +419,30 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
     });
     throw new Error(`this run could not be published: ${problems.join('; ')}`);
   }
-  const source = await loadSource(options, definition.source_url, definition.source_sha256, suite.localSource);
-  // A file the caller names stands in for the source only; the answers come from the cache or the network.
-  const answers = suite.answers === undefined
-    ? undefined
-    : await loadSource({ ...options, sourceFile: undefined }, suite.answers.url, suite.answers.sha256, undefined, 'answers file');
-  const items = suite.items(source, definition.items, answers);
-  const method = definition.repeat;
+  const loadItems = async () => {
+    if (key && [definition.source_url, suite.answers?.url].some((url) => containsApiKey(url, key))) {
+      throw new Error('the API key must not appear in benchmark source URLs');
+    }
+    const source = await loadSource(options, definition.source_url, definition.source_sha256, suite.localSource);
+    // A file the caller names stands in for the source only; the answers come from the cache or network.
+    const answers = suite.answers === undefined
+      ? undefined
+      : await loadSource({ ...options, sourceFile: undefined }, suite.answers.url, suite.answers.sha256, undefined, 'answers file');
+    const items = suite.items(source, definition.items, answers);
+    if (key && items.some((item) => containsApiKey(item.expected, key)
+      || item.messages.some((message) => containsApiKey(message.content, key)))) {
+      throw new Error('the API key must not appear in benchmark items');
+    }
+    return items;
+  };
+  const localItems = paid ? undefined : await loadItems();
   const runs = method?.runs ?? 1;
   const unit = method === undefined ? 'items' : 'answers';
-  /** Every request of the run, in order: each run is one full pass over the items. */
-  const attempts = Array.from({ length: items.length * runs }, (_, position) => ({
-    position,
-    run: Math.floor(position / items.length),
-    item: items[position % items.length],
-  }));
 
   // Transcript: a header that identifies the configuration, one line per answer, and a
-  // last line with the completion date. The file is named after the header's hash and not the
-  // day, so a configuration resumes only itself, on whatever day it is picked up again.
-  const header = JSON.stringify({
+  // last line with the completion date. Client hardware is evidence, not a new paid configuration:
+  // changing it must collide with the original basename and be refused, not buy another run.
+  const configuration = {
     type: 'header',
     benchmark: options.benchmark,
     benchmark_version: definition.version,
@@ -421,40 +453,64 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
     model: options.model,
     served_model: options.servedModel,
     // The transcript is evidence that may be hosted in public.
-    base_url: withoutCredentials(options.baseUrl),
+    base_url: paid ? options.baseUrl : publicBaseUrl(options.baseUrl),
     runtime: options.runtime,
     runtime_version: options.runtimeVersion,
     format: options.format,
     quantization: options.quantization,
     notes: options.notes ?? null,
     max_tokens: suite.maxTokens,
+    // Bind paid evidence to its public approval, not the credential, local file or catalog.
+    ...(api === undefined ? {} : { api: api.metadata }),
     // Only a repeat-run benchmark adds this, so a single-run configuration keeps its file name and resumes.
     ...(method === undefined ? {} : { repeat: method }),
-  });
+  };
+  const identity = JSON.stringify(configuration);
+  const header = paid ? JSON.stringify({ ...configuration, hardware }) : identity;
+  if (key && containsApiKey(header, key)) throw new Error('the API key must not appear in the transcript header');
   const name = `${options.model}--${options.benchmark}--${options.submitter}`;
-  const transcriptPath = join(options.workDir, `${name}--${sha256(header).slice(0, 8)}.jsonl`);
+  const transcriptPath = join(options.workDir, `${name}--${sha256(identity).slice(0, 8)}.jsonl`);
   mkdirSync(options.workDir, { recursive: true });
   const unlock = lockTranscript(`${transcriptPath}.lock`);
   try {
-    const { done, completedOn } = readTranscript(transcriptPath, header, items.length, method !== undefined, attempts.length);
+    const stored = paid ? (existsSync(transcriptPath) ? readFileSync(transcriptPath, 'utf8') : '') : undefined;
+    if (stored) {
+      const newline = stored.indexOf('\n');
+      const firstLine = newline === -1 ? stored : stored.slice(0, newline);
+      if (firstLine !== header) throw new Error('cannot resume paid run: the stored header or client hardware does not match');
+    }
+    const items = localItems ?? await loadItems();
+    const attemptCount = items.length * runs;
+    const { done, completedOn } = readTranscript(
+      transcriptPath, header, items.length, method !== undefined, attemptCount, stored,
+    );
+    if (key && done.some((line) => [line.reply, line.finish_reason, line.expected, line.extracted]
+      .some((value) => containsApiKey(value, key)))) {
+      throw new Error('the saved transcript contains the API key; refusing to use it as evidence');
+    }
     if (completedOn !== null) {
-      log(`this configuration completed on ${completedOn}; move ${transcriptPath} away to run it again`);
+      log(paid
+        ? `this approved configuration completed on ${completedOn}; no API requests sent`
+        : `this configuration completed on ${completedOn}; move ${transcriptPath} away to run it again`);
     } else if (done.length > 0) {
-      log(`resuming after ${done.length} of ${attempts.length} ${unit}`);
+      log(`resuming after ${done.length} of ${attemptCount} ${unit}`);
     }
 
-    if (done.length < attempts.length) await checkServer(options.baseUrl, options.servedModel);
+    if (api === undefined && done.length < attemptCount) await checkServer(options.baseUrl, options.servedModel);
     const started = Date.now();
-    for (const { position, run, item } of attempts.slice(done.length)) {
+    const resumeAdvice = paid ? 'check charges and remaining approval before resuming' : 'rerun to resume';
+    // Each run is one full pass over the same items.
+    for (let position = done.length; position < attemptCount; position += 1) {
+      const run = Math.floor(position / items.length);
+      const item = items[position % items.length];
       const label = method === undefined ? `item ${item.index + 1}` : `run ${run + 1} item ${item.index + 1}`;
       if ((Date.now() - started) / 1000 >= maxSeconds) {
-        throw new Error(`time limit of ${maxSeconds}s reached after ${done.length} of ${attempts.length} ${unit}; rerun to resume`);
+        throw new Error(`time limit of ${maxSeconds}s reached after ${done.length} of ${attemptCount} ${unit}; ${resumeAdvice}`);
       }
       let completion;
       try {
         completion = await streamChat({
-          baseUrl: options.baseUrl,
-          model: options.servedModel,
+          ...(api === undefined ? { baseUrl: options.baseUrl, model: options.servedModel } : { api: api.endpoint }),
           messages: item.messages,
           maxTokens: suite.maxTokens,
           timeoutMs: options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_SECONDS * 1000,
@@ -462,7 +518,7 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
           ...(method === undefined ? {} : { sampling: { temperature: method.temperature, topP: method.top_p, seed: position } }),
         });
       } catch (error) {
-        throw new Error(`${label} failed: ${(error as Error).message}; rerun to resume`);
+        throw new Error(`${label} failed: ${(error as Error).message}; ${resumeAdvice}`);
       }
       const end = { finishReason: completion.finishReason, completionTokens: completion.completionTokens, maxTokens: suite.maxTokens };
       if (suite.needsEndSignal && end.finishReason === null && end.completionTokens === null) {
@@ -516,6 +572,7 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
     // A repeat run's score is the share of items answered correctly on every run.
     const correct = repeat === undefined ? done.filter((line) => line.correct).length : repeat.item_pass_histogram[runs];
     const score = repeat === undefined ? Number(((100 * correct) / n).toFixed(2)) : repeat.pass_k;
+    const cost = repeat === undefined || api?.prices === undefined ? undefined : estimatedApiCost(repeat, api.prices);
     const transcript = readFileSync(transcriptPath);
     const result = evalResultSchema.parse(resultWith({
       score,
@@ -524,7 +581,10 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
       perf: measure(done),
       evidence: { sha256: sha256(transcript), bytes: transcript.length },
       repeat,
+      cost,
     }));
+    const costProblems = apiCostProblems(result);
+    if (costProblems.length > 0) throw new Error(`this run could not be published: ${costProblems.join('; ')}`);
     const speed = speedBenchmark === null ? null : speedResultFrom(result, speedBenchmark);
 
     // One file per benchmark, written together from the one transcript. Each filename carries
@@ -537,12 +597,28 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
       published.run.date,
       `${published.evidence.sha256.slice(0, 8)}.json`,
     ].join('--'));
+    const resultPath = pathOf(result);
+    if (paid && existsSync(resultPath)) {
+      // Invoices are attached by the contributor after the run, not derived from the transcript.
+      let existing: EvalResult | null;
+      try {
+        existing = JSON.parse(readFileSync(resultPath, 'utf8')) as EvalResult | null;
+      } catch {
+        throw new Error(`refusing to overwrite an unreadable API result: ${resultPath}`);
+      }
+      if (existing?.cost?.kind === 'invoice') {
+        throw new Error(`refusing to overwrite invoice evidence: ${resultPath}`);
+      }
+      if (existing?.cost?.kind === 'models-dev' && cost === undefined) {
+        throw new Error(`refusing to overwrite a models.dev estimate without usable pinned replacement pricing: ${resultPath}`);
+      }
+    }
     mkdirSync(evalsDir, { recursive: true });
     for (const published of speed === null ? [result] : [result, speed]) {
       writeFileSync(pathOf(published), `${JSON.stringify(published, null, 2)}\n`);
     }
     return {
-      resultPath: pathOf(result),
+      resultPath,
       transcriptPath,
       score,
       correct,

@@ -182,9 +182,77 @@ const evidenceUrl = line(500).url().refine((value) => value.startsWith('https://
 export const EVAL_CATEGORIES = ['quality', 'security', 'efficiency'] as const;
 /** Deterministic scoring only: a hosted LLM judge would be a per-run API bill. */
 export const EVAL_SCORING = ['exact-match', 'multiple-choice', 'canary', 'measured'] as const;
-export const EVAL_RUNTIMES = ['mlx-lm', 'ollama', 'llama.cpp', 'vllm', 'transformers', 'other'] as const;
+export const EVAL_RUNTIMES = ['mlx-lm', 'mlx-lm-go', 'ollama', 'llama.cpp', 'vllm', 'transformers', 'api', 'other'] as const;
 export const EVAL_FORMATS = ['mlx', 'gguf', 'safetensors', 'other'] as const;
 export const EVAL_ACCELERATORS = ['apple-silicon', 'nvidia', 'amd', 'cpu', 'other'] as const;
+
+const evalIdentity = z.string().regex(/^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,38}$/, 'must be a lowercase GitHub handle');
+const evalHardware = z.strictObject({
+  device: line(200),
+  accelerator: z.enum(EVAL_ACCELERATORS),
+  memory_gb: z.number().positive(),
+});
+const evalPublicUrl = evidenceUrl.refine((value) => {
+  if (!URL.canParse(value)) return false;
+  const url = new URL(value);
+  return !url.username && !url.password && !url.search && !url.hash;
+}, 'must not carry credentials, a query, or a fragment');
+
+export const baselineSchema = z.strictObject({
+  benchmark: contentId,
+  benchmark_version: line(50, 'must be a quoted version string'),
+  entries: z.array(z.strictObject({
+    id: contentId,
+    model: contentId,
+    model_card: evalPublicUrl.optional(),
+    served_model: line(300),
+    submitter: evalIdentity,
+    runtime: z.enum(EVAL_RUNTIMES),
+    provider: contentId.max(100).optional(),
+    format: z.enum(EVAL_FORMATS),
+    quantization: line(100),
+    hardware: evalHardware,
+    registered_on: z.iso.date(),
+    withdrawal: z.strictObject({ date: z.iso.date(), reason: line(500).refine((s) => s.trim().length > 0) }).optional(),
+  }).refine((entry) => (entry.runtime === 'api') === (entry.provider !== undefined), {
+    path: ['provider'], message: 'is required for API baselines and forbidden on local baselines',
+  }).refine((entry) => entry.runtime !== 'api' || (entry.format === 'other' && entry.quantization === 'undisclosed'), {
+    path: ['format'], message: 'API baselines require format other and quantization undisclosed',
+  })).min(1).max(100),
+});
+export type BaselineData = z.infer<typeof baselineSchema>;
+
+/** Compact independent-checker report; index is the zero-based answer position in the transcript. */
+export const bfclCalibrationSchema = z.strictObject({
+  transcript_sha256: sha256Hex,
+  agreement: z.array(z.boolean()).length(250),
+  disagreement_notes: z.record(z.string(), line(500).refine((s) => s.trim().length > 0)).optional(),
+});
+
+export const evalApiSchema = z.strictObject({
+  provider: contentId.max(100),
+  model_card: evalPublicUrl.optional(),
+  terms_url: evalPublicUrl,
+  terms_checked_on: z.iso.date(),
+  expected_usd: z.number().nonnegative(),
+  approved_usd: z.number().positive(),
+}).refine(({ expected_usd, approved_usd }) => expected_usd <= approved_usd, {
+  path: ['expected_usd'],
+  message: 'must not exceed approved_usd',
+});
+
+const costTotals = { total_usd: z.number().nonnegative(), usd_per_success: z.number().nonnegative().optional() };
+const evalCost = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.literal('models-dev'),
+    snapshot_date: z.iso.date(),
+    snapshot_sha256: sha256Hex,
+    input_usd_per_million: z.number().nonnegative(),
+    output_usd_per_million: z.number().nonnegative(),
+    ...costTotals,
+  }),
+  z.strictObject({ kind: z.literal('invoice'), invoice_sha256: sha256Hex, ...costTotals }),
+]);
 /** Result files above this size are rejected: raw output is referenced by hash, never stored in git. */
 export const EVAL_RESULT_MAX_BYTES = 16 * 1024;
 /** Most runs per item a repeat-run benchmark may ask for; each run is one full pass over the items. */
@@ -220,6 +288,8 @@ export const repeatResultSchema = z.strictObject({
   completion_tokens_total: z.number().int().nonnegative().optional(),
   prompt_tokens_per_success: z.number().nonnegative().optional(),
   completion_tokens_per_success: z.number().nonnegative().optional(),
+  /** Measured total for all responses; omit when no energy meter was used. */
+  energy_wh_total: z.number().positive().optional(),
 });
 export type RepeatResult = z.infer<typeof repeatResultSchema>;
 
@@ -279,20 +349,17 @@ export const evalResultSchema = z.strictObject({
   n: z.number().int().positive(),
   run: z.strictObject({
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD'),
-    submitter: z.string().regex(/^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,38}$/, 'must be a lowercase GitHub handle'),
+    submitter: evalIdentity,
     harness: z.strictObject({ name: line(100), version: line(100) }),
     command: line(2000),
   }),
   setup: z.strictObject({
     runtime: z.enum(EVAL_RUNTIMES),
     runtime_version: line(100),
+    served_model: line(300).optional(),
     format: z.enum(EVAL_FORMATS),
     quantization: line(100),
-    hardware: z.strictObject({
-      device: line(200),
-      accelerator: z.enum(EVAL_ACCELERATORS),
-      memory_gb: z.number().positive(),
-    }),
+    hardware: evalHardware,
     /** What the other fields cannot say about the run, e.g. whether thinking was enabled. */
     notes: line(200).optional(),
   }),
@@ -304,6 +371,8 @@ export const evalResultSchema = z.strictObject({
   }).optional(),
   /** Present exactly when the benchmark version is a repeat-run one; see repeatResultSchema. */
   repeat: repeatResultSchema.optional(),
+  api: evalApiSchema.optional(),
+  cost: evalCost.optional(),
   evidence: z.strictObject({
     sha256: sha256Hex,
     url: evidenceUrl.optional(),

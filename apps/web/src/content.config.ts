@@ -196,6 +196,67 @@ const line = (max: number, wrongType?: string) => z.string(wrongType ? { error: 
 /** A contributor's link, printed as an href. */
 const evidenceUrl = line(500).url().refine((value) => value.startsWith('https://'), { message: 'must be an https URL' });
 
+// Mirrors the evaluation setup and public provenance schemas in @unite4ai/schema.
+const evalIdentity = z.string().regex(/^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,38}$/, 'must be a lowercase GitHub handle');
+const evalHardware = z.strictObject({
+  device: line(200),
+  accelerator: z.enum(EVAL_ACCELERATORS),
+  memory_gb: z.number().positive(),
+});
+const evalPublicUrl = evidenceUrl.refine((value) => {
+  if (!URL.canParse(value)) return false;
+  const url = new URL(value);
+  return !url.username && !url.password && !url.search && !url.hash;
+}, 'must not carry credentials, a query, or a fragment');
+const baselines = defineCollection({
+  loader: glob({ pattern: '*.md', base: './src/content/baselines', generateId: ({ entry }) => entry }),
+  schema: z.strictObject({
+    benchmark: contentId,
+    benchmark_version: line(50, 'must be a quoted version string'),
+    entries: z.array(z.strictObject({
+      id: contentId,
+      model: contentId,
+      model_card: evalPublicUrl.optional(),
+      served_model: line(300),
+      submitter: evalIdentity,
+      runtime: z.enum(EVAL_RUNTIMES),
+      provider: contentId.max(100).optional(),
+      format: z.enum(EVAL_FORMATS),
+      quantization: line(100),
+      hardware: evalHardware,
+      registered_on: z.iso.date(),
+      withdrawal: z.strictObject({ date: z.iso.date(), reason: line(500).refine((s) => s.trim().length > 0) }).optional(),
+    }).refine((entry) => (entry.runtime === 'api') === (entry.provider !== undefined), {
+      path: ['provider'], message: 'is required for API baselines and forbidden on local baselines',
+    }).refine((entry) => entry.runtime !== 'api' || (entry.format === 'other' && entry.quantization === 'undisclosed'), {
+      path: ['format'], message: 'API baselines require format other and quantization undisclosed',
+    })).min(1).max(100),
+  }),
+});
+const evalApi = z.strictObject({
+  provider: contentId.max(100),
+  model_card: evalPublicUrl.optional(),
+  terms_url: evalPublicUrl,
+  terms_checked_on: z.iso.date(),
+  expected_usd: z.number().nonnegative(),
+  approved_usd: z.number().positive(),
+}).refine(({ expected_usd, approved_usd }) => expected_usd <= approved_usd, {
+  path: ['expected_usd'],
+  message: 'must not exceed approved_usd',
+});
+const costTotals = { total_usd: z.number().nonnegative(), usd_per_success: z.number().nonnegative().optional() };
+const evalCost = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.literal('models-dev'),
+    snapshot_date: z.iso.date(),
+    snapshot_sha256: sha256Hex,
+    input_usd_per_million: z.number().nonnegative(),
+    output_usd_per_million: z.number().nonnegative(),
+    ...costTotals,
+  }),
+  z.strictObject({ kind: z.literal('invoice'), invoice_sha256: sha256Hex, ...costTotals }),
+]);
+
 /** Mirrors repeatMethodSchema and repeatResultSchema in @unite4ai/schema field for field. */
 const percentage = z.number().min(0).max(100);
 const repeatMethodShape = {
@@ -218,6 +279,7 @@ const repeatResult = z.strictObject({
   completion_tokens_total: z.number().int().nonnegative().optional(),
   prompt_tokens_per_success: z.number().nonnegative().optional(),
   completion_tokens_per_success: z.number().nonnegative().optional(),
+  energy_wh_total: z.number().positive().optional(),
 });
 
 /**
@@ -284,20 +346,17 @@ const evals = defineCollection({
     n: z.number().int().positive(),
     run: z.strictObject({
       date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD'),
-      submitter: z.string().regex(/^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,38}$/, 'must be a lowercase GitHub handle'),
+      submitter: evalIdentity,
       harness: z.strictObject({ name: line(100), version: line(100) }),
       command: line(2000),
     }),
     setup: z.strictObject({
       runtime: z.enum(EVAL_RUNTIMES),
       runtime_version: line(100),
+      served_model: line(300).optional(),
       format: z.enum(EVAL_FORMATS),
       quantization: line(100),
-      hardware: z.strictObject({
-        device: line(200),
-        accelerator: z.enum(EVAL_ACCELERATORS),
-        memory_gb: z.number().positive(),
-      }),
+      hardware: evalHardware,
       /** What the other fields cannot say about the run, e.g. whether thinking was enabled. */
       notes: line(200).optional(),
     }),
@@ -308,6 +367,8 @@ const evals = defineCollection({
       energy_wh_per_1k_tokens: z.number().positive().optional(),
     }).optional(),
     repeat: repeatResult.optional(),
+    api: evalApi.optional(),
+    cost: evalCost.optional(),
     evidence: z.strictObject({
       sha256: sha256Hex,
       url: evidenceUrl.optional(),
@@ -381,4 +442,4 @@ const reviews = defineCollection({
   }),
 });
 
-export const collections = { models, datasets, compute, courses, events, posts, comments, benchmarks, evals, hypotheses, findings, reviews };
+export const collections = { models, datasets, compute, courses, events, posts, comments, benchmarks, baselines, evals, hypotheses, findings, reviews };
