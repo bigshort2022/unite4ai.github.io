@@ -21,10 +21,11 @@ const nav = [
   { label: 'Playground', href: '/playground' },
   { label: 'School', href: '/school' },
   { label: 'Community', href: '/community' },
+  { label: 'News & Notes', href: '/blog' },
   { label: 'Search', href: '/search' },
   { label: 'Contribute', href: '/contribute' },
 ];
-const sections: Record<string, string> = { '/global-exchange': '/exchange', '/registry': '/stack', '/evals': '/playground' };
+const sections: Record<string, string> = { '/global-exchange': '/exchange', '/registry': '/stack', '/evals': '/playground', '/blog': '/blog' };
 const section = Object.entries(sections).find(([child]) => path === child || path.startsWith(`${child}/`))?.[1];
 ---
 <!doctype html>
