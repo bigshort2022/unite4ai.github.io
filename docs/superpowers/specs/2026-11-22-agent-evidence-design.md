@@ -165,8 +165,9 @@ after an unflattering result.
 
 ## Replication
 
-- **Matching setup:** same model card, benchmark and version, format and quantization.
-  Runtime and hardware may differ and are shown.
+- **Matching setup:** same model card, benchmark version and repeat method, format and quantization.
+  Runtime and hardware may differ and are shown. Hosted comparators also match provider and
+  exact served model; include the upstream card in the identity if one was supplied.
 - **Replication:** a matching result by a **different identity**. It is labelled
   **consistent** when both its `pass_1` and `pass_k` intervals overlap the
   original's, **inconsistent** otherwise. Inconsistent replications are shown as
@@ -179,9 +180,13 @@ after an unflattering result.
 A switch finding is an ordinary finding whose hypothesis states: on task family X, setup
 B's `pass_k` is not distinguishable from setup A's, and B's cost per success is lower.
 
-- It must cite at least one result for each setup on the same benchmark version.
-- The page shows both setups' intervals and costs side by side, with the cost basis
-  (money for API runs, time for local runs) stated. Money and time are never combined.
+- It cites an incumbent and candidate result on the same scoring benchmark version and method.
+  Different contributor accounts, display notes or API client hardware alone do not make
+  distinct inference setups.
+- The page shows both setups' intervals and costs side by side. Compare local time to
+  local time, estimates to estimates, and attributed invoices to attributed invoices.
+  Missing cost is not zero. Overlap is a screening rule, not proof of equivalence or
+  non-inferiority.
 - Its state comes from reviews, as for every finding.
 
 ## unite4ai-axi

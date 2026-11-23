@@ -23,6 +23,7 @@ export {
   type LocalSetup,
 } from './evals.ts';
 export { baselineVersionKey, matchingBaseline } from './baselines.ts';
+export { buildReplicationIndex, type ReplicationEvidence, type ReplicationRelationship } from './replication.ts';
 export {
   BOOTSTRAP_RESAMPLES,
   BOOTSTRAP_SEED,

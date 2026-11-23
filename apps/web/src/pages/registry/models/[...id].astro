@@ -4,7 +4,7 @@ import OpennessMeter from '../../../components/OpennessMeter.astro';
 import StackVerifyPanel from '../../../components/StackVerifyPanel.astro';
 import { getCollection, render } from 'astro:content';
 import { byCodeUnit, localSetups, opennessScore, reproductionLabel } from '@unite4ai/core';
-import { deviceLine, formatNumber, loadEvals, runtimeLabel, scoreRange, withUnit } from '../../../lib/evals';
+import { deviceLine, evalRunLabel, evalRunPath, formatNumber, loadEvals, runtimeLabel, scoreRange, withUnit } from '../../../lib/evals';
 import { REPO } from '../../../lib/site';
 import ExchangeRecords from '../../../components/ExchangeRecords.astro';
 import { loadExchange } from '../../../lib/exchange';
@@ -113,7 +113,14 @@ const findings = exchange.structure.findings.filter((record) => hypothesisIds.ha
                       {deviceLine(group) && <small>{deviceLine(group)}</small>}
                     </td>
                     <td class="num">{benchmark.data.scoring === 'measured' || group.tokens_per_second === null ? '—' : `${formatNumber(group.tokens_per_second)} tok/s`}</td>
-                    <td><span class={`tag${group.submitters.length > 1 ? ' tag-open' : ''}`}>{reproductionLabel(group)}</span></td>
+                    <td>
+                      {benchmark.data.repeat ? (
+                        <>
+                          <small>Replication evidence</small>
+                          {group.run_ids.map((id) => <small><a href={href(evalRunPath(group.benchmark, id))}>{evalRunLabel(evalData.runsById.get(id)!)}</a></small>)}
+                        </>
+                      ) : <span class={`tag${group.submitters.length > 1 ? ' tag-open' : ''}`}>{reproductionLabel(group)}</span>}
+                    </td>
                   </tr>
                 );
               })}

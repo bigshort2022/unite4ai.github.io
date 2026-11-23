@@ -15,6 +15,7 @@ new-hypothesis --id ID --title TEXT --claim TEXT --benchmark ID --models ID[,ID]
 new-finding --id ID --hypothesis ID --results RESULT_ID[,RESULT_ID]
   --verdict supports|refutes|inconclusive --summary TEXT --limitations TEXT
   --author HANDLE --date YYYY-MM-DD [--supersedes FINDING_ID]
+  [--incumbent RESULT_ID --candidate RESULT_ID] (switch evidence; include both in --results)
 review --finding ID --reviewer HANDLE --date YYYY-MM-DD
   --verdict accept|reject|needs-work --checks CHECK[,CHECK] --notes TEXT
   [--finding-sha256 EXPECTED_HASH]
@@ -77,13 +78,16 @@ export async function runExchange(argv: string[], repoRoot: string) {
   const required = [...fields, ...(kind === 'review' ? [] : ['id']),
     ...(command === 'graft' ? ['kind', 'source', 'note'] : [])];
   const allowed = new Set([...required, ...common,
-    ...(kind === 'finding' ? ['supersedes'] : []),
+    ...(kind === 'finding' ? ['supersedes', 'incumbent', 'candidate'] : []),
     ...(kind === 'review' ? ['finding-sha256'] : []),
     ...(command === 'graft' ? ['source-sha256'] : [])]);
   for (const key of flags.keys()) if (!allowed.has(key)) throw new Error(`unknown flag --${key} for ${command}`);
   for (const key of required) if (!flags.has(key)) throw new Error(`missing --${key}`);
   if (flags.has('agent-model') !== flags.has('agent-harness')) {
     throw new Error('--agent-model and --agent-harness must be supplied together');
+  }
+  if (flags.has('incumbent') !== flags.has('candidate')) {
+    throw new Error('--incumbent and --candidate must be supplied together');
   }
   const get = (name: string) => flags.get(name)!;
   const data: Record<string, unknown> = Object.fromEntries(fields.map((name) => [name, get(name)]));
@@ -92,6 +96,7 @@ export async function runExchange(argv: string[], repoRoot: string) {
   }
   if (flags.has('agent-model')) data.agent = { model: get('agent-model'), harness: get('agent-harness') };
   if (flags.has('supersedes')) data.supersedes = get('supersedes');
+  if (flags.has('incumbent')) data.switch = { incumbent: get('incumbent'), candidate: get('candidate') };
   const root = resolve(flags.get('content-dir') ?? join(repoRoot, 'apps/web/src/content'));
   if (!(await lstat(root)).isDirectory()) throw new Error('content root must be a real directory, not a link');
   const { records, errors } = await readExchangeRecords(root);

@@ -266,6 +266,7 @@ test('model page lists its evaluations and local setups; the feed publishes the 
   assert.doesNotMatch(model, RAW_DEVICE);
 
   const feed = JSON.parse(page('data/evals.json'));
+  assert.deepEqual(feed.replications, []);
   assert.equal(feed.schema_version, 1);
   assert.equal(
     feed.notice,
@@ -528,6 +529,7 @@ test('a repeat-run result shows its interval, pass@1 with its interval, and the 
   const file = result({ benchmark: 'canary-injection-v1', score: repeat.pass_k, date: '2026-11-20', hash: 'c' });
   file.content.n = 50;
   file.content.repeat = repeat;
+  file.content.setup.notes = 'never in selectors';
   // A second run whose five runs all scored the same, built into the same site.
   const steady = repeatSummary({ runs: 5, temperature: 0.7, top_p: 1 }, {
     item_pass_histogram: [10, 0, 0, 0, 0, 40],
@@ -537,6 +539,26 @@ test('a repeat-run result shows its interval, pass@1 with its interval, and the 
   const steadyFile = result({ benchmark: 'canary-injection-v1', score: steady.pass_k, date: '2026-11-21', hash: 'd', submitter: 'fixture-bot-2' });
   steadyFile.content.n = 50;
   steadyFile.content.repeat = steady;
+  const lower = repeatSummary({ runs: 5, temperature: 0.7, top_p: 1 }, {
+    item_pass_histogram: [40, 0, 0, 0, 0, 10],
+    run_correct: [10, 10, 10, 10, 10],
+    seconds_total: 250,
+  });
+  const conflict = result({ benchmark: 'canary-injection-v1', score: lower.pass_k, date: '2026-11-22', hash: 'a', submitter: 'fixture-bot-2' });
+  conflict.content.n = 50;
+  conflict.content.repeat = lower;
+  const otherDevice = result({
+    benchmark: 'canary-injection-v1', score: repeat.pass_k, date: '2026-11-22',
+    hash: '9', device: 'Fixture <b>Rig</b> &', memory: 64,
+  });
+  otherDevice.content.n = 50;
+  otherDevice.content.repeat = repeat;
+  otherDevice.content.setup.runtime = 'mlx-lm-go';
+  const earlierCanary = result({
+    benchmark: 'canary-injection-v1', version: '1', score: steady.pass_k, date: '2026-11-19',
+    hash: '8', submitter: 'fixture-bot-2',
+  });
+  earlierCanary.content.n = 50;
   // Another model, five runs of 35 of the 50 items: a lower score whose interval overlaps the first group's.
   const other = repeatSummary({ runs: 5, temperature: 0.7, top_p: 1 }, {
     item_pass_histogram: [15, 0, 0, 0, 0, 35],
@@ -579,7 +601,7 @@ test('a repeat-run result shows its interval, pass@1 with its interval, and the 
     approved_usd: 1,
   };
   paid.content.cost = { kind: 'invoice', invoice_sha256: '1'.repeat(64), total_usd: 0.5, usd_per_success: 0.002 };
-  const site = buildScratch('repeat', [file, steadyFile, otherFile, registered, paid]);
+  const site = buildScratch('repeat', [file, steadyFile, conflict, otherDevice, earlierCanary, otherFile, registered, paid]);
   const toolPage = site('evals/tool-selection-v1/index.html');
   assert.match(toolPage, /Registered baselines/);
   assert.match(toolPage, /href="#baseline-1-[^"]+"/);
@@ -623,7 +645,76 @@ test('a repeat-run result shows its interval, pass@1 with its interval, and the 
     assert.ok(second.includes(`/registry/models/${OTHER}"`));
     assert.match(second, /<td class="rank num">2<small[^>]*>not distinguishable from #1<\/small><\/td>/);
     // Each result of a repeat-run benchmark is five runs, so the Runs cell counts results.
-    assert.match(first, /<small>2 results/);
+    assert.match(first, /<small>4 results/);
     assert.match(second, /<small>1 result[ <]/);
   }
+
+  // Summary tables link to every result in their group, with stable labels and no implied replication.
+  const resultId = ({ name }) => name.slice(0, -5);
+  const resultHash = (file) => `#run-${resultId(file)}`;
+  const resultPath = (file) => `/evals/canary-injection-v1${resultHash(file)}`;
+  const model = site(`registry/models/${MODEL}/index.html`);
+  for (const [summary, linkFor] of [
+    [leaderboardOf(detail), resultHash],
+    [canaryRows, resultPath],
+    [model, resultPath],
+  ]) {
+    assert.match(summary, /Replication evidence/);
+    for (const candidate of [file, steadyFile, conflict, otherDevice]) {
+      const { run, evidence } = candidate.content;
+      const label = `${run.submitter} · ${run.date} · ${evidence.sha256.slice(0, 8)}`;
+      assert.ok(summary.includes(`href="${linkFor(candidate)}">${label}</a>`), label);
+    }
+    assert.ok(!summary.includes(linkFor(earlierCanary)));
+    assert.doesNotMatch(summary, /reproduced by|replicated by/);
+  }
+
+  const row = detail.split(`id="run-${resultId(file)}"`)[1].split('</tr>')[0];
+  assert.match(row, /replicated by 1/);
+  assert.match(row, /contested/);
+  assert.ok(row.includes(`href="${resultHash(steadyFile)}">consistent · fixture-bot-2`));
+  assert.ok(row.includes(`href="${resultHash(conflict)}">inconsistent · fixture-bot-2`));
+  assert.ok(row.includes(`href="${resultHash(otherDevice)}">repeated on other hardware · fixture-bot`));
+  assert.match(row, /mlx-lm-go 0\.0\.0.*Fixture &lt;b&gt;Rig&lt;\/b&gt; &amp; · apple-silicon · 64 GB/);
+  assert.ok(!row.includes(resultHash(otherFile)), 'rank interval overlap for a different model is not replication');
+  const solo = detail.split(`id="run-${resultId(otherFile)}"`)[1].split('</tr>')[0];
+  assert.match(solo, /not yet independently replicated/);
+  const earlier = detail.split('id="previous-versions"')[1];
+  assert.ok(earlier.includes(`id="run-${resultId(earlierCanary)}"`));
+  assert.doesNotMatch(earlier, /independently replicated|>Replication<\/th>/);
+
+  const feed = JSON.parse(site('data/evals.json'));
+  assert.ok(!feed.replications.some(({ result }) => result === resultId(earlierCanary)));
+  const evidence = feed.replications.find(({ result }) => result === resultId(file));
+  assert.equal(evidence.href, resultPath(file));
+  assert.equal(evidence.benchmark, 'canary-injection-v1');
+  assert.equal(evidence.benchmark_version, currentVersion('canary-injection-v1'));
+  assert.equal(evidence.model, MODEL);
+  assert.equal(evidence.submitter, file.content.run.submitter);
+  assert.equal(evidence.n, 50);
+  assert.deepEqual(evidence.repeat_method, { runs: 5, temperature: 0.7, top_p: 1 });
+  assert.deepEqual(evidence.setup, {
+    runtime: 'mlx-lm',
+    runtime_version: '0.0.0',
+    format: 'mlx',
+    quantization: 'FIXTURE_Q',
+    hardware: { device: 'Fixture Laptop', memory_gb: 32, accelerator: 'apple-silicon' },
+  });
+  assert.equal(evidence.api, undefined);
+  assert.equal(evidence.independent_replicators, 1);
+  assert.equal(evidence.contested, true);
+  assert.deepEqual(evidence.peers, [
+    { result: resultId(otherDevice), relationship: 'repeated_on_other_hardware' },
+    { result: resultId(steadyFile), relationship: 'consistent' },
+    { result: resultId(conflict), relationship: 'inconsistent' },
+  ]);
+  for (const candidate of [otherDevice, steadyFile, conflict]) {
+    assert.equal(feed.replications.find(({ result }) => result === resultId(candidate)).href, resultPath(candidate));
+  }
+  const hosted = feed.replications.find(({ result }) => result === resultId(paid));
+  assert.equal(hosted.model, 'example-frontier');
+  assert.equal(hosted.setup.runtime, 'api');
+  assert.equal(hosted.setup.served_model, 'example-frontier-2026');
+  assert.deepEqual(hosted.api, { provider: 'example', model_card: 'https://example.org/model-card' });
+  assert.doesNotMatch(JSON.stringify(feed.replications), /"command"|"sha256"|"notes"|never in selectors/);
 });

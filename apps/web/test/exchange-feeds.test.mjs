@@ -6,6 +6,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { hypothesis, finding, review, hash, markdown } from '../../../packages/core/test/fixtures/exchange.mjs';
+import { result } from '../../../packages/core/test/fixtures/evals.mjs';
+import { repeatSummary } from '../../../packages/core/src/repeat.ts';
+import { estimatedApiCost } from '../../../packages/core/src/eval-cost.ts';
 
 const WEB = fileURLToPath(new URL('..', import.meta.url));
 const RESULT = 'darsy-xray-analysis--gsm8k-200--fixture-bot--2026-10-01--44444444';
@@ -19,10 +22,12 @@ const bytes = JSON.stringify(f, null, 2);
 const r = review(bytes);
 const REVIEW_ID = 'fixture-finding--fixture-reviewer--2026-11-11';
 
-function withBuildFixture(run) {
+function withBuildFixture(run, { customEvals = false } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'u4ai-exchange-build-fixture-'));
   const out = join(root, 'output');
   for (const dir of ['hypotheses', 'findings', 'reviews']) mkdirSync(join(root, dir));
+  const evals = customEvals ? join(root, 'evals') : './test/fixtures/evals';
+  if (customEvals) mkdirSync(evals);
   const paths = {
     hypothesis: join(root, 'hypotheses/fixture-hypothesis.md'),
     finding: join(root, 'findings/fixture-finding.json'),
@@ -30,11 +35,11 @@ function withBuildFixture(run) {
   };
   const build = () => spawnSync('bun', ['run', 'astro', 'build', '--outDir', out], {
     cwd: WEB, encoding: 'utf8', timeout: 120_000,
-    env: { ...process.env, U4AI_EXCHANGE_DIR: root, U4AI_EVALS_DIR: './test/fixtures/evals' },
+    env: { ...process.env, U4AI_EXCHANGE_DIR: root, U4AI_EVALS_DIR: evals },
   });
   const feed = (name) => JSON.parse(readFileSync(join(out, `data/${name}.json`), 'utf8'));
   const page = (path) => readFileSync(join(out, path), 'utf8');
-  try { run({ paths, build, feed, page }); } finally { rmSync(root, { recursive: true, force: true }); }
+  try { run({ paths, build, feed, page, evals }); } finally { rmSync(root, { recursive: true, force: true }); }
 }
 
 test('an unreviewed finding leaves the hypothesis open and its graft labelled unreviewed', { timeout: 120_000 }, () => {
@@ -196,6 +201,87 @@ date: 2026-11-10T00:00:00Z
     assert.match(output, /Invalid exchange files/);
     assert.match(output, /hypotheses\/fixture-hypothesis\.md[\s\S]*must be YYYY-MM-DD/);
   });
+});
+
+test('a switch page publishes directed links, both intervals and each hosted cost source without inventing a registry card', { timeout: 120_000 }, () => {
+  withBuildFixture(({ paths, build, feed, page, evals }) => {
+    const benchmark = 'tool-selection-v1';
+    const method = { runs: 5, temperature: 0.7, top_p: 1 };
+    const repeat = repeatSummary(method, {
+      item_pass_histogram: [40, 0, 0, 0, 0, 60], run_correct: [60, 60, 60, 60, 60], seconds_total: 300,
+      prompt_tokens_total: 100_000, completion_tokens_total: 100_000,
+    });
+    const prices = estimatedApiCost(repeat, { snapshot_date: '2026-11-10', snapshot_sha256: 'c'.repeat(64),
+      input_usd_per_million: 1, output_usd_per_million: 2 });
+    const invoice = { kind: 'invoice', invoice_sha256: 'd'.repeat(64), total_usd: 0.03, usd_per_success: 0.03 / 300 };
+    const writeRun = (run) => {
+      const id = `${run.model}--${benchmark}--alice--2026-11-10--${run.evidence.sha256.slice(0, 8)}`;
+      writeFileSync(join(evals, `${id}.json`), JSON.stringify(run));
+      return id;
+    };
+    const makeApiRun = (model, sha, cost, metrics = repeat) => {
+      const setup = { ...result().setup, runtime: 'api', runtime_version: 'client-v1', served_model: `${model}-served`,
+        format: 'other', quantization: 'undisclosed' };
+      return writeRun(result({ model, benchmark, n: 100, score: metrics.pass_k, repeat: metrics, setup, cost, evidence: { sha256: sha.repeat(64) },
+        api: { provider: 'fixture-api', model_card: `https://example.org/${model}`, terms_url: 'https://example.org/terms',
+          terms_checked_on: '2026-11-10', expected_usd: 1, approved_usd: 2 } }));
+    };
+    const incumbent = makeApiRun('hosted-incumbent', 'a', prices);
+    const candidate = makeApiRun('hosted-candidate', 'b', invoice);
+    const pair = { incumbent, candidate };
+    const noSuccess = repeatSummary(method, {
+      item_pass_histogram: [100, 0, 0, 0, 0, 0], run_correct: [0, 0, 0, 0, 0], seconds_total: 42,
+    });
+    const failedHosted = makeApiRun('hosted-candidate', 'e', { kind: 'invoice', invoice_sha256: 'f'.repeat(64), total_usd: 0.05 }, noSuccess);
+    const failedLocal = writeRun(result({ model: 'darsy-xray-analysis', benchmark, n: 100, score: noSuccess.pass_k,
+      repeat: noSuccess, evidence: { sha256: '1'.repeat(64) } }));
+    writeFileSync(paths.hypothesis, markdown(hypothesis({ benchmark, models: ['hosted-incumbent', 'hosted-candidate', 'darsy-xray-analysis'] })));
+    writeFileSync(paths.finding, JSON.stringify(finding({ results: [candidate, incumbent], verdict: 'inconclusive', switch: pair })));
+    writeFileSync(join(dirname(paths.finding), 'fixture-no-success.json'), JSON.stringify(finding({
+      results: [failedHosted, failedLocal], verdict: 'inconclusive', switch: { incumbent: failedLocal, candidate: failedHosted },
+    })));
+    const built = build();
+    assert.equal(built.status, 0, `${built.stdout}${built.stderr}`);
+
+    assert.deepEqual(feed('exchange').findings[0].switch, pair);
+    assert.equal('switch' in feed('exchange-text').findings['fixture-finding'], false);
+    const hypothesisHtml = page('exchange/hypotheses/fixture-hypothesis/index.html');
+    const findingHtml = page('exchange/findings/fixture-finding/index.html');
+    const benchmarkHtml = page(`evals/${benchmark}/index.html`);
+    assert.match(hypothesisHtml, /hosted-incumbent \(API-only\).*hosted-candidate \(API-only\)/s);
+    assert.match(findingHtml, /<caption[^>]*>[^<]*switch[^<]*<\/caption>/i);
+    assert.match(findingHtml, /scope="col">Incumbent<\/th>.*scope="col">Candidate<\/th>/s);
+    const exactRunRow = findingHtml.match(/<th scope="row">Exact run<\/th>(.*?)<\/tr>/s)?.[1];
+    assert.ok(exactRunRow);
+    const tableLinks = [...exactRunRow.matchAll(/<td[^>]*>\s*<a href="([^"]+)"/g)].map((match) => match[1]);
+    assert.equal(tableLinks.length, 2);
+    assert.ok(tableLinks[0].endsWith(`/evals/${benchmark}#run-${incumbent}`), 'incumbent cell links its exact run');
+    assert.ok(tableLinks[1].endsWith(`/evals/${benchmark}#run-${candidate}`), 'candidate cell links its exact run');
+    assert.match(findingHtml, /Pass@1.*95%.*Pass@k.*95%/s);
+    for (const [score, [low, high]] of [[repeat.pass_1, repeat.pass_1_ci], [repeat.pass_k, repeat.pass_k_ci]]) {
+      assert.ok(findingHtml.includes(`${score}% [${low}%, ${high}%]`));
+    }
+    assert.match(findingHtml, /List-price estimate.*models\.dev.*Contributor-reported invoice/s);
+    assert.ok(findingHtml.includes('c'.repeat(64)));
+    assert.ok(findingHtml.includes('d'.repeat(64)));
+    assert.ok(findingHtml.includes(`${prices.usd_per_success} USD per success`));
+    assert.ok(findingHtml.includes(`${invoice.usd_per_success} USD per success`));
+    assert.ok(findingHtml.includes(`${prices.total_usd} USD total`));
+    assert.ok(findingHtml.includes(`${invoice.total_usd} USD total`));
+    assert.match(findingHtml, /Cost comparison unavailable/i);
+    assert.match(findingHtml, /not proof of equivalence or non-inferiority/);
+    for (const [id, model] of [[incumbent, 'hosted-incumbent'], [candidate, 'hosted-candidate']]) {
+      assert.ok(benchmarkHtml.includes(`id="run-${id}"`));
+      assert.ok(findingHtml.includes(`href="https://example.org/${model}"`));
+      assert.ok(!findingHtml.includes(`/registry/models/${model}`));
+      assert.ok(!hypothesisHtml.includes(`/registry/models/${model}`));
+    }
+    const failedHtml = page('exchange/findings/fixture-no-success/index.html');
+    const failedCostRow = failedHtml.match(/<th scope="row">Cost per success<\/th>(.*?)<\/tr>/s)?.[1];
+    assert.ok(failedCostRow);
+    assert.match(failedCostRow, /No successful attempts.*42 seconds total.*Source: local run timing.*No successful attempts.*0\.05 USD total.*Contributor-reported invoice/s);
+    assert.doesNotMatch(failedCostRow, />0 (?:seconds|USD) per success/);
+  }, { customEvals: true });
 });
 
 // Invalid candidates fail at the real build interface, exercising the mirrored schemas.

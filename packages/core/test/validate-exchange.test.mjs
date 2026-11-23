@@ -3,8 +3,10 @@ import { appendFileSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'n
 import { join } from 'node:path';
 import test from 'node:test';
 import { validateContent } from '../src/validate.ts';
-import { hypothesis, finding, review, hash, markdown, makeExchangeRoot } from './fixtures/exchange.mjs';
+import { hypothesis, finding, review, hash, markdown, makeExchangeRoot, RESULT_ID } from './fixtures/exchange.mjs';
 import { readExchangeRecords } from '../src/read-exchange.ts';
+import { benchmark, result } from './fixtures/evals.mjs';
+import { repeatSummary } from '../src/repeat.ts';
 
 // Oracle: approved exchange design, strict authored objects. A typed-in status must not pass.
 test('the content gate rejects an authored hypothesis status', async () => {
@@ -103,5 +105,30 @@ date: ${stamp}
   try {
     const errors = (await validateContent(root)).errors;
     stamps.forEach((stamp, i) => assert.ok(errors.some((error) => error.includes(`fixture-stamp-${i}`) && error.includes('date')), `${stamp}\n${errors.join('\n')}`));
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('the file-backed gate accepts hosted-only switch evidence but missing or mixed costs cannot support it', async () => {
+  const hostedId = 'hosted-only--bench-a--alice--2026-11-10--bbbbbbbb';
+  const switchFinding = finding({ results: [RESULT_ID, hostedId], verdict: 'inconclusive',
+    switch: { incumbent: RESULT_ID, candidate: hostedId } });
+  const root = makeExchangeRoot({
+    hypotheses: { 'fixture-hypothesis': hypothesis({ models: ['model-a', 'hosted-only'] }) },
+    findings: { 'fixture-finding': switchFinding },
+  });
+  try {
+    const method = { runs: 2, temperature: 0.7, top_p: 1 };
+    const repeat = repeatSummary(method, { item_pass_histogram: [40, 40, 120], run_correct: [140, 140], seconds_total: 560 });
+    const local = result({ score: repeat.pass_k, repeat });
+    const hosted = { ...local, model: 'hosted-only', evidence: { sha256: 'b'.repeat(64) },
+      setup: { ...local.setup, runtime: 'api', served_model: 'fixture-served', format: 'other', quantization: 'undisclosed' },
+      api: { provider: 'fixture-api', model_card: 'https://example.org/fixture-model', terms_url: 'https://example.org/terms',
+        terms_checked_on: '2026-11-10', expected_usd: 1, approved_usd: 2 } };
+    writeFileSync(join(root, 'benchmarks/bench-a.md'), markdown(benchmark({ repeat: method })));
+    writeFileSync(join(root, 'evals', `${RESULT_ID}.json`), JSON.stringify(local));
+    writeFileSync(join(root, 'evals', `${hostedId}.json`), JSON.stringify(hosted));
+    assert.deepEqual((await validateContent(root)).errors, []);
+    writeFileSync(join(root, 'findings/fixture-finding.json'), JSON.stringify({ ...switchFinding, verdict: 'supports' }));
+    assert.match((await validateContent(root)).errors.join('\n'), /findings\/fixture-finding: switch.*inconclusive.*cost/);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });

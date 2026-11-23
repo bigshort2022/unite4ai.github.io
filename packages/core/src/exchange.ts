@@ -1,4 +1,7 @@
 import type { BenchmarkData, EvalResult, FindingData, HypothesisData, ReviewData } from '@unite4ai/schema';
+import { compareSwitch, sameSwitchSetup } from './switch-finding.ts';
+
+export { compareSwitch };
 
 export interface ExchangeEntry<T> { id: string; data: T; sha256: string }
 export interface ExchangeRecords {
@@ -8,8 +11,8 @@ export interface ExchangeRecords {
 }
 export interface ExchangeCatalog {
   models: ReadonlySet<string>;
-  benchmarks: ReadonlyMap<string, Pick<BenchmarkData, 'measured_on'>>;
-  results: ReadonlyMap<string, Pick<EvalResult, 'model' | 'benchmark'>>;
+  benchmarks: ReadonlyMap<string, Pick<BenchmarkData, 'scoring' | 'measured_on'>>;
+  results: ReadonlyMap<string, EvalResult>;
 }
 export type FindingState = 'unreviewed' | 'accepted' | 'rejected' | 'disputed';
 export type HypothesisStatus = 'open' | 'supported' | 'refuted' | 'contested';
@@ -19,7 +22,7 @@ export interface ExchangeHypothesis extends Pick<HypothesisData, 'benchmark' | '
   id: string; sha256: string; agent_self_reported: boolean; status: HypothesisStatus;
   grafts: ExchangeGraft[]; findings: string[]; unreviewed_findings: string[];
 }
-export interface ExchangeFinding extends Pick<FindingData, 'hypothesis' | 'results' | 'verdict' | 'author' | 'date'> {
+export interface ExchangeFinding extends Pick<FindingData, 'hypothesis' | 'results' | 'switch' | 'verdict' | 'author' | 'date'> {
   id: string; sha256: string; agent_self_reported: boolean; state: FindingState;
   supersedes: string | null; superseded_by: string[]; reviews: string[]; grafts: ExchangeGraft[];
   grafted_by: { kind: 'hypotheses' | 'findings'; id: string }[]; graft_count: number;
@@ -44,6 +47,37 @@ export interface ExchangeFeeds {
   };
 }
 
+function switchProblem(data: FindingData, hypothesis: HypothesisData | undefined, catalog: ExchangeCatalog): string | undefined {
+  if (!data.switch) return;
+  const { incumbent, candidate } = data.switch;
+  if (incumbent === candidate) return 'switch must name two distinct results';
+  if (!data.results.includes(incumbent) || !data.results.includes(candidate)) return 'switch runs must both be cited in results';
+  const incumbentRun = catalog.results.get(incumbent);
+  const candidateRun = catalog.results.get(candidate);
+  // Missing references are already reported by the ordinary finding checks.
+  if (!hypothesis || !incumbentRun || !candidateRun) return;
+  const benchmark = catalog.benchmarks.get(hypothesis.benchmark);
+  if (!benchmark || benchmark.scoring === 'measured'
+    || incumbentRun.benchmark !== hypothesis.benchmark || candidateRun.benchmark !== hypothesis.benchmark) {
+    return 'switch runs must use the exact scoring benchmark named by the hypothesis';
+  }
+  if (incumbentRun.benchmark_version !== candidateRun.benchmark_version) return 'switch runs must use the same benchmark version';
+  const comparison = compareSwitch(incumbentRun, candidateRun);
+  if (!comparison) return 'switch runs both require repeat evidence';
+  if (incumbentRun.n !== candidateRun.n) return 'switch runs must use the same item count';
+  const a = comparison.incumbent.repeat;
+  const b = comparison.candidate.repeat;
+  if (a.runs !== b.runs || a.temperature !== b.temperature || a.top_p !== b.top_p) {
+    return 'switch runs must use the same repeat method (runs, temperature, top_p)';
+  }
+  if (sameSwitchSetup(incumbentRun, candidateRun)) return 'switch runs must compare distinct setups';
+  if (data.verdict === 'inconclusive') return;
+  if (comparison.candidateCheaper === null) return 'switch verdict must be inconclusive when per-success cost is missing or uses different evidence bases';
+  if (data.verdict === 'supports' && !(comparison.passKOverlap && comparison.candidateCheaper)) {
+    return 'switch verdict "supports" requires pass@k interval overlap and strictly lower per-success cost for the candidate';
+  }
+}
+
 /** Schema-validated records only. Hashes are of the original file bytes, not reserialized JSON. */
 export function validateExchange(records: ExchangeRecords, catalog: ExchangeCatalog): string[] {
   const errors: string[] = [];
@@ -58,10 +92,19 @@ export function validateExchange(records: ExchangeRecords, catalog: ExchangeCata
       if (data.date > latestDate) errors.push(`${kind}/${id}: date is in the future`);
     }
   }
+  // Off-registry IDs may be named only where a published hosted run identifies an upstream model.
+  const hostedEvidence = new Set<string>();
+  for (const result of catalog.results.values()) {
+    if (result.setup.runtime === 'api' && result.api?.model_card !== undefined && result.repeat !== undefined) {
+      hostedEvidence.add(`${result.benchmark}/${result.model}`);
+    }
+  }
   for (const { id, data } of records.hypotheses) {
     if (!catalog.benchmarks.has(data.benchmark)) errors.push(`hypotheses/${id}: unknown benchmark ${data.benchmark}`);
     for (const model of data.models) {
-      if (!catalog.models.has(model)) errors.push(`hypotheses/${id}: unknown model ${model}`);
+      if (!catalog.models.has(model) && !hostedEvidence.has(`${data.benchmark}/${model}`)) {
+        errors.push(`hypotheses/${id}: unknown model ${model}; an API-only model needs hosted evidence on ${data.benchmark}`);
+      }
     }
   }
   for (const { id, data } of records.findings) {
@@ -77,6 +120,8 @@ export function validateExchange(records: ExchangeRecords, catalog: ExchangeCata
         }
       }
     }
+    const problem = switchProblem(data, hypothesis, catalog);
+    if (problem) errors.push(`findings/${id}: ${problem}`);
     if (data.supersedes !== undefined) {
       const previous = findings.get(data.supersedes);
       if (!previous) errors.push(`findings/${id}: unknown supersedes target ${data.supersedes}`);
@@ -192,6 +237,7 @@ export function buildExchangeFeeds(records: ExchangeRecords, catalog: ExchangeCa
     }),
     findings: ordered.findings.map(({ id, data, sha256 }) => ({
       id, sha256, hypothesis: data.hypothesis, results: data.results, verdict: data.verdict,
+      ...(data.switch === undefined ? {} : { switch: { incumbent: data.switch.incumbent, candidate: data.switch.candidate } }),
       author: data.author, date: data.date, agent_self_reported: data.agent !== undefined,
       state: states.get(id)!, supersedes: data.supersedes ?? null, superseded_by: supersededBy.get(id) ?? [],
       reviews: (reviewsByFinding.get(id) ?? []).map((review) => review.id), grafts: grafts(data),

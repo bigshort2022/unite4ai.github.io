@@ -103,7 +103,7 @@ const unique = (values: string[]) => [...new Set(values)].sort();
 const byId = (runs: EvalRun[]) => [...runs].sort((a, b) => byCodeUnit(a.id, b.id));
 
 /** One machine however its name was typed: compatibility forms, case and spacing do not tell devices apart. */
-function deviceKey(device: string): string {
+export function deviceKey(device: string): string {
   return device.normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
 }
 

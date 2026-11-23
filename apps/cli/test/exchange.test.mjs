@@ -5,7 +5,9 @@ import { join, resolve } from 'node:path';
 import test from 'node:test';
 import { validateContent } from '../../../packages/core/src/validate.ts';
 import { readExchangeRecords } from '../../../packages/core/src/read-exchange.ts';
-import { finding, hash, makeExchangeRoot, RESULT_ID } from '../../../packages/core/test/fixtures/exchange.mjs';
+import { finding, hash, makeExchangeRoot, markdown, RESULT_ID } from '../../../packages/core/test/fixtures/exchange.mjs';
+import { benchmark, result } from '../../../packages/core/test/fixtures/evals.mjs';
+import { repeatSummary } from '../../../packages/core/src/repeat.ts';
 
 const repo = resolve(import.meta.dirname, '../../..');
 const author = { author: 'fixture-author', date: '2026-11-10' };
@@ -76,6 +78,36 @@ test('hypothesis and finding scaffolds preserve explicit attribution and source 
   assert.equal(JSON.parse(bytes).hypothesis, created.id);
   assert.equal(JSON.parse(bytes).agent, undefined);
   assert.deepEqual((await validateContent(root)).errors, []);
+});
+
+test('switch scaffold requires both directional inputs before it creates a record', (t) => {
+  const root = fixture(t);
+  rejected(cli(root, 'new-finding', { ...findingFlags, incumbent: RESULT_ID }), /--incumbent and --candidate must be supplied together/);
+  assert.deepEqual(readdirSync(join(root, 'findings')), []);
+});
+
+test('switch scaffold retains the direction of two validated published result IDs', (t) => {
+  const root = fixture(t);
+  const method = { runs: 5, temperature: 0.7, top_p: 1 };
+  writeFileSync(join(root, 'benchmarks/bench-a.md'), markdown(benchmark({ repeat: method })));
+  const candidate = RESULT_ID.replace(/aaaaaaaa$/, 'bbbbbbbb');
+  for (const [id, seconds, device, digest] of [
+    [RESULT_ID, 600, 'Incumbent fixture', 'a'],
+    [candidate, 400, 'Candidate fixture', 'b'],
+  ]) {
+    const run = result();
+    run.repeat = repeatSummary(method, {
+      item_pass_histogram: [0, 0, 0, 0, 0, 200], run_correct: [200, 200, 200, 200, 200], seconds_total: seconds,
+    });
+    run.score = run.repeat.pass_k;
+    run.setup.hardware.device = device;
+    run.evidence.sha256 = digest.repeat(64);
+    writeFileSync(join(root, 'evals', `${id}.json`), JSON.stringify(run));
+  }
+  const output = success(cli(root, 'new-finding', {
+    ...findingFlags, results: `${candidate},${RESULT_ID}`, incumbent: RESULT_ID, candidate,
+  }));
+  assert.deepEqual(JSON.parse(readFileSync(output.path, 'utf8')).switch, { incumbent: RESULT_ID, candidate });
 });
 
 test('review pins exact original bytes, not reserialized JSON, and the gate accepts the workflow', async (t) => {
