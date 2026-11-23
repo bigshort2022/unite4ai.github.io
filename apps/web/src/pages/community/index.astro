@@ -59,7 +59,7 @@ const posts = (await getCollection('posts')).sort((a, b) => b.data.published.val
 
     {posts.length > 0 && (
       <>
-        <h2 style="margin-top:3rem">From the blog</h2>
+        <h2 style="margin-top:3rem">News &amp; Notes</h2>
         <div class="grid grid-3" style="margin-top:1.2rem">
           {posts.map((p) => (
             <article class="card">
@@ -69,6 +69,7 @@ const posts = (await getCollection('posts')).sort((a, b) => b.data.published.val
             </article>
           ))}
         </div>
+        <p style="margin-top:1rem"><a href={href('/blog')}>Browse all News &amp; Notes</a></p>
       </>
     )}
   </section>

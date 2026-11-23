@@ -37,4 +37,4 @@ Compare against the registry card. Mismatch means stop — do not run.
 
 ## Next
 
-Browse [compute options](/stack/compute) for GPU servers when local hardware is not enough.
+On Apple silicon, [run Qwen with mlx-lm-go](/stack/compute/mlx-lm-go) for a local browser chat and an OpenAI-compatible API. Browse the [compute catalog](/stack/compute) for other runtimes and providers.
