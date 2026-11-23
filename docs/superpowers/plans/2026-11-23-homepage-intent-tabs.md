@@ -2,21 +2,22 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans (inline, recommended for this one dependent slice) or superpowers:subagent-driven-development. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Give visitors three ways to act directly after the homepage’s Leading results, without changing the evaluation-first layout.
+**Goal:** Add Learn, Learn (Policy), and Join directly after Leading results, with real next steps for building, checking local data center proposals, and joining the community.
 
-**Architecture:** A homepage-only Astro component renders all three paths in static HTML. A small bundled script converts those same panels to accessible tabs; there is no second copy of the content or change to CSP.
+**Architecture:** A homepage-only Astro component renders all actions in static HTML. A small bundled script exposes accessible tabs over the same panels. The new Voice guide is a standalone static page.
 
 **Tech Stack:** Astro, TypeScript DOM APIs, scoped CSS, existing Unite4AI design tokens.
 
 ---
 
-**Spec:** [Homepage intent tabs](../specs/2026-11-23-homepage-intent-tabs-design.md). No evaluation, route, dependency, CSP, navigation, or membership changes.
+**Spec:** [Homepage intent tabs](../specs/2026-11-23-homepage-intent-tabs-design.md). The new `/policy/data-centers` guide is the only new route. No evaluation, dependency, CSP, navigation, or membership changes.
 
 ### Task 1: Add the homepage chooser and verify it on the rendered site
 
 **Files:**
 - Create `apps/web/src/components/HomeIntentTabs.astro` — panel content, static fallback, tab semantics, and scoped styles.
 - Modify `apps/web/src/pages/index.astro` — mount the component between Leading results and the open stack preview.
+- Create `apps/web/src/pages/policy/data-centers.astro` — explain how to find local proposals, check claims, and comment through official channels.
 - Existing coverage: `apps/web/test/deployment.test.mjs` and `apps/web/test/evals-pages.test.mjs` guard the hero and results ordering. Leave both unchanged.
 
 - [ ] **Step 1: Start the dev server**
@@ -49,11 +50,20 @@ const section = html.slice(chooser, html.indexOf('</section>', chooser));
 const links = Array.from(section.matchAll(/<a\b[^>]+href="([^"]+)"[^>]*>([^<]+)<\/a>/g),
   ([, href, text]) => [href, text.trim()]);
 assert.deepEqual(links, [
-  ['/school', 'Browse free courses'],
-  ['/contribute', 'See ways to contribute'],
-  ['/community', 'Explore the community'],
+  ['/school/run-open-weights', 'Build'],
+  ['/stack/compute', 'Compute'],
+  ['/policy/data-centers', 'Voice'],
+  ['/contribute', 'Contribution Guide'],
+  ['/community', 'Community'],
 ]);
-console.log('Homepage: all three static actions follow Leading results');
+for (const [path, label] of links) {
+  const destination = await fetch(new URL(path, page.url));
+  assert.equal(destination.status, 200, path);
+  if (label === 'Voice') {
+    assert.match(await destination.text(), /Local data centers: learn and speak up/);
+  }
+}
+console.log('Homepage: all five actions follow Leading results and resolve');
 JS
 ```
 
@@ -66,21 +76,27 @@ const href = (p: string) => `${base}${p}` || '/';
 
 const paths = [
   {
-    id: 'learn', label: 'Learn', heading: 'Learn AI by doing it.',
-    body: 'Start with the basics or run your first open model. The Open School is free, with no account required.',
-    cta: 'Browse free courses', route: '/school',
+    id: 'learn', label: 'Learn', heading: 'Build with open AI.',
+    body: 'Run an open model locally, then compare compute options if you need more capacity.',
+    actions: [
+      { label: 'Build', route: '/school/run-open-weights' },
+      { label: 'Compute', route: '/stack/compute' },
+    ],
     art: 'M50 74c-11-9-25-9-39-5V25c14-4 28-4 39 5 11-9 25-9 39-5v44c-14-4-28-4-39 5Zm0 0V30m-28 7c7-1 13 0 18 2m-18 9c7-1 13 0 18 2m20-11c5-2 11-3 18-2m-18 13c5-2 11-3 18-2',
   },
   {
-    id: 'contribute', label: 'Contribute', heading: 'Make something here better.',
-    body: 'Add a model or dataset, share a course, or help with translation and accessibility. You don’t need to know Git to start.',
-    cta: 'See ways to contribute', route: '/contribute',
-    art: 'm50 16 34 20v28L50 84 16 64V36Zm0 68V56m34-20L50 56 16 36m17-10 34 20v14m-28 9 4 2',
+    id: 'policy', label: 'Learn (Policy)', heading: 'Understand data center proposals near you.',
+    body: 'Find out who decides, where to check claims about power, water, noise, and local costs, and how to raise concerns on the public record.',
+    actions: [{ label: 'Voice', route: '/policy/data-centers' }],
+    art: 'M24 14h37l15 15v31M24 14v72h28m9-72v15h15M35 40h29M35 51h24M35 62h13m29 26H60l5-10v-8a7 7 0 0 1 14 0v8l5 10h-7m-10 4a5 5 0 0 0 10 0',
   },
   {
-    id: 'meet', label: 'Meet people', heading: 'Find people working on open AI.',
-    body: 'See workshops and office hours, or ask a question in public Discussions. You don’t need to contribute before saying hello.',
-    cta: 'Explore the community', route: '/community',
+    id: 'join', label: 'Join', heading: 'Take part in Unite4AI.',
+    body: 'Share a model, dataset, or course, or meet people through public discussions and events. No contribution is required before saying hello.',
+    actions: [
+      { label: 'Contribution Guide', route: '/contribute' },
+      { label: 'Community', route: '/community' },
+    ],
     art: 'M13 30a8 8 0 0 1 8-8h41a8 8 0 0 1 8 8v24a8 8 0 0 1-8 8H38L25 75V62h-4a8 8 0 0 1-8-8Zm64 6h2a8 8 0 0 1 8 8v25a8 8 0 0 1-8 8h-4v12L63 77H44m-17-35h2m12 0h2m12 0h2',
   },
 ];
@@ -92,12 +108,16 @@ const paths = [
       <button type="button" id={`home-intent-tab-${id}`}>{label}</button>
     ))}
   </div>
-  {paths.map(({ id, heading, body, cta, route, art }) => (
+  {paths.map(({ id, heading, body, actions, art }) => (
     <article class="intent-panel" id={`home-intent-panel-${id}`}>
       <div>
         <h3>{heading}</h3>
         <p>{body}</p>
-        <a class="btn btn-ghost" href={href(route)}>{cta}</a>
+        <div class="intent-actions">
+          {actions.map(({ label, route }, i) => (
+            <a class:list={['btn', i === 0 ? 'btn-primary' : 'btn-ghost']} href={href(route)}>{label}</a>
+          ))}
+        </div>
       </div>
       <div class:list={['intent-art', `art-${id}`]} aria-hidden="true">
         <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" focusable="false">
@@ -130,6 +150,7 @@ const paths = [
     border-radius: var(--u-radius); background: var(--u-bg-elev);
   }
   .intent-panel p { color: var(--u-text-dim); max-width: 48ch; }
+  .intent-actions { display: flex; flex-wrap: wrap; gap: .65rem; }
   .intent-art {
     --intent-accent: var(--u-blue);
     display: grid; place-items: center; justify-self: center;
@@ -137,8 +158,8 @@ const paths = [
     background: radial-gradient(circle, color-mix(in srgb, currentColor 22%, transparent), transparent 70%);
   }
   .intent-art svg { width: 78%; height: auto; }
-  .art-contribute { --intent-accent: var(--u-violet); }
-  .art-meet { --intent-accent: var(--u-magenta); }
+  .art-policy { --intent-accent: var(--u-violet); }
+  .art-join { --intent-accent: var(--u-magenta); }
   .intent-tabs[hidden], .intent-panel[hidden] { display: none; }
   @media (max-width: 550px) {
     .intent-panel { grid-template-columns: minmax(0, 1fr); }
@@ -204,8 +225,49 @@ Add this line between the section ending after the Leading results empty-state b
 ```astro
   <HomeIntentTabs />
 ```
+Do not nest it in either section.
 
-Do not nest it in either section. Rerun the static smoke assertion in Step 2; expect the success line.
+Create `apps/web/src/pages/policy/data-centers.astro`:
+
+```astro
+---
+import Base from '../../layouts/Base.astro';
+---
+<Base
+  title="Local data centers: learn and speak up"
+  description="Find official records for a local data center proposal, check claims, and send a comment to the body making the decision."
+>
+  <article class="wrap section voice-guide">
+    <p class="eyebrow">Learn (Policy)</p>
+    <h1>Local data centers: learn and speak up</h1>
+    <p class="lede">Start with the project record. It can tell you what is proposed, who decides, and when your input can enter the public record.</p>
+
+    <h2>Find the proposal and the decision-maker</h2>
+    <p>Search the official planning or permitting site for your municipality, county, or other relevant authority using the project name, address, or parcel number. Check planning agendas and public notices. Save the case number, project application, staff reports, hearing dates, and name of the body making the decision. If you cannot locate the record, ask the planning or permitting office which agency has it.</p>
+
+    <h2>Check the project’s claims</h2>
+    <ul>
+      <li><strong>Electricity:</strong> What is the expected demand, and who pays for grid upgrades?</li>
+      <li><strong>Water:</strong> How will the site cool its equipment, where will the water come from, and what does the proposal say about use during dry periods?</li>
+      <li><strong>Noise and backup power:</strong> What limits are proposed, and when can generators be tested or operated?</li>
+      <li><strong>Local costs and benefits:</strong> Which jobs are permanent, what incentives are proposed, and which costs could fall on public agencies?</li>
+    </ul>
+    <p>Distinguish applicant estimates from agency findings. A pledge is not an enforceable permit condition; check the actual draft or final conditions.</p>
+
+    <h2>Put your concern on the public record</h2>
+    <p>Use the official notice to confirm the accepted comment channel, the deadline, and any hearing registration requirements. Include the case number, cite a document and page if you can, state one concern or question, and ask for a response or a specific condition. Keep a copy and any receipt. Comments may be public; check the notice before sharing personal information. Procedures vary by jurisdiction.</p>
+    <blockquote>For this case, please identify which document estimates peak water use and explain whether the permit will set a limit for dry periods.</blockquote>
+    <p>Unite4AI does not collect or submit public comments. Use the official channel named in the notice.</p>
+  </article>
+</Base>
+
+<style>
+  .voice-guide { max-width: 50rem; }
+  .voice-guide h2 { margin-top: 2rem; }
+</style>
+```
+
+Rerun the static smoke assertion in Step 2; expect the success line.
 
 - [ ] **Step 5: Exercise the rendered interaction**
 
@@ -216,9 +278,9 @@ export CHROME_DEVTOOLS_AXI_SESSION=unite4ai-homepage
 chrome-devtools-axi newpage http://127.0.0.1:4321/
 ```
 
-- Desktop: observe Learn selected and the other panels absent from the accessibility snapshot. Click Contribute. Press `ArrowRight`, `ArrowRight`, `End`, `Home`, and `Tab` in order. Expect Meet people, Learn, Meet people, Learn, then focus on Browse free courses. Click each panel’s link and verify it takes the same tab to its named site page. Return between clicks; a fresh page starts on Learn.
-- Mobile: `chrome-devtools-axi emulate --viewport '320x740x3,mobile,touch'`. Scroll to the chooser and activate Meet people. Confirm all labels fit, the reading column has no clipped action, and no extra page scrolling was introduced. The current page-fit check is `document.documentElement.scrollWidth === document.documentElement.clientWidth`.
-- Fallback: in isolated Chrome DevTools, open the Command Menu, run **Disable JavaScript**, and reload while DevTools is open. All three headed panels and links must be visible without the tab row. Restore JavaScript afterward.
+- Desktop: observe Learn selected and the other panels absent from the accessibility snapshot. Click Learn (Policy). Press `ArrowRight`, `ArrowRight`, `End`, `Home`, then `Tab` twice. Expect Join, Learn, Join, Learn, then focus on Build and Compute in order. Activate each of the five links and verify it takes the same tab to its specified page. Check that Voice leads to the guide, not a comment form; the guide explains the official record, the claims to check, and how to comment.
+- Mobile: `chrome-devtools-axi emulate --viewport '320x740x3,mobile,touch'`. Scroll to the chooser and activate Join. Confirm labels fit, actions wrap if needed, and opening the panel does not add horizontal scrolling (`document.documentElement.scrollWidth === document.documentElement.clientWidth`).
+- Fallback: in isolated Chrome DevTools, open the Command Menu, run **Disable JavaScript**, and reload while DevTools is open. All three headed panels and five links must be visible without the tab row. Restore JavaScript afterward.
 - The existing evals-pages tests in the repo gate cover hero/results ordering and separately cover the zero-run empty state. The chooser is mounted after the whole results section, outside the empty-state conditional.
 
 - [ ] **Step 6: Run the repository gate**
@@ -236,6 +298,6 @@ Use the selective commit tool; do not take unrelated paths or local mockups:
 
 ```python
 d = await commit.draft()
-await d.only('apps/web/src/components/HomeIntentTabs.astro', 'apps/web/src/pages/index.astro')
-await d.commit('feat: add homepage intent tabs', ['- Keep Leading results under the hero and expose three accessible next steps.'])
+await d.only('apps/web/src/components/HomeIntentTabs.astro', 'apps/web/src/pages/index.astro', 'apps/web/src/pages/policy/data-centers.astro')
+await d.commit('feat: add homepage intent tabs', ['- Add Learn, Learn (Policy), and Join after Leading results, plus a guide to local data center proposals.'])
 ```
