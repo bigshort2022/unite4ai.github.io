@@ -41,6 +41,7 @@ See [apps/api/README.md](apps/api/README.md). Deploy to Cloudflare Workers (free
 - Web form: `/submit` on the site
 - CLI: `bun run publish:cli -- new-model my-slug`
 - Git PR: add markdown under `apps/web/src/content/`
+- School: [Learn about Sovereign AI](https://unite4ai.com/school/sovereign-ai/) offers four account-free exercises and optional source links; edit `apps/web/src/pages/school/sovereign-ai.astro`.
 - News & Notes: add a Markdown post under `apps/web/src/content/posts/`; it appears in the newest-first `/blog/` archive and on `/community/`.
 - Evaluation results: one JSON file per run under `apps/web/src/content/evals/` (see CONTRIBUTING)
 - Evaluation results without git: paste the result file into the `Submit an evaluation result` issue form (see CONTRIBUTING)

@@ -1,0 +1,80 @@
+---
+import Base from '../../layouts/Base.astro';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (p: string) => `${base}${p}` || '/';
+const description = 'Four free learning paths on data privacy, AI agents, teaching AI, and climate and energy. Start with a short exercise, no sign-in or software required.';
+---
+<Base title="Learn about Sovereign AI" description={description}>
+  <article class="wrap section" data-pagefind-body>
+    <p class="eyebrow"><a href={href('/school')}>Open school</a></p>
+    <h1>Learn about Sovereign AI</h1>
+    <p class="lede">Learn how to choose where your data goes, decide what an AI agent can do, and check the evidence behind AI claims.</p>
+    <div class="prose">
+      <p>Start with any path. The exercises use fictional examples and work on paper or in your own notes. No signup, downloads, or AI tools are required. Optional external links take you to other publishers and may have their own access requirements.</p>
+      <nav aria-label="Sovereign AI learning paths">
+        <ul>
+          <li><a href="#data-privacy">Data Privacy</a></li>
+          <li><a href="#agent-experience">Agent Experience</a></li>
+          <li><a href="#ai-education">AI Education</a></li>
+          <li><a href="#climate-energy-ai">Climate &amp; Energy AI</a></li>
+        </ul>
+      </nav>
+
+      <section id="data-privacy" aria-labelledby="privacy-title">
+        <h2 id="privacy-title">Data Privacy</h2>
+        <p>Before typing into an assistant, check where the request is processed, what the app or provider retains, and whether any enabled tools or sync features can send it elsewhere. Local computation and local storage are different questions.</p>
+        <h3>Try it: plan a rehearsal without sharing a draft</h3>
+        <p>Use these fictional notes: Tuesday, 6:30 p.m., Room B; Nina brings an amp; the venue has not confirmed. Write a checklist. Now compare keeping it on paper, using a local assistant with no network tools or sync, and pasting it into a hosted chat. For each, say who gets a copy and what you would check before using real material.</p>
+        <details>
+          <summary>Check your answer</summary>
+          <p>Keep the venue confirmation as an open task; don't turn it into a fact. Paper sends nothing. A local assistant in the stated setup processes the prompt on the device, but you still need to check local history, logs, and backups. A hosted chat sends the prompt to its provider; check retention and reuse before sharing. If you don't know where a draft goes, use the invented example instead.</p>
+        </details>
+        <p><strong>Go further:</strong> <a href={href('/school/run-open-weights')}>Run open weights locally</a>, or read our <a href={href('/privacy')}>site privacy policy</a>. <a href="https://www.deeplearning.ai/courses/ai-for-everyone">DeepLearning.AI: AI for Everyone</a> is an optional external course; enrollment can require an account and graded work or certification may cost money.</p>
+      </section>
+
+      <section id="agent-experience" aria-labelledby="agent-title">
+        <h2 id="agent-title">Agent Experience</h2>
+        <p>Create, use, and maintain agent systems by defining the job, setting tool permissions, and checking that changes don't break what users rely on. The model can propose an action; the system decides what actually runs.</p>
+        <h3>Try it: design and retest a notes assistant</h3>
+        <p>Design an agent that reads one selected fictional notes file and returns a checklist. Write down what it can read, what it can change, and what it must ask before doing. Walk through notes that contain a request to email the checklist. Then imagine a software update adds an email tool. Run the same scenario on paper and decide what should still happen.</p>
+        <details>
+          <summary>Check your answer</summary>
+          <p>The agent may read the selected file and return text. A request found inside the file isn't permission to send anything. Adding a tool must not grant permission to use it: the safe result is still a checklist with no email sent. Keep that scenario as a regression check and record which configuration you tested.</p>
+        </details>
+        <p><strong>Go further:</strong> Read <a href={href('/stack/actuation')}>Actuation: authorization for external actions</a>. For optional ML foundations, see the <a href="https://www.deeplearning.ai/specializations/machine-learning">DeepLearning.AI / Stanford Online Machine Learning Specialization</a> (external enrollment; paid graded work and certificate options) or Google's <a href="https://developers.google.com/machine-learning/crash-course/linear-regression">public reading on linear regression</a>. For optional YouTube explanations, try StatQuest on <a href="https://www.youtube.com/watch?v=aFDOzpTeg0s">linear regression</a> and <a href="https://www.youtube.com/watch?v=fSytzGwwBVw">cross-validation</a>, or 3Blue1Brown on <a href="https://www.youtube.com/watch?v=wjZofJX0v4M">transformers</a>. The videos are not required.</p>
+      </section>
+
+      <section id="ai-education" aria-labelledby="education-title">
+        <h2 id="education-title">AI Education</h2>
+        <p>For educators and learners: start with examples you can explain, change, and test. This paper activity is a candidate for grades 3–5; adjust the examples and vocabulary for your group. Don't collect student data.</p>
+        <h3>Try it: spot what the examples left out</h3>
+        <p>Make a paper sorter for “ocean animal” or “other.” Your first labeled examples are a salmon, a tuna, and a plastic bottle. Write a sorting rule from those examples. Then test it on a crab and a paper fish. Add the crab and paper fish as labeled examples, revise the rule, and try it on a new example.</p>
+        <details>
+          <summary>Check your answer</summary>
+          <p>A rule such as “has fins” might miss the crab and accept a fish-shaped piece of paper. The new examples expose a gap in the original set. Test the revised rule on something you haven't used to write it, such as a jellyfish. This is a simulation of how examples affect predictions, not a trained model.</p>
+        </details>
+        <p><strong>From AI4K12:</strong> Use the multilingual <a href="https://ai4k12.org/resources/big-ideas-poster/">Five Big Ideas poster</a> to pick a topic, then browse the <a href="https://ai4k12.org/activities/">K–12 Activity Resource Guides</a> by grade band. Some of the linked guides use outside apps or microphones; the paper exercise above doesn't.</p>
+      </section>
+
+      <section id="climate-energy-ai" aria-labelledby="climate-title">
+        <h2 id="climate-title">Climate &amp; Energy AI</h2>
+        <p>Ask two separate questions: where can AI help with a climate or energy problem, and what resources does the AI itself use? A better forecast is not proof of lower emissions, and a proposed power connection is not an electricity bill.</p>
+        <h3>Try it: read a data center claim</h3>
+        <p>In a fictional permit, a facility requests a 20 megawatt (MW) connection. A separate annual report lists 80,000 megawatt-hours (MWh) of electricity use. Decide which number is a proposed power capacity and which is energy over time. Then write one question for the official public record about something the two figures don't establish.</p>
+        <details>
+          <summary>Check your answer</summary>
+          <p>MW measures power; MWh measures energy. The proposed connection does not tell you when or how much the site operated. The annual figure doesn't say how much of the electricity went to AI or what emissions it caused. One useful question is whether the annual figure is metered and what facilities it covers. For a real proposal, find the official docket and current deadline before commenting; feedback to Unite4AI isn't a regulatory filing.</p>
+        </details>
+        <p><strong>Go further:</strong> Read <a href={href('/blog/what-an-ai-emissions-estimate-measures')}>What an AI emissions estimate actually measures</a>. In <a href="https://www.climatechange.ai/events/summer_school2026/repository">Climate Change AI's Summer School archive</a>, start with <em>Tackling Climate Change with Machine Learning</em> and <em>Sustainability Impacts of AI</em>, or browse its <a href="https://www.climatechange.ai/projects/">project directory</a> for applications. These are external references, not evidence for a particular facility.</p>
+      </section>
+    </div>
+  </article>
+</Base>
+
+<style>
+  section[id] { scroll-margin-top: 8rem; }
+  details { margin-block: 1rem; }
+  details[open] > summary { margin-bottom: .5rem; }
+  summary { cursor: pointer; }
+</style>
