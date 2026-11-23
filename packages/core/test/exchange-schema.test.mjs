@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { hypothesisSchema, findingSchema, reviewSchema, graftSchema } from '@unite4ai/schema';
-import { hypothesis, finding, review } from './fixtures/exchange.mjs';
+import { hypothesis, finding, review, RESULT_ID } from './fixtures/exchange.mjs';
 
 const schemas = [hypothesisSchema, findingSchema, reviewSchema];
 const samples = [hypothesis(), finding(), review(JSON.stringify(finding()))];
@@ -65,4 +65,15 @@ test('record dates, identities, ids, references and mandatory arrays have strict
   assert.equal(reviewSchema.safeParse(review('', { checks: [] })).success, false);
   assert.equal(reviewSchema.safeParse(review('', { checks: ['model-approved'] })).success, false);
   assert.equal(reviewSchema.safeParse(review('', { finding_sha256: 'A'.repeat(64) })).success, false);
+});
+
+test('switch is an optional strict directional pair of full result IDs', () => {
+  const pair = { incumbent: RESULT_ID, candidate: RESULT_ID.replace('aaaaaaaa', 'bbbbbbbb') };
+  assert.deepEqual(findingSchema.parse(finding({ switch: pair })).switch, pair);
+  assert.equal(findingSchema.parse(finding()).switch, undefined);
+  for (const invalid of [
+    null, [pair.incumbent, pair.candidate], { incumbent: pair.incumbent },
+    { ...pair, candidate: 'model-a' }, { ...pair, incumbent: `${RESULT_ID}.json` },
+    { ...pair, cost: 0 },
+  ]) assert.equal(findingSchema.safeParse(finding({ switch: invalid })).success, false);
 });

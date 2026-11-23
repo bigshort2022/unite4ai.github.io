@@ -17,7 +17,7 @@ A falsifiable claim about named models. Markdown with frontmatter only; the body
 | `title` | string | one line, 200 chars |
 | `claim` | string | 600 chars |
 | `benchmark` | string | id of an existing benchmark |
-| `models` | string[] | one or more model card ids |
+| `models` | string[] | one or more model IDs; API-only IDs need a published hosted repeat result with an upstream model card on this benchmark |
 | `prediction` | string | 300 chars |
 | `author` | string | lowercase GitHub handle |
 | `agent` | `{ model, harness }` | optional, both one line ≤100 chars |
@@ -41,6 +41,7 @@ The outcome of an experiment that tests one hypothesis.
 | `agent` | `{ model, harness }` | optional, both one line ≤100 chars |
 | `date` | string | `YYYY-MM-DD` |
 | `supersedes` | string | optional, id of the finding being corrected |
+| `switch` | `{ incumbent, candidate }` | optional directed pair of distinct result IDs, both included in `results` |
 | `grafts` | object[] | optional, see below |
 
 A finding **cannot be edited once merged**. A correction is a new finding that sets `supersedes` to the old id. The correction must have the same author and reference the same hypothesis. It takes effect only when the replacement is accepted. The original stays visible.
@@ -88,7 +89,7 @@ The source finding must exist and its file must hash to the given sha256. A reco
 
 Two feeds are built at deploy time from the records:
 
-- `/data/exchange.json` — typed structure: hypotheses including those with `status: open`, findings including those with `state: unreviewed` awaiting review, hashes, identities, references, effective `superseded_by`, reviews, and graft backlinks/counts. Agent metadata appears only as an `agent_self_reported` boolean.
+- `/data/exchange.json` — typed structure: hypotheses including those with `status: open`, findings including those with `state: unreviewed` awaiting review, hashes, identities, references (including optional `switch` pairs), effective `superseded_by`, reviews, and graft backlinks/counts. Agent metadata appears only as an `agent_self_reported` boolean.
 - `/data/exchange-text.json` — a top-level untrusted-data warning followed by bounded plain text keyed by record id within `hypotheses`, `findings`, and `reviews` maps. Kind namespaces prevent same-id collisions.
 
 Both feeds have `schema_version: 1`. No timestamp or fabricated record fills an empty exchange.
@@ -157,7 +158,7 @@ The CLI never opens or merges PRs. It never runs git, models, or any network cal
 
 To run an experiment that produces a finding:
 
-1. **Scaffold a hypothesis first.** Use `bun run exchange -- new-hypothesis` with real fields. The hypothesis must reference an existing benchmark and model cards.
+1. **Scaffold a hypothesis first.** Use `bun run exchange -- new-hypothesis` with real fields. Reference an existing benchmark and model cards, or published hosted repeat evidence on that benchmark for any API-only model ID.
 
 2. **Run the evaluation only with authorization.** Use `bun run eval -- --help` to inspect options without running a model. Never use a live model server unless explicitly authorized. Confirm the currently loaded model and pass its id as `--served-model`; a listed but unloaded model can cause a swap. Report the actual runtime, version, format, quantization, hardware and relevant setup notes. CI never runs models; tests use stubs.
 
@@ -206,6 +207,11 @@ bun run exchange -- new-finding \
 ```
 
 To correct an existing finding, choose a new id and add `--supersedes OLD_ID`; the gate requires the same author and hypothesis.
+
+For a [switch finding](../../CONTRIBUTING.md#switch-findings), add
+`--incumbent RESULT_ID --candidate RESULT_ID` together and include both IDs in `--results`.
+The same flags apply to `graft --kind finding`. Review the exact runs and their cost sources;
+the switch comparison does not change the review state.
 
 ### `review`
 

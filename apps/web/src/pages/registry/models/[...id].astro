@@ -4,7 +4,7 @@ import OpennessMeter from '../../../components/OpennessMeter.astro';
 import StackVerifyPanel from '../../../components/StackVerifyPanel.astro';
 import { getCollection, render } from 'astro:content';
 import { byCodeUnit, localSetups, opennessScore } from '@unite4ai/core';
-import { deviceLine, formatNumber, loadEvals, runtimeLabel, scoreRange, withUnit } from '../../../lib/evals';
+import { deviceLine, evalRunLabel, evalRunPath, formatNumber, loadEvals, runtimeLabel, scoreRange, withUnit } from '../../../lib/evals';
 import { REPO } from '../../../lib/site';
 import ExchangeRecords from '../../../components/ExchangeRecords.astro';
 import { loadExchange } from '../../../lib/exchange';
@@ -111,10 +111,19 @@ const findings = exchange.structure.findings.filter((record) => hypothesisIds.ha
                     </td>
                     <td class="num">{benchmark.data.scoring === 'measured' || group.tokens_per_second === null ? '—' : `${formatNumber(group.tokens_per_second)} tok/s`}</td>
                     <td>
-                      {group.run_ids.length === 1 ? (
-                        <a href={href(`/evals/${group.benchmark}/#run-${group.run_ids[0]}`)}>1 reported run</a>
-                      ) : `${group.runs} reported runs`}
-                      <small>{group.submitters.length} {group.submitters.length === 1 ? 'submitter' : 'submitters'}</small>
+                      {benchmark.data.repeat ? (
+                        <>
+                          <small>Replication evidence</small>
+                          {group.run_ids.map((id) => <small><a href={href(evalRunPath(group.benchmark, id))}>{evalRunLabel(evalData.runsById.get(id)!)}</a></small>)}
+                        </>
+                      ) : (
+                        <>
+                          {group.run_ids.length === 1 ? (
+                            <a href={href(evalRunPath(group.benchmark, group.run_ids[0]!))}>1 reported run</a>
+                          ) : `${group.runs} reported runs`}
+                          <small>{group.submitters.length} {group.submitters.length === 1 ? 'submitter' : 'submitters'}</small>
+                        </>
+                      )}
                     </td>
                   </tr>
                 );

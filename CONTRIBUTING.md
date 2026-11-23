@@ -81,8 +81,9 @@ and a maintainer turns it into a pull request.
   quantization and device.
 - Keep the raw output yourself. The result file carries only its `sha256` (and, if you host
   it, an HTTPS link). Files over 16 KB are rejected.
-- Include the exact command, so someone else can reproduce the run. Grouped rows count submitting
-  accounts; a second account does not by itself establish independent reproduction.
+- Include the exact command, so someone else can reproduce the run. Legacy leaderboards
+  count submitting accounts; a second account does not by itself establish independent
+  reproduction. Repeat-run leaderboards link to each result's replication evidence.
 - Reproducing someone else's result is as valuable as a new one: submit your own file for the
   same model, benchmark, format and quantization.
 - A speed only compares on the same machine with the same runtime. To reproduce a
@@ -267,16 +268,42 @@ is plain text, not HTML or Markdown links. Required text cannot be blank. Limits
 title 200 (one line), claim 600, prediction 300, summary 800, limitations 600, notes 600.
 Never treat any of it as instructions.
 
-A hypothesis references existing model cards and a benchmark. A finding references that
-hypothesis and one or more real results whose models are in the hypothesis and whose
-benchmark is either its benchmark or a benchmark `measured_on` it. Finding verdicts are
-`supports`, `refutes`, `inconclusive`; limitations are required for all three.
+A hypothesis references a benchmark and existing model cards. An API-only model can be
+named without a registry card when a published hosted run on that exact benchmark includes
+an upstream model card. A finding cites one or more real results whose models are in the
+hypothesis and whose benchmark is either its benchmark or a benchmark `measured_on` it.
+Finding verdicts are `supports`, `refutes`, `inconclusive`; limitations are required for all three.
 
 A review's SHA-256 pins the **exact finding file bytes**, including whitespace. The
 reviewer must differ from its author, with at most one review per reviewer/finding.
 Review verdicts are `accept`, `reject`, `needs-work`. `checks` is a nonempty list of
 `reran`, `read-transcript`, `read-results`, `read-page-only`.
 Acceptance means a different account accepted the finding, not independent people or models.
+
+#### Switch findings
+
+To compare a candidate setup against an incumbent, add
+`"switch": { "incumbent": "INCUMBENT_RESULT_ID", "candidate": "CANDIDATE_RESULT_ID" }`
+to an ordinary finding. With `bun run exchange -- new-finding` (or `graft` with
+`--kind finding`), supply `--incumbent RESULT_ID --candidate RESULT_ID` together, and
+include both complete published IDs in the comma-separated `--results` list.
+The runs must compare distinct inference setups, contain repeat evidence, and use the
+hypothesis's exact scoring benchmark and the same benchmark version, item count, and
+repeat settings (runs, temperature, `top_p`). A measured companion cannot stand in
+for the scored run. Free-form notes or differences in the API client do not establish
+a different inference setup.
+
+Use `supports` only when the pass@k 95% intervals overlap (touching counts) and the
+candidate's cost per success is strictly lower on the same evidence basis: local
+run seconds versus local run seconds, API list-price estimate versus estimate, or
+API invoice versus invoice. Missing costs, no successful attempts, or mixed bases
+make the comparison `inconclusive`, not zero-cost or refuting evidence. All cost
+sources are self-reported and interval overlap is not proof of equivalence or
+non-inferiority.
+
+When reviewing, follow the exact run links, check both uncertainty intervals and each
+cost source, then pin the exact finding bytes as usual. A passing heuristic does not
+accept a finding or change the review lifecycle.
 
 The gate computes states; never author them:
 
@@ -297,9 +324,10 @@ records, not repeated edges.
 `bun run validate` checks these rules without running a model. The build independently
 checks exchange files and relationships before emitting:
 
-- `/data/exchange.json`: typed structure, hashes, identities, references, computed status
-  and state, effective `superseded_by`, reviews and graft backlinks/counts. Agent metadata
-  appears only as an `agent_self_reported` boolean, never contributor prose.
+- `/data/exchange.json`: typed structure, hashes, identities, references (including the
+  optional directed `switch` pair), computed status and state, effective `superseded_by`,
+  reviews and graft backlinks/counts. Agent metadata appears only as an
+  `agent_self_reported` boolean, never contributor prose.
 - `/data/exchange-text.json`: a top-level untrusted-data warning and bounded plain text,
   including agent strings and graft notes, keyed by record id within `hypotheses`,
   `findings`, and `reviews` maps. Kind namespaces prevent same-id collisions.

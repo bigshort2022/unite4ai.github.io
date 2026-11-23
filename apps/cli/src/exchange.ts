@@ -15,7 +15,8 @@ const hypothesisOptions = `--id ID --title TEXT --claim TEXT --benchmark ID --mo
   --prediction TEXT --author HANDLE --date YYYY-MM-DD`;
 const findingOptions = `--id ID --hypothesis ID --results RESULT_ID[,RESULT_ID]
   --verdict ${FINDING_VERDICTS.join('|')} --summary TEXT --limitations TEXT
-  --author HANDLE --date YYYY-MM-DD [--supersedes FINDING_ID]`;
+  --author HANDLE --date YYYY-MM-DD [--supersedes FINDING_ID]
+  [--incumbent RESULT_ID --candidate RESULT_ID]`;
 const commands = {
   'new-hypothesis': {
     summary: 'Scaffold a hypothesis using existing model and benchmark IDs',
@@ -26,7 +27,7 @@ const commands = {
   'new-finding': {
     summary: 'Scaffold a finding from recorded evaluation results',
     options: findingOptions,
-    notes: 'Result IDs are comma-separated filenames without .json. For a correction use a new ID and --supersedes OLD_ID.',
+    notes: 'Result IDs are comma-separated filenames without .json. For switch evidence, pass both flags together and include both IDs in --results. For a correction use a new ID and --supersedes OLD_ID.',
     inspect: 'ls apps/web/src/content/hypotheses apps/web/src/content/evals',
   },
   review: {
@@ -44,7 +45,7 @@ The reviewer must differ from the author. If provided, the hash must match the e
   [--source-sha256 EXPECTED_HASH] plus the flags for the kind:
   hypothesis: ${hypothesisOptions}
   finding: ${findingOptions}`,
-    notes: 'Use a new adopting ID. The source is never edited; an expected hash must match its exact bytes.',
+    notes: 'Use a new adopting ID. The source is never edited; an expected hash must match its exact bytes. For switch evidence on an adopting finding, pass both flags together and include both IDs in --results.',
     inspect: 'shasum -a 256 apps/web/src/content/findings/"$SOURCE_FINDING_ID".json',
   },
 };
@@ -130,7 +131,7 @@ export async function runExchange(argv: string[], repoRoot: string) {
   const required = [...fields, ...(kind === 'review' ? [] : ['id']),
     ...(command === 'graft' ? ['kind', 'source', 'note'] : [])];
   const allowed = new Set([...required, ...common,
-    ...(kind === 'finding' ? ['supersedes'] : []),
+    ...(kind === 'finding' ? ['supersedes', 'incumbent', 'candidate'] : []),
     ...(kind === 'review' ? ['finding-sha256'] : []),
     ...(command === 'graft' ? ['source-sha256'] : [])]);
   for (const key of flags.keys()) if (!allowed.has(key)) throw new UsageError(`unknown flag --${key} for ${command}`);
@@ -139,6 +140,9 @@ export async function runExchange(argv: string[], repoRoot: string) {
   if (flags.has('agent-model') !== flags.has('agent-harness')) {
     throw new UsageError('--agent-model and --agent-harness must be supplied together');
   }
+  if (flags.has('incumbent') !== flags.has('candidate')) {
+    throw new UsageError('--incumbent and --candidate must be supplied together');
+  }
   const get = (name: string) => flags.get(name)!;
   const data: Record<string, unknown> = Object.fromEntries(fields.map((name) => [name, get(name)]));
   for (const field of ['models', 'results', 'checks']) {
@@ -146,6 +150,7 @@ export async function runExchange(argv: string[], repoRoot: string) {
   }
   if (flags.has('agent-model')) data.agent = { model: get('agent-model'), harness: get('agent-harness') };
   if (flags.has('supersedes')) data.supersedes = get('supersedes');
+  if (flags.has('incumbent')) data.switch = { incumbent: get('incumbent'), candidate: get('candidate') };
   if (flags.has('content-dir') && !get('content-dir').trim()) throw new UsageError('--content-dir needs a nonblank path');
   const draft = kind === 'hypothesis' ? { kind, data: draftValue(hypothesisSchema.safeParse(data)) } as const
     : kind === 'finding' ? { kind, data: draftValue(findingSchema.safeParse(data)) } as const

@@ -392,6 +392,7 @@ const exchangeDate = z.preprocess(
   }, 'must be a real calendar date'),
 );
 const exchangeAgent = z.strictObject({ model: exchangeText(100, true), harness: exchangeText(100, true) });
+const resultId = z.string().regex(RESULT_ID, 'must be a result file id without .json');
 const graftSchema = z.strictObject({
   finding: contentId,
   sha256: sha256Hex,
@@ -417,7 +418,8 @@ const findings = defineCollection({
   loader: glob({ pattern: '*.json', base: `${exchangeRoot}/findings` }),
   schema: z.strictObject({
     hypothesis: contentId,
-    results: z.array(z.string().regex(RESULT_ID, 'must be a result file id without .json')).min(1),
+    results: z.array(resultId).min(1),
+    switch: z.strictObject({ incumbent: resultId, candidate: resultId }).optional(),
     verdict: z.enum(FINDING_VERDICTS),
     summary: exchangeText(800),
     limitations: exchangeText(600),

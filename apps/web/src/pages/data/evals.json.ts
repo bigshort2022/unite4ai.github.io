@@ -1,13 +1,39 @@
 import type { APIRoute } from 'astro';
-import { loadEvals } from '../../lib/evals';
+import { byCodeUnit } from '@unite4ai/core';
+import { evalRunPath, loadEvals } from '../../lib/evals';
 
 /**
- * Public, static data feed: benchmark definitions and aggregated groups.
+ * Public, static data feed: benchmark definitions, aggregated groups, and repeat-run evidence links.
  * Built at deploy time from the content collections; no timestamp, so identical content
  * produces an identical file.
  */
 export const GET: APIRoute = async () => {
-  const { benchmarks, groups, runCount } = await loadEvals();
+  const { benchmarks, groups, runCount, runsById, replicationIndex } = await loadEvals();
+  const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+  const replications = [];
+  for (const { id: benchmark } of benchmarks) {
+    for (const [id, entry] of replicationIndex(benchmark)) {
+      const run = runsById.get(id)!;
+      const { runtime, runtime_version, format, quantization, served_model, hardware } = run.setup;
+      const { runs, temperature, top_p } = run.repeat!;
+      replications.push({
+        result: id,
+        benchmark,
+        benchmark_version: run.benchmark_version,
+        model: run.model,
+        submitter: run.run.submitter,
+        n: run.n,
+        repeat_method: { runs, temperature, top_p },
+        setup: { runtime, runtime_version, format, quantization, served_model, hardware },
+        api: run.api === undefined ? undefined : { provider: run.api.provider, model_card: run.api.model_card },
+        href: `${base}${evalRunPath(benchmark, id)}`,
+        independent_replicators: entry.independent_replicators,
+        contested: entry.contested,
+        peers: entry.peers,
+      });
+    }
+  }
+  replications.sort((a, b) => byCodeUnit(a.result, b.result));
   const body = {
     schema_version: 1,
     notice: 'Results are self-reported by contributors. Each benchmark page lists every run with its reproduce command and evidence hash.',
@@ -29,6 +55,7 @@ export const GET: APIRoute = async () => {
     })),
     groups,
     runs: runCount,
+    replications,
   };
   return new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json; charset=utf-8' } });
 };
