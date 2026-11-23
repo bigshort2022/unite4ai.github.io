@@ -82,6 +82,23 @@ times. Its numbers are not comparable with BFCL's published leaderboard.
    score, and a 95% percentile bootstrap over items for pass@1 (2,000 resamples, the mulberry32
    generator, seed 20261122). The content gate recomputes both from the published counts.
 
+## Tool-only reference floors
+
+These strategies choose only a function name. A correct choice is given the gold
+arguments, so the numbers do not measure full-call performance.
+
+| Strategy | pass@1 | pass@5 (all five) |
+| --- | ---: | ---: |
+| Uniform random | 41% | 1.659722% |
+| Always first listed tool | 19/50 (38%) | 19/50 (38%) |
+
+There is no abstention option in this reference: every BFCL multiple item has a correct
+call. The chance of a correct random choice is `p = 1 / functions.length`. The expected
+pass@1 is the mean of `p` across items; pass@5 is the mean of `p⁵`, with independent
+choices each run. The deterministic first-tool choice gets the same items right on
+every run. `bun scripts/benchmarks/baseline-floors.ts` computes both from the
+SHA-256-verified local inputs without sampling or running a model.
+
 ## How the port is checked against BFCL
 
 `scripts/benchmarks/bfcl_crosscheck.py` fetches BFCL's checker at the same commit, checks its
@@ -95,9 +112,29 @@ hash, and scores answers with it.
   a string, a dict missing a key or with an extra one. BFCL's verdicts on these 463 answers are committed
   (`apps/cli/test/fixtures/bfcl/conformance.json`), and a test requires the port to give the
   same verdict on every one.
-- **Before the first result is published:** the same script scores one baseline run's recorded
-  answers with BFCL's checker and lists every answer where the two disagree. Each disagreement
-  is either fixed in the port or listed on this page before publication.
+- **Before the first result is published:** cross-check a complete registered BFCL v1
+  baseline transcript. The script checks the version, input hashes, sampling settings,
+  order and seeds of all 250 answers, and the completion footer. It rebuilds each
+  prompt from the pinned local question and answer files and replays the runner's
+  scorer on each raw reply and its recorded finish reason and completion token count.
+  A stale prompt hash, extraction or verdict means the report is refused.
+
+  With Python 3 and Bun on `PATH`, run
+  `python3 scripts/benchmarks/bfcl_crosscheck.py transcript <transcript>.jsonl` to list
+  disagreements. To score extracted calls, the command fetches the SHA-256-pinned
+  upstream checker; it does not call a model. It exits with status 1 if the graders disagree.
+
+  Add `--json` to emit only `transcript_sha256` and the `agreement` array, with one
+  boolean per answer at position `run × 50 + item` (both zero-based). The report is
+  emitted even if the graders disagree, but not if the transcript fails validation.
+  Publish the reviewed report at `apps/web/src/content/calibrations/bfcl-multiple-50-v1.json`
+  alongside its matching result; keep the raw transcript local. CI validates the report
+  and replays the offline fixture corpus; it does not generate a report or fetch the checker.
+
+  Resolve any disagreements before publication, or add a `disagreement_notes` object
+  to the report with a one-line explanation keyed by the zero-based answer position
+  (for example, `"51"`). Include a note for each `false` entry and none for `true`
+  entries. The benchmark page displays those notes.
 
 ## Known weaknesses
 

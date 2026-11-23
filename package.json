@@ -15,7 +15,7 @@
     "publish:cli": "bun run --filter @unite4ai/cli publish",
     "eval": "bun apps/cli/src/index.ts eval",
     "exchange": "bun apps/cli/src/index.ts exchange",
-    "test": "bun test apps/web/test apps/api/test apps/cli/test packages/core/test scripts/agent",
+    "test": "bun test apps/web/test apps/api/test apps/cli/test packages/core/test scripts/agent scripts/benchmarks",
     "sync:d1": "bun run --filter @unite4ai/api sync:d1",
     "agent:setup": "bash scripts/agent/setup.sh",
     "agent:verify": "node scripts/agent/verify.mjs",

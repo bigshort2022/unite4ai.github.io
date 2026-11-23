@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./eval-cost": "./src/eval-cost.ts",
     "./evals": "./src/evals.ts",
     "./exchange": "./src/exchange.ts",
     "./read-exchange": "./src/read-exchange.ts",

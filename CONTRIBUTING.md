@@ -74,9 +74,11 @@ People who do not use git can paste the result file the runner writes (see below
 [Submit an evaluation result](../../issues/new?template=submit-eval-result.yml) issue form,
 and a maintainer turns it into a pull request.
 
-- The model must already have a card in `apps/web/src/content/models/`, and the benchmark a
-  definition in `apps/web/src/content/benchmarks/`.
-- Run it on your own hardware and report the setup honestly: runtime, format, quantization, device.
+- A local model must already have a card in `apps/web/src/content/models/`. For an API-only
+  model, use an external model card instead of adding a proprietary model to the open registry.
+  The benchmark always needs a definition in `apps/web/src/content/benchmarks/`.
+- For local runs, use your own hardware and report the setup honestly: runtime, format,
+  quantization and device.
 - Keep the raw output yourself. The result file carries only its `sha256` (and, if you host
   it, an HTTPS link). Files over 16 KB are rejected.
 - Include the exact command, so someone else can reproduce the run. A result that others have
@@ -106,7 +108,7 @@ It sends one request at a time, at temperature 0 unless the benchmark sets repea
 keeps a transcript in `.agent/evals/` so an interrupted run resumes, on the same day or a
 later one. When every item is answered it writes the result file into
 `apps/web/src/content/evals/` with the transcript's hash, dated
-the day the run completed. A `gsm8k-200` run that measured decode speed also writes a second
+the day the run completed. A local `gsm8k-200` run that measured decode speed also writes a second
 file for `decode-speed-gsm8k-200`, with the same date and transcript hash. Submit the two
 files together: a speed result is rejected without the result of the run it was measured on.
 Keep the transcript: it is your evidence. Running a finished configuration again rewrites the
@@ -136,8 +138,10 @@ format, five times each (250 replies). The runner downloads BFCL's question and 
 from GitHub on the first run, checks both against their pinned hashes and keeps them in
 `.agent/evals/cache/`; later runs work offline. Its scorer is a port of BFCL's checker. To
 compare a run's verdicts with BFCL's own checker, run
-`python3 scripts/benchmarks/bfcl_crosscheck.py transcript <the run's transcript>` (Python 3,
-standard library only); it lists every answer where the two disagree.
+`python3 scripts/benchmarks/bfcl_crosscheck.py transcript <the run's transcript>` (requires
+Python 3 and Bun). It replays the raw replies and lists every answer where the two disagree.
+Add `--json` for compact agreement evidence with the transcript hash and per-answer
+agreement, without the raw replies.
 
 A 2048-token benchmark can take hours on a slow machine. One invocation runs for at most
 14400 seconds (four hours); change that with `--max-seconds`. The limit is checked between
@@ -145,6 +149,64 @@ replies, so a run can overrun it by one reply timeout. The runner waits up to 60
 one reply; raise that with `--request-timeout <seconds>` (at least 1). A reply that does not
 finish in time fails its item and the run stops without a result. Whichever limit stopped
 the run, re-running the same command resumes it.
+
+### Paid API runs
+
+Run only on a contributor-owned OpenAI-compatible account, after the account owner has
+approved the exact run and checked that the provider's terms allow publishing benchmark
+results. Tell the owner the planned cost before asking for approval. **Set a spending cap
+at the provider before using the key.** The runner checks `0 <= expected_usd <= approved_usd`
+and requires `approved_usd > 0`; those figures are the owner's approval, not an enforced cap.
+
+Use a repeat-run benchmark, `--runtime api`, an explicit `--base-url` and `--api-approval <local JSON>`.
+The base URL is the HTTPS API prefix before `/chat/completions`; use the exact same URL in the
+command and the approval. URLs with embedded credentials, queries or fragments and redirects
+are refused. Supply the key only in `U4AI_EVAL_API_KEY` in your environment. Example approval
+file (illustrative values, not approval to run):
+
+```json
+{
+  "benchmark": "tool-selection-v1",
+  "benchmark_version": "1",
+  "served_model": "provider-model-id",
+  "submitter": "your-github-handle",
+  "base_url": "https://api.example.com/v1",
+  "provider": "models-dev-provider-id",
+  "model_card": "https://docs.example.com/models/provider-model-id",
+  "terms_url": "https://docs.example.com/terms",
+  "terms_checked_on": "2026-11-22",
+  "expected_usd": 1.25,
+  "approved_usd": 2.00
+}
+```
+
+`model_card` is required for an API-only model and optional if `--model` identifies an
+existing registry card. Use `--format other`, `--quantization undisclosed`
+and your client hardware, not a guess about the provider's machine. No companion decode-speed
+result is produced. Paid requests are not retried automatically; a failed or timed-out request
+may still be billed. Check charges and remaining approval before resuming on the original
+client hardware. Changing the approval starts a new transcript rather than resuming the old one.
+
+- **List-price estimate:** To price completed attempts, add `--price-snapshot <local file>`
+  `--price-date <YYYY-MM-DD>` and `--price-sha256 <hash>` together. The local [models.dev](https://models.dev/)
+  JSON is checked against that hash. The estimate uses that provider and exact served model's
+  input and output rates per million tokens. The runner omits the estimate unless every
+  completed answer has both usage counts and both prices are available. The estimate includes
+  correct and incorrect completed attempts but is not the bill; discounts, surcharges and
+  billed failures outside the transcript can change the invoice.
+  Regenerating a result with an existing estimate requires a usable pinned snapshot.
+- **Actual invoice cost:** After the run, if you can attribute the exact USD amount to that
+  run alone (including any billed failed requests), replace or add the result's `cost` object
+  with `kind: "invoice"`, `invoice_sha256` (lowercase SHA-256 of the private invoice bytes,
+  from `shasum -a 256 <file>`) and `total_usd`. Use `usd_per_success` equal to
+  `total_usd / sum(repeat.run_correct)`, without rounding. Omit `usd_per_success` when there
+  were no successful attempts, for either cost kind.
+  If you cannot attribute the amount, do not publish it as actual.
+  The runner refuses to overwrite a result that already includes invoice evidence.
+
+Run `bun run validate` after adding invoice evidence. Publish the result, not the private
+approval, key, transcript, catalog download or invoice. The public command uses placeholders
+for the approval and catalog paths; replace them with your own files when reproducing the run.
 
 `bun run validate` checks the files the same way CI does. Results of a previous benchmark
 version stay in the repository and are listed on the benchmark page, not on the leaderboard;

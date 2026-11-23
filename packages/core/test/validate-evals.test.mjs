@@ -532,3 +532,40 @@ test('figures that the counts do not give are rejected, so none can be typed in'
   assert.deepEqual(errors, [`evals/${FILE}: repeat.run_correct must have 5 entries, one per run`]);
   assert.ok(warnings.some((w) => w.startsWith(`evals/${FILE}: result is for benchmark version 1;`)));
 });
+
+test('the first BFCL v1 result stays unpublished without its registered run cross-check', async () => {
+  const id = 'bfcl-multiple-50';
+  const repeat = repeatSummary(METHOD, { item_pass_histogram: [1, 0, 0, 0, 0, 49], run_correct: [49, 49, 49, 49, 49], seconds_total: 90 });
+  const run = result({ benchmark: id, repeat, n: 50, score: repeat.pass_k });
+  run.setup.served_model = 'fixture/loaded-model';
+  const file = `model-a--${id}--alice--2026-11-10--aaaaaaaa.json`;
+  const root = makeRoot({ benchmarks: { [id]: benchmark({ items: 50, repeat: METHOD }) }, evals: { [file]: run } });
+  const errors = async () => {
+    const messages = [];
+    await validateEvals(root, messages, [], '2026-11-23');
+    return messages;
+  };
+  assert.match((await errors()).join(), /calibrations\/bfcl-multiple-50-v1.json: required/);
+  mkdirSync(join(root, 'calibrations'));
+  writeFileSync(join(root, 'calibrations', `${id}-v1.json`), JSON.stringify({
+    transcript_sha256: run.evidence.sha256, agreement: Array(250).fill(true),
+  }));
+  assert.match((await errors()).join(), /must match a registered BFCL v1 result/);
+  mkdirSync(join(root, 'baselines'));
+  const { runtime, format, quantization, hardware, served_model } = run.setup;
+  const baseline = {
+    benchmark: id, benchmark_version: '1',
+    entries: [{ id: 'alice-local', model: run.model, submitter: run.run.submitter, runtime, format, quantization, hardware, served_model, registered_on: run.run.date }],
+  };
+  writeFileSync(join(root, 'baselines', `${id}-v1.md`), `---\n${JSON.stringify(baseline)}\n---\n`);
+  assert.deepEqual(await errors(), []);
+});
+
+test('API monetary results are restricted to repeat runs and must derive cost from the whole run', async () => {
+  const run = repeated({
+    setup: { ...result().setup, runtime: 'api', served_model: 'fixture-api', format: 'other', quantization: 'undisclosed' },
+    api: { provider: 'example', terms_url: 'https://example.org/terms', terms_checked_on: '2026-11-10', expected_usd: 3, approved_usd: 5 },
+    cost: { kind: 'invoice', invoice_sha256: 'b'.repeat(64), total_usd: 2, usd_per_success: 1 },
+  });
+  assert.match((await errorsFor({ benchmarks: REPEAT_BENCHMARKS, evals: { [FILE]: run } })).join(), /usd_per_success/);
+});

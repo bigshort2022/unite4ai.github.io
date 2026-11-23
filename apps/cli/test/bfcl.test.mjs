@@ -244,7 +244,7 @@ const runOptions = ({ contentRoot, workDir }, stub) => ({
   today: '2026-11-22',
 });
 
-test('a run reads both pinned files from the cache, sends each item five times, and publishes a result the gate accepts', { timeout: 120_000 }, async () => {
+test('a run reads both pinned files, answers five passes, and needs its checker report before publication', { timeout: 120_000 }, async () => {
   const dirs = workspace();
   const { contentRoot } = dirs;
   const stub = await stubServer();
@@ -260,7 +260,9 @@ test('a run reads both pinned files from the cache, sends each item five times, 
   const result = JSON.parse(readFileSync(outcome.resultPath, 'utf8'));
   assert.deepEqual(result.repeat.item_pass_histogram, [25, 0, 0, 0, 0, 25]);
   assert.deepEqual(repeatProblems(result.repeat, result.n), []);
-  assert.deepEqual((await validateContent(contentRoot)).errors, []);
+  assert.deepEqual((await validateContent(contentRoot)).errors, [
+    'calibrations/bfcl-multiple-50-v1.json: required before publishing a BFCL v1 result',
+  ]);
 });
 
 test('a cached answers file that does not match its pin is refused, naming the file, before any request', async () => {

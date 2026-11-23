@@ -2,27 +2,32 @@
 """Score bfcl-multiple-50 answers with BFCL's own checker, to calibrate Unite4AI's port of it.
 
 BFCL's checker (bfcl_eval/eval_checker/ast_eval/ast_checker.py) is fetched at the pinned commit
-and checked against its hash; only the Python standard library is needed. Two modes:
+and checked against its hash. Transcript mode also needs Bun to replay the local scorer.
 
   corpus      Build synthetic answers for every item (right ones, and the near misses a model
               makes), score them with BFCL's checker, and write the verdicts to
               apps/cli/test/fixtures/bfcl/conformance.json. A test replays them through the port.
-  transcript  Score the answers a run recorded (its transcript's `extracted` fields) with BFCL's
-              checker, and list every item where BFCL and the port disagree.
+  transcript  Validate and replay a complete BFCL v1 transcript, then score with BFCL's checker.
+              Print the disagreements as text (default), or with --json emit a report without dialogue.
 
 Usage:
   python3 scripts/benchmarks/bfcl_crosscheck.py corpus
   python3 scripts/benchmarks/bfcl_crosscheck.py transcript .agent/evals/<transcript>.jsonl
+  python3 scripts/benchmarks/bfcl_crosscheck.py transcript .agent/evals/<transcript>.jsonl --json
 
 Answers travel as JSON, which cannot tell 2 from 2.0. Before BFCL's checker sees an answer, a
 whole number where the schema expects a float is made a float, as the published method states.
 """
+import argparse
 import enum
 import hashlib
 import json
+import re
+import subprocess
 import sys
 import types
 import urllib.request
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -32,18 +37,30 @@ CHECKER = (f"{BASE}/eval_checker/ast_eval/ast_checker.py", "2aae7a68461a8f76c0be
 QUESTIONS = (f"{BASE}/data/BFCL_v4_multiple.json", "aef168155ebd74b7ac2401198b201343bc7d16d7a3d7e0d4e6d8ee82c6969b2a")
 ANSWERS = (f"{BASE}/data/possible_answer/BFCL_v4_multiple.json", "244e00ce9395df948bcafc7bee64e8f9c87ef70887587d83cae45b13699f3047")
 FIXTURES = ROOT / "apps/cli/test/fixtures/bfcl"
+REPLAY = Path(__file__).with_name("bfcl-replay.ts").resolve()
 COUNT = 50
+RUNS = 5
+ATTEMPTS = COUNT * RUNS
+REPEAT = {"runs": RUNS, "temperature": 0.7, "top_p": 1}
+TRANSCRIPT_HEADER = {
+    "type": "header",
+    "benchmark": "bfcl-multiple-50",
+    "benchmark_version": "1",
+    "prompt_version": "bfcl-multiple-1",
+    "source_sha256": QUESTIONS[1],
+    "answers_sha256": ANSWERS[1],
+    "max_tokens": 1024,
+}
 MODEL = "unite4ai"
 
 
 def pinned(url_and_hash, local=None):
-    """The file's text, from a local copy when there is one, else the network; its hash must match."""
+    """Hash-check a committed fixture, or fetch and hash-check the pinned upstream checker."""
     url, digest = url_and_hash
-    from_local = local is not None and local.exists()
-    data = local.read_bytes() if from_local else urllib.request.urlopen(url, timeout=60).read()
+    data = local.read_bytes() if local is not None else urllib.request.urlopen(url, timeout=60).read()
     actual = hashlib.sha256(data).hexdigest()
     if actual != digest:
-        sys.exit(f"hash mismatch for {local if from_local else url}: expected {digest}, got {actual}")
+        sys.exit(f"hash mismatch for {local if local is not None else url}: expected {digest}, got {actual}")
     return data.decode("utf-8")
 
 
@@ -75,9 +92,16 @@ def load_checker():
     return checker, Language
 
 
-def items():
-    questions = [json.loads(line) for line in pinned(QUESTIONS, FIXTURES / "BFCL_v4_multiple.json").splitlines() if line.strip()]
-    answers = [json.loads(line) for line in pinned(ANSWERS, FIXTURES / "BFCL_v4_multiple_possible_answer.json").splitlines() if line.strip()]
+def fixture_sources():
+    return (
+        pinned(QUESTIONS, FIXTURES / "BFCL_v4_multiple.json"),
+        pinned(ANSWERS, FIXTURES / "BFCL_v4_multiple_possible_answer.json"),
+    )
+
+
+def items(questions_text, answers_text):
+    questions = [json.loads(line) for line in questions_text.splitlines() if line.strip()]
+    answers = [json.loads(line) for line in answers_text.splitlines() if line.strip()]
     result = []
     for question, answer in zip(questions[:COUNT], answers[:COUNT]):
         assert question["id"] == answer["id"]
@@ -167,7 +191,7 @@ def variants(item):
 def corpus():
     checker, language = load_checker()
     entries = []
-    for item in items():
+    for item in items(*fixture_sources()):
         for variant, tool, arguments in variants(item):
             valid, error_type = bfcl_verdict(checker, language, item, tool, arguments)
             entries.append({"id": item["id"], "variant": variant, "tool": tool, "arguments": arguments,
@@ -180,42 +204,126 @@ def corpus():
     print(f"wrote {len(entries)} answers ({valid} valid by BFCL) to {path.relative_to(ROOT)}")
 
 
-def transcript(path):
-    lines = [json.loads(line) for line in Path(path).read_text().splitlines() if line.strip()]
-    header = lines[0] if lines else {}
-    if (header.get("type") != "header" or header.get("benchmark") != "bfcl-multiple-50"
-            or header.get("prompt_version") != "bfcl-multiple-1"):
-        sys.exit(f"not a bfcl-multiple-50 transcript of prompt version bfcl-multiple-1: {path}")
-    checker, language = load_checker()
-    by_index = items()
-    answers = [line for line in lines if line.get("type") == "item"]
-    agree = 0
+def complete(record):
+    if not isinstance(record, dict) or record.get("type") != "complete" or not isinstance(record.get("date"), str):
+        return False
+    try:
+        return date.fromisoformat(record["date"]).isoformat() == record["date"]
+    except ValueError:
+        return False
+
+
+def read_transcript(path):
+    raw = Path(path).read_bytes()
+    # Only LF separates records; a raw reply may contain other Unicode line separators.
+    lines = raw.decode("utf-8").split("\n")
+    if lines[-1] == "":
+        lines.pop()
+    if not lines:
+        raise ValueError("missing the bfcl-multiple-50 transcript header")
+    header = json.loads(lines[0])
+    if not isinstance(header, dict):
+        raise ValueError("invalid bfcl-multiple-50 transcript header")
+    for field, expected in TRANSCRIPT_HEADER.items():
+        if header.get(field) != expected:
+            raise ValueError(f"transcript header {field}: expected {expected}")
+    method = header.get("repeat")
+    if method != REPEAT or isinstance(method["top_p"], bool):
+        raise ValueError(f"transcript header repeat: expected {REPEAT}")
+    if len(lines) != ATTEMPTS + 2:
+        raise ValueError(f"expected a header, {ATTEMPTS} answers and a complete footer")
+    if not complete(json.loads(lines[-1])):
+        raise ValueError("expected a complete footer with a YYYY-MM-DD date")
+
+    answers = []
+    for seed, line in enumerate(lines[1:-1]):
+        record = json.loads(line)
+        run, index = divmod(seed, COUNT)
+        where = f"run {run} item {index} seed {seed}"
+        if (not isinstance(record, dict) or record.get("type") != "item"
+                or any(type(record.get(key)) is not int or record[key] != value
+                       for key, value in (("run", run), ("index", index), ("seed", seed)))):
+            raise ValueError(f"expected answer in order at {where}")
+        if not isinstance(record.get("reply"), str):
+            raise ValueError(f"expected raw reply text at {where}")
+        prompt_hash = record.get("prompt_sha256")
+        if not isinstance(prompt_hash, str) or re.fullmatch(r"[0-9a-f]{64}", prompt_hash) is None:
+            raise ValueError(f"expected a 64-hex prompt_sha256 at {where}")
+        if "finish_reason" not in record or (record["finish_reason"] is not None
+                                              and not isinstance(record["finish_reason"], str)):
+            raise ValueError(f"expected finish_reason text or null at {where}")
+        tokens = record.get("completion_tokens")
+        if "completion_tokens" not in record or (tokens is not None and (type(tokens) is not int or tokens < 0)):
+            raise ValueError(f"expected completion_tokens as a non-negative integer or null at {where}")
+        if type(record.get("correct")) is not bool or "extracted" not in record:
+            raise ValueError(f"expected correct and extracted answer fields at {where}")
+        if record["extracted"] is not None and not isinstance(record["extracted"], str):
+            raise ValueError(f"expected extracted JSON text or null at {where}")
+        answers.append(record)
+    return hashlib.sha256(raw).hexdigest(), answers
+
+
+def verify_replay(questions, answers, attempts):
+    replay = subprocess.run(
+        ["bun", str(REPLAY)],
+        input=json.dumps({"questions": questions, "answers": answers, "count": COUNT, "attempts": attempts},
+                         allow_nan=False),
+        text=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+    )
+    if replay.returncode != 0:
+        raise ValueError(replay.stderr.strip() or "Bun could not replay the pinned BFCL suite")
+
+
+def transcript(path, json_report=False):
+    try:
+        transcript_sha256, attempts = read_transcript(path)
+        questions, answers = fixture_sources()
+        verify_replay(questions, answers, attempts)
+    except (OSError, ValueError) as error:
+        sys.exit(f"{path}: {error}")
+
+    by_index = items(questions, answers)
+    upstream = None
+    agreement = []
     disagreements = []
-    for line in answers:
-        item = by_index[line["index"]]
-        answer = json.loads(line["extracted"]) if line.get("extracted") else None
-        tool = answer.get("tool") if isinstance(answer, dict) else None
-        arguments = answer.get("arguments") if isinstance(answer, dict) else None
+    for seed, attempt in enumerate(attempts):
+        run, index = divmod(seed, COUNT)
+        item = by_index[index]
+        ours = attempt["correct"]
+        extracted = attempt["extracted"]
+        answer = json.loads(extracted) if extracted is not None else None
+        tool = answer.get("tool") if answer is not None else None
+        arguments = answer.get("arguments") if answer is not None else None
         if arguments is None:
             arguments = {}
         if isinstance(tool, str) and isinstance(arguments, dict):
-            valid, error_type = bfcl_verdict(checker, language, item, tool, arguments)
+            if upstream is None:
+                upstream = load_checker()
+            valid, error_type = bfcl_verdict(*upstream, item, tool, arguments)
         else:
             valid, error_type = False, "no_call"
-        if valid == line["correct"]:
-            agree += 1
-        else:
-            disagreements.append((line.get("run", 0), item["id"], line["correct"], valid, error_type, line["extracted"]))
-    print(f"{agree} of {len(answers)} answers scored the same by BFCL's checker and the port")
-    for run, item_id, ours, theirs, error_type, extracted in disagreements:
-        print(f"run {run} {item_id}: port {'right' if ours else 'wrong'}, BFCL {'right' if theirs else 'wrong'} ({error_type}): {extracted}")
+        agreement.append(valid == ours)
+        if not agreement[-1]:
+            disagreements.append((run, item["id"], ours, valid, error_type))
+
+    if json_report:
+        print(json.dumps({"transcript_sha256": transcript_sha256, "agreement": agreement}))
+    else:
+        print(f"{sum(agreement)} of {ATTEMPTS} answers scored the same by BFCL's checker and the port")
+        for run, item_id, ours, theirs, error_type in disagreements:
+            print(f"run {run} {item_id}: port {'right' if ours else 'wrong'}, BFCL {'right' if theirs else 'wrong'} ({error_type})")
     return 1 if disagreements else 0
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 2 and sys.argv[1] == "corpus":
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("corpus", help="regenerate fixture conformance verdicts")
+    transcript_parser = commands.add_parser("transcript", help="cross-check a complete 250-answer transcript")
+    transcript_parser.add_argument("path")
+    transcript_parser.add_argument("--json", action="store_true", help="emit the transcript hash and agreement vector")
+    options = parser.parse_args()
+    if options.command == "corpus":
         corpus()
-    elif len(sys.argv) == 3 and sys.argv[1] == "transcript":
-        sys.exit(transcript(sys.argv[2]))
     else:
-        sys.exit(__doc__)
+        sys.exit(transcript(options.path, options.json))

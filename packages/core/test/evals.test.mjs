@@ -40,6 +40,26 @@ test('runs that differ in exactly one grouping field land in separate groups', (
   assert.equal(separate(run('same')), 1);
 });
 
+test('API accounts group by provider and served model, never by the client as local hardware', () => {
+  const local = run('local', { setup: setup({ format: 'other', quantization: 'undisclosed' }) });
+  const hosted = (id, provider, served_model = 'model-2026') => run(id, {
+    setup: { ...local.setup, runtime: 'api', served_model },
+    api: { provider, terms_url: 'https://example.org/terms', terms_checked_on: '2026-11-05', expected_usd: 1, approved_usd: 2 },
+    perf: { tokens_per_second: 150 },
+  });
+  const runs = [local, hosted('a1', 'provider-a'), hosted('a2', 'provider-a'), hosted('b', 'provider-b'), hosted('c', 'provider-a', 'model-2025')];
+  const groups = groupEvals(runs);
+  assert.equal(groups.length, 4);
+  assert.deepEqual(groups.find((g) => g.api?.provider === 'provider-a' && g.api.served_model === 'model-2026').run_ids, ['a1', 'a2']);
+  const alternateCard = hosted('a3', 'provider-a');
+  alternateCard.api.model_card = 'https://example.org/different-model';
+  assert.equal(groupEvals([...runs, alternateCard]).length, 5);
+  const [paid] = groupEvals([hosted('hosted', 'provider-a')], { byHardware: new Set(['bench-a']) });
+  assert.equal(paid.device, null);
+  assert.equal(paid.tokens_per_second, null);
+  assert.deepEqual(localSetups(runs), localSetups([local]));
+});
+
 test('a separator character inside a field cannot merge two groups', () => {
   const groups = groupEvals([
     run('a', { benchmark_version: '1', setup: setup({ quantization: 'mlx|4bit' }) }),

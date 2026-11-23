@@ -8,6 +8,7 @@ import test, { after } from 'node:test';
 import { evalResultSchema } from '@unite4ai/schema';
 import { validateContent } from '@unite4ai/core/validate';
 import { repeatProblems } from '@unite4ai/core/repeat';
+import { parseEvalArgs } from '../src/eval/args.ts';
 import { runEval } from '../src/eval/run.ts';
 
 const sha256 = (data) => createHash('sha256').update(data).digest('hex');
@@ -235,6 +236,7 @@ test('a complete run writes a result the content gate accepts, with evidence for
   assert.equal(evalResultSchema.safeParse(result).success, true);
   assert.equal(result.score, 66.67);
   assert.equal(result.run.command, 'bun run eval -- --benchmark gsm8k-200 --model model-a');
+  assert.equal(result.setup.served_model, 'stub-model');
   // 0.3.0 adds repeat runs; 0.2.0 had per-suite token limits and the cut-off rule; 0.1.0 ran version 1.
   assert.deepEqual(result.run.harness, { name: 'unite4ai-eval', version: '0.3.0' });
   assert.deepEqual(result.setup.hardware, { device: 'Test Box', accelerator: 'cpu', memory_gb: 16 });
@@ -862,6 +864,164 @@ test('credentials in the base URL reach the server but not the transcript', asyn
 });
 
 const REPEAT = { runs: 3, temperature: 0.7, top_p: 1 };
+
+function paidOptions(workspace, overrides = {}) {
+  const baseUrl = 'https://fixture-provider.example.test/v1';
+  const apiKey = 'test-fixture-not-a-credential';
+  const approvalFile = join(workspace.root, 'owner-receipt.json');
+  const priceFile = join(workspace.root, 'private-prices.json');
+  const approval = {
+    benchmark: 'gsm8k-200', benchmark_version: '2', served_model: 'stub-model', submitter: 'alice',
+    base_url: baseUrl, provider: 'fixture-provider', model_card: 'https://fixture-provider.example.test/model-card',
+    terms_url: 'https://fixture-provider.example.test/terms', terms_checked_on: '2026-11-09',
+    expected_usd: 0, approved_usd: 0.01,
+    ...overrides,
+  };
+  writeFileSync(approvalFile, JSON.stringify(approval));
+  const catalog = JSON.stringify({ 'fixture-provider': { models: { 'stub-model': { cost: { input: 2, output: 4 } } } } });
+  writeFileSync(priceFile, catalog);
+  const parsed = parseEvalArgs([
+    '--benchmark', 'gsm8k-200', '--model', 'api-model', '--served-model', 'stub-model', '--submitter', 'alice',
+    '--runtime', 'api', '--runtime-version', 'v1', '--format', 'other', '--quantization', 'undisclosed',
+    '--device', 'Test Box', '--accelerator', 'cpu', '--memory-gb', '16',
+    '--base-url', baseUrl, '--api-approval', approvalFile,
+    '--price-snapshot', priceFile, '--price-date', '2026-11-09', '--price-sha256', sha256(catalog),
+  ], { root: workspace.root, env: { U4AI_EVAL_API_KEY: apiKey } });
+  return {
+    approval, apiKey, baseUrl, snapshotSha: sha256(catalog),
+    options: { ...options(workspace, { baseUrl }), ...parsed, ...workspace },
+  };
+}
+
+test('paid runs fail before any HTTP call when approval mismatches or the benchmark is not repeated', async () => {
+  const repeated = makeWorkspace({ repeat: REPEAT });
+  const single = makeWorkspace();
+  const realFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    throw new Error('no requests allowed');
+  };
+  try {
+    await assert.rejects(runEval(paidOptions(repeated, { base_url: 'https://different.example.test/v1' }).options), /base_url/);
+    await assert.rejects(runEval(paidOptions(repeated, { model_card: undefined }).options), /model_card/);
+    await assert.rejects(runEval(paidOptions(single).options), /repeat/);
+    const { options: approved } = paidOptions(repeated);
+    await assert.rejects(runEval({ ...approved, format: 'mlx' }), /format.*other/);
+    await assert.rejects(runEval({ ...approved, quantization: '4bit' }), /quantization.*undisclosed/);
+    const blank = paidOptions(repeated, { served_model: '  ' });
+    await assert.rejects(runEval({ ...blank.options, servedModel: '  ' }), /served-model/);
+    for (const overrides of [{ notes: approved.apiRequest.key }, { hardware: { ...approved.hardware, device: approved.apiRequest.key } }]) {
+      await assert.rejects(runEval({ ...approved, ...overrides }), (error) => {
+        assert.match(error.message, /API key/);
+        assert.doesNotMatch(error.message, /test-fixture-not-a-credential/);
+        return true;
+      });
+    }
+    assert.equal(calls, 0);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test('paid responses containing the API key are never scored or recorded', async () => {
+  const workspace = makeWorkspace({ repeat: REPEAT });
+  const paid = paidOptions(workspace);
+  const realFetch = globalThis.fetch;
+  try {
+    for (const fields of [
+      [{ delta: { content: paid.apiKey.slice(0, 8) } }, { delta: { content: paid.apiKey.slice(8) }, finish_reason: 'stop' }],
+      [{ delta: { content: GOOD['Q1?'] }, finish_reason: paid.apiKey }],
+    ]) {
+      let calls = 0;
+      globalThis.fetch = async () => {
+        calls += 1;
+        return new Response(fields.map((choice) => `data: ${JSON.stringify({ choices: [choice] })}\n\n`).join('') + 'data: [DONE]\n\n');
+      };
+      await assert.rejects(runEval(paid.options), (error) => {
+        assert.match(error.message, /API key/);
+        assert.doesNotMatch(error.message, /test-fixture-not-a-credential/);
+        return true;
+      });
+      assert.equal(calls, 1);
+      assert.deepEqual(itemLines(workspace), []);
+      assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), []);
+    }
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+for (const missingUsage of [false, true]) {
+  test(`a completed API run ${missingUsage ? 'omits cost when one response lacks usage' : 'publishes a pinned estimate for all responses'}`, async () => {
+    const workspace = makeWorkspace({ speedDefinition: {}, repeat: REPEAT });
+    const paid = paidOptions(workspace);
+    const realFetch = globalThis.fetch;
+    const requests = [];
+    globalThis.fetch = async (url, init) => {
+      const body = JSON.parse(init.body);
+      requests.push({ url, headers: init.headers, redirect: init.redirect, body });
+      const question = body.messages[0].content.split('\n')[0];
+      const event = (payload) => `data: ${JSON.stringify(payload)}\n\n`;
+      return new Response(
+        event({ choices: [{ delta: { content: GOOD[question] }, finish_reason: 'stop' }] })
+        + (missingUsage && body.seed === 5 ? '' : event({ choices: [], usage: { prompt_tokens: 30, completion_tokens: 10 } }))
+        + 'data: [DONE]\n\n',
+      );
+    };
+    try {
+      const outcome = await runEval(paid.options);
+      assert.equal(requests.length, 9);
+      for (const [seed, { url, headers, redirect, body }] of requests.entries()) {
+        assert.equal(url, `${paid.baseUrl}/chat/completions`);
+        assert.equal(new Headers(headers).get('authorization'), `Bearer ${paid.apiKey}`);
+        assert.equal(redirect, 'error');
+        assert.equal(body.model, 'stub-model');
+        assert.equal(body.seed, seed);
+      }
+      const contents = readFileSync(outcome.resultPath, 'utf8');
+      const result = JSON.parse(contents);
+      assert.deepEqual(result.repeat.run_correct, [2, 2, 2]);
+      assert.equal(result.api.provider, 'fixture-provider');
+      assert.equal(result.api.model_card, paid.approval.model_card);
+      assert.equal(result.setup.served_model, 'stub-model');
+      assert.equal(result.cost?.total_usd, missingUsage ? undefined : 0.0009);
+      assert.equal(result.cost?.usd_per_success, missingUsage ? undefined : 0.0009 / 6);
+      assert.equal(result.cost?.snapshot_sha256, missingUsage ? undefined : paid.snapshotSha);
+      assert.equal(outcome.speedResultPath, undefined);
+      assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), [basename(outcome.resultPath)]);
+      const evidence = readFileSync(outcome.transcriptPath, 'utf8');
+      assert.deepEqual(JSON.parse(evidence.split('\n')[0]).hardware, result.setup.hardware);
+      assert.doesNotMatch(`${contents}\n${evidence}`, /test-fixture-not-a-credential|owner-receipt|private-prices/);
+      assert.deepEqual((await validateContent(workspace.contentRoot)).errors, []);
+      assert.equal((await runEval(paid.options)).resultPath, outcome.resultPath);
+      await assert.rejects(runEval({
+        ...paid.options, sourceFile: undefined, hardware: { ...paid.options.hardware, memory_gb: 32 },
+      }), /client hardware/);
+      assert.deepEqual(readdirSync(workspace.workDir), [basename(outcome.transcriptPath)]);
+      if (!missingUsage) {
+        const { priceSnapshot: _snapshot, ...withoutSnapshot } = paid.options.apiRequest;
+        await assert.rejects(runEval({ ...paid.options, apiRequest: withoutSnapshot }), /refusing to overwrite.*estimate/i);
+        const noRatesFile = join(workspace.root, 'no-rates.json');
+        writeFileSync(noRatesFile, '{}');
+        await assert.rejects(runEval({
+          ...paid.options,
+          apiRequest: { ...withoutSnapshot, priceSnapshot: { file: noRatesFile, date: '2026-11-09', sha256: sha256('{}') } },
+        }), /refusing to overwrite.*estimate/i);
+        assert.equal(readFileSync(outcome.resultPath, 'utf8'), contents);
+        const invoice = { kind: 'invoice', invoice_sha256: 'a'.repeat(64), total_usd: 0.003, usd_per_success: 0.003 / 6 };
+        const withInvoice = `${JSON.stringify({ ...result, cost: invoice }, null, 2)}\n`;
+        writeFileSync(outcome.resultPath, withInvoice);
+        assert.deepEqual((await validateContent(workspace.contentRoot)).errors, []);
+        await assert.rejects(runEval(paid.options), /refusing to overwrite.*invoice/i);
+        assert.equal(readFileSync(outcome.resultPath, 'utf8'), withInvoice);
+      }
+      assert.equal(requests.length, 9, 'a completed run does not make any more paid requests');
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+}
 
 test('a repeat-run benchmark answers every item once per run with its own seed, and publishes counts the gate recomputes', async () => {
   const workspace = makeWorkspace({ repeat: REPEAT });

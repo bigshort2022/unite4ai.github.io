@@ -27,8 +27,9 @@ fabricate or impute, deterministic scoring only, CI never runs a model, no model
 without the owner's approval. Added here:
 
 - **Frontier models are run on contributors' own accounts.** The agent states the
-  expected cost before running, the owner of the account agrees, and the result records
-  the actual cost. Unite4AI holds no keys and pays nothing. Each provider's terms must
+  expected cost before running and the owner of the account agrees. An attributable invoice
+  amount is reported as actual when available; a list-price estimate is never the bill.
+  Unite4AI holds no keys and pays nothing. Each provider's terms must
   allow publishing benchmark results; the result records that this was checked.
 - **No run disturbs a server in use.** An agent uses a model server only if its owner
   named it, and never sends a request for a model other than the one loaded (on MLX
@@ -154,8 +155,10 @@ after an unflattering result.
     card and licence are checked; `mlx-lm-go` is added to the runtime list;
   - one frontier comparator chosen by the owner, run on his own account at a stated
     cost.
-- **Running them** needs the owner's approval per run: the machine plugged in and not
-  otherwise busy, and on the mini a port other than the one his coding session uses.
+- **Running them:** the owner gave standing approval for spare local capacity on m5 and
+  the mini. Use only the already loaded model while the machine is idle, m5 is on AC,
+  and the mini is on port 8082 (never the coding session's 8080). Paid runs still need
+  explicit agreement from the account owner.
   Runs from m5 and the mini are under the owner's identity: they show whether a result
   holds on other hardware, not independent replication, and are labelled "repeated on
   other hardware".
@@ -255,8 +258,9 @@ Through Firstmate, each piece its own pull request, in this order:
 1. Repeat-run support in the runner and schema; `canary-injection-v1` version 2.
 2. `tool-selection-v1`: generator, items, suite, page.
 3. `bfcl-multiple-50` and the one-off check against BFCL's checker.
-4. Baseline records and the gate rules for them. **Stop:** the owner approves each
-   baseline run.
+4. Baseline records, publication and accounting checks. Merge the registrations before
+   collecting registered results; independently check the first BFCL transcript before
+   publishing any BFCL result.
 5. Replication labels and switch findings.
 6. `unite4ai-axi` repository and tool.
 7. AX button, prompts and the production-system checks.
@@ -265,7 +269,6 @@ Through Firstmate, each piece its own pull request, in this order:
 ## Decisions for the owner
 
 - Which frontier comparator to register, on which account, at what stated cost.
-- When each baseline run may happen, and on which machine and port.
 - Whether to submit exports to Hugging Face and Every Eval Ever, and under which account.
 
 ## Risks
