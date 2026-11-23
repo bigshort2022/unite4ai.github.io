@@ -12,8 +12,8 @@ On `/`, add **What do you want to do?** immediately after **Leading results** an
 
 | Tab | Panel heading | Panel copy | Actions in order |
 | --- | --- | --- | --- |
-| Learn | Build with open AI. | Run an open model locally, then compare compute options if you need more capacity. | **Build** → `/school/run-open-weights`; **Compute** → `/stack/compute` |
-| Learn (Policy) | Understand data center proposals near you. | Find out who decides, where to check claims about power, water, noise, and local costs, and how to raise concerns on the public record. | **Voice** → `/policy/data-centers` |
+| Learn AI | Build with open AI. | Get hands-on: run an open model on your own machine. | **Build** → `/school/run-open-weights` |
+| Learn AI Policy | Understand data center proposals near you. | Find out who decides, where to check claims about power, water, noise, and local costs, and how to raise concerns on the public record. | **Voice** → `/policy/data-centers` |
 | Join | Take part in Unite4AI. | Share a model, dataset, or course, or meet people through public discussions and events. No contribution is required before saying hello. | **Contribution Guide** → `/contribute`; **Community** → `/community` |
 
 All links are base-aware and open in the same tab. Community retains its existing public Discussions link when no events are scheduled. The homepage does not introduce membership rules, accounts, or sign-ups.
@@ -30,9 +30,9 @@ The guide includes an example comment prompt without presenting hypothetical imp
 
 ## Interaction
 
-- The tab row is ordered Learn, Learn (Policy), Join. On initial load, Learn is selected. Clicking or tapping another tab reveals its single matching panel without navigation or a network request. Selection is local to the page and is not persisted.
+- The tab row is ordered Learn AI, Learn AI Policy, Join. On initial load, Learn AI is selected. Clicking or tapping another tab reveals its single matching panel without navigation or a network request. Selection is local to the page and is not persisted.
 - Expose a named tablist and programmatic relationships between tabs and their panels. Only the selected tab is in the tab order. Left and Right Arrow move focus and selection, wrapping at either end. Home and End select the first and last tab. Tab from the selected tab reaches the first link in its panel, then the remaining link if there is one. Inactive links are not focusable or exposed to assistive technology. The active state and keyboard focus are visibly distinct.
-- Without JavaScript, show the three headed panels and all five links in reading order, with no inoperative tab controls. The copy and all destinations are available in the static HTML.
+- Without JavaScript, show the three headed panels and all four links in reading order, with no inoperative tab controls. The copy and all destinations are available in the static HTML.
 
 ## Visual direction
 
@@ -40,6 +40,6 @@ Use the approved prototype’s single panel, with text and actions on the left a
 
 ## Acceptance
 
-- On the rendered homepage, the hero is still followed by Leading results, then the new section. All five actions land on their specified destinations, including the new Voice guide.
-- In a desktop browser and at a narrow mobile viewport, switching tabs reveals exactly one panel; keyboard focus, arrow navigation, and action order behave as described. With scripts disabled, all five links remain reachable.
+- On the rendered homepage, the hero is still followed by Leading results, then the new section. All four actions land on their specified destinations, including the new Voice guide.
+- In a desktop browser and at a narrow mobile viewport, switching tabs reveals exactly one panel; keyboard focus, arrow navigation, and action order behave as described. With scripts disabled, all four links remain reachable.
 - No benchmark data, result selection rules, or existing routes change.

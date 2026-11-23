@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans (inline, recommended for this one dependent slice) or superpowers:subagent-driven-development. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add Learn, Learn (Policy), and Join directly after Leading results, with real next steps for building, checking local data center proposals, and joining the community.
+**Goal:** Add Learn AI, Learn AI Policy, and Join directly after Leading results, with real next steps for building, checking local data center proposals, and joining the community.
 
 **Architecture:** A homepage-only Astro component renders all actions in static HTML. A small bundled script exposes accessible tabs over the same panels. The new Voice guide is a standalone static page.
 
@@ -51,7 +51,6 @@ const links = Array.from(section.matchAll(/<a\b[^>]+href="([^"]+)"[^>]*>([^<]+)<
   ([, href, text]) => [href, text.trim()]);
 assert.deepEqual(links, [
   ['/school/run-open-weights', 'Build'],
-  ['/stack/compute', 'Compute'],
   ['/policy/data-centers', 'Voice'],
   ['/contribute', 'Contribution Guide'],
   ['/community', 'Community'],
@@ -63,7 +62,7 @@ for (const [path, label] of links) {
     assert.match(await destination.text(), /Local data centers: learn and speak up/);
   }
 }
-console.log('Homepage: all five actions follow Leading results and resolve');
+console.log('Homepage: all four actions follow Leading results and resolve');
 JS
 ```
 
@@ -76,16 +75,13 @@ const href = (p: string) => `${base}${p}` || '/';
 
 const paths = [
   {
-    id: 'learn', label: 'Learn', heading: 'Build with open AI.',
-    body: 'Run an open model locally, then compare compute options if you need more capacity.',
-    actions: [
-      { label: 'Build', route: '/school/run-open-weights' },
-      { label: 'Compute', route: '/stack/compute' },
-    ],
+    id: 'learn', label: 'Learn AI', heading: 'Build with open AI.',
+    body: 'Get hands-on: run an open model on your own machine.',
+    actions: [{ label: 'Build', route: '/school/run-open-weights' }],
     art: 'M50 74c-11-9-25-9-39-5V25c14-4 28-4 39 5 11-9 25-9 39-5v44c-14-4-28-4-39 5Zm0 0V30m-28 7c7-1 13 0 18 2m-18 9c7-1 13 0 18 2m20-11c5-2 11-3 18-2m-18 13c5-2 11-3 18-2',
   },
   {
-    id: 'policy', label: 'Learn (Policy)', heading: 'Understand data center proposals near you.',
+    id: 'policy', label: 'Learn AI Policy', heading: 'Understand data center proposals near you.',
     body: 'Find out who decides, where to check claims about power, water, noise, and local costs, and how to raise concerns on the public record.',
     actions: [{ label: 'Voice', route: '/policy/data-centers' }],
     art: 'M24 14h37l15 15v31M24 14v72h28m9-72v15h15M35 40h29M35 51h24M35 62h13m29 26H60l5-10v-8a7 7 0 0 1 14 0v8l5 10h-7m-10 4a5 5 0 0 0 10 0',
@@ -238,7 +234,7 @@ import Base from '../../layouts/Base.astro';
   description="Find official records for a local data center proposal, check claims, and send a comment to the body making the decision."
 >
   <article class="wrap section voice-guide">
-    <p class="eyebrow">Learn (Policy)</p>
+    <p class="eyebrow">Learn AI Policy</p>
     <h1>Local data centers: learn and speak up</h1>
     <p class="lede">Start with the project record. It can tell you what is proposed, who decides, and when your input can enter the public record.</p>
 
@@ -278,9 +274,9 @@ export CHROME_DEVTOOLS_AXI_SESSION=unite4ai-homepage
 chrome-devtools-axi newpage http://127.0.0.1:4321/
 ```
 
-- Desktop: observe Learn selected and the other panels absent from the accessibility snapshot. Click Learn (Policy). Press `ArrowRight`, `ArrowRight`, `End`, `Home`, then `Tab` twice. Expect Join, Learn, Join, Learn, then focus on Build and Compute in order. Activate each of the five links and verify it takes the same tab to its specified page. Check that Voice leads to the guide, not a comment form; the guide explains the official record, the claims to check, and how to comment.
+- Desktop: observe Learn AI selected and the other panels absent from the accessibility snapshot. Click Learn AI Policy. Press `ArrowRight`, `ArrowRight`, `End`, `Home`, then `Tab`. Expect Join, Learn AI, Join, Learn AI, then focus on Build. Select Join again and verify that Tab reaches Contribution Guide and then Community. Activate each of the four links and verify it takes the same tab to its specified page. Check that Voice leads to the guide, not a comment form; the guide explains the official record, the claims to check, and how to comment.
 - Mobile: `chrome-devtools-axi emulate --viewport '320x740x3,mobile,touch'`. Scroll to the chooser and activate Join. Confirm labels fit, actions wrap if needed, and opening the panel does not add horizontal scrolling (`document.documentElement.scrollWidth === document.documentElement.clientWidth`).
-- Fallback: in isolated Chrome DevTools, open the Command Menu, run **Disable JavaScript**, and reload while DevTools is open. All three headed panels and five links must be visible without the tab row. Restore JavaScript afterward.
+- Fallback: in isolated Chrome DevTools, open the Command Menu, run **Disable JavaScript**, and reload while DevTools is open. All three headed panels and four links must be visible without the tab row. Restore JavaScript afterward.
 - The existing evals-pages tests in the repo gate cover hero/results ordering and separately cover the zero-run empty state. The chooser is mounted after the whole results section, outside the empty-state conditional.
 
 - [ ] **Step 6: Run the repository gate**
@@ -299,5 +295,5 @@ Use the selective commit tool; do not take unrelated paths or local mockups:
 ```python
 d = await commit.draft()
 await d.only('apps/web/src/components/HomeIntentTabs.astro', 'apps/web/src/pages/index.astro', 'apps/web/src/pages/policy/data-centers.astro')
-await d.commit('feat: add homepage intent tabs', ['- Add Learn, Learn (Policy), and Join after Leading results, plus a guide to local data center proposals.'])
+await d.commit('feat: add homepage intent tabs', ['- Add Learn AI, Learn AI Policy, and Join after Leading results, plus a guide to local data center proposals.'])
 ```
