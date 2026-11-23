@@ -81,8 +81,8 @@ and a maintainer turns it into a pull request.
   quantization and device.
 - Keep the raw output yourself. The result file carries only its `sha256` (and, if you host
   it, an HTTPS link). Files over 16 KB are rejected.
-- Include the exact command, so someone else can reproduce the run. A result that others have
-  reproduced is shown as such; a lone result is shown as not yet reproduced.
+- Include the exact command, so someone else can reproduce the run. Grouped rows count submitting
+  accounts; a second account does not by itself establish independent reproduction.
 - Reproducing someone else's result is as valuable as a new one: submit your own file for the
   same model, benchmark, format and quantization.
 - A speed only compares on the same machine with the same runtime. To reproduce a

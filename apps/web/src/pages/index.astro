@@ -16,7 +16,6 @@ const events = (await getCollection('events')).sort(
 );
 
 const featured = models.filter((m) => m.data.featured).slice(0, 3);
-const featuredFallback = featured.length > 0 ? featured : models.slice(0, 3);
 const nextEvents = events.filter((e) => e.data.starts > new Date()).slice(0, 2);
 ---
 <Base title="Equitable AI, actually open" description="AI is a global public resource. Explore an open model and dataset registry, a free technology school, and a community building AI in public.">
@@ -34,6 +33,7 @@ const nextEvents = events.filter((e) => e.data.starts > new Date()).slice(0, 2);
       <a class="btn btn-ghost" href={href('/school')}>Start learning — free</a>
       <a class="btn btn-ghost" href={href('/registry')}>Browse the registry</a>
     </div>
+    <p><a href={href('/school/sovereign-ai/#data-privacy')}>Try a private rehearsal-planning exercise</a> — fictional notes, no account or install.</p>
   </section>
 
   <section class="wrap section" style="padding-top:0" aria-labelledby="stack-preview-title">
@@ -85,11 +85,11 @@ const nextEvents = events.filter((e) => e.data.starts > new Date()).slice(0, 2);
     </div>
   </section>
 
-  {featuredFallback.length > 0 && (
+  {featured.length > 0 && (
     <section class="wrap section" style="padding-top:0">
       <h2>Featured models</h2>
       <div class="grid grid-3" style="margin-top:1.5rem">
-        {featuredFallback.map((m) => (
+        {featured.map((m) => (
           <article class="card">
             <h3><a href={href(`/registry/models/${m.id}`)}>{m.data.name}</a></h3>
             <p>{m.data.summary}</p>

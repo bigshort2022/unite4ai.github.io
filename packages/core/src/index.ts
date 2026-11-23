@@ -15,7 +15,7 @@ export {
   leaderboard,
   localSetups,
   median,
-  reproductionLabel,
+  submitterLabel,
   type BenchmarkRef,
   type EvalGroup,
   type EvalRun,

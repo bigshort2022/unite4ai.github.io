@@ -1,6 +1,7 @@
 ---
 import { getCollection, render } from 'astro:content';
 import { giscusConfig, giscusReady } from '../lib/giscus';
+import { REPO } from '../lib/site';
 
 interface Props {
   postId: string;
@@ -34,8 +35,7 @@ roots.sort((a, b) => b.entry.data.recommends - a.entry.data.recommends
   || b.entry.data.published.valueOf() - a.entry.data.published.valueOf());
 
 const totalCount = items.length;
-const discussUrl = `https://github.com/${giscusConfig.repo}/discussions`;
-const guidelinesUrl = `https://github.com/${giscusConfig.repo}/blob/main/CODE_OF_CONDUCT.md`;
+const guidelinesUrl = `${REPO}/blob/main/CODE_OF_CONDUCT.md`;
 
 function formatWhen(d: Date) {
   return d.toLocaleString('en-US', {
@@ -60,11 +60,10 @@ function initials(name: string) {
   <header class="nyt-comments__header">
     <div class="nyt-comments__title-row">
       <h2 id="comments-heading">{totalCount} {totalCount === 1 ? 'Comment' : 'Comments'}</h2>
-      <a class="nyt-comments__jump" href="#comment-compose">Leave a comment</a>
+      <a class="nyt-comments__jump" href="#comment-compose">{giscusReady ? 'Join the article discussion' : 'How to share feedback'}</a>
     </div>
     <p class="nyt-comments__lede">
-      Reader discussion — be civil, cite experience, and disagree on the facts. Comments are public
-      under your GitHub identity.
+      Read curated comments. If you post on GitHub, your feedback is public under your GitHub identity.
     </p>
     <div class="nyt-comments__controls">
       <label class="nyt-comments__sort">
@@ -83,7 +82,7 @@ function initials(name: string) {
 
   <div class="nyt-comments__thread" data-comments-thread>
     {roots.length === 0 ? (
-      <p class="nyt-comments__empty">No curated comments yet — be the first in the live thread.</p>
+      <p class="nyt-comments__empty">No curated comments yet.</p>
     ) : (
       roots.map(({ entry, Content, children }) => (
         <article
@@ -112,7 +111,6 @@ function initials(name: string) {
                 <span aria-hidden="true">▴</span> {entry.data.recommends}
                 <span class="sr-only"> recommends</span>
               </span>
-              <a href="#comment-compose">Reply</a>
             </footer>
 
             {children.length > 0 && (
@@ -147,7 +145,6 @@ function initials(name: string) {
                             <span aria-hidden="true">▴</span> {child.data.recommends}
                             <span class="sr-only"> recommends</span>
                           </span>
-                          <a href="#comment-compose">Reply</a>
                         </footer>
                       </div>
                     </article>
@@ -161,17 +158,19 @@ function initials(name: string) {
   </div>
 
   <div class="nyt-comments__compose" id="comment-compose">
-    <h3>Join the conversation</h3>
+    <h3>{giscusReady ? 'Join the article discussion' : 'Share feedback on this article'}</h3>
     {giscusReady ? (
       <p class="nyt-comments__compose-lede">
-        Sign in with GitHub to post. Threads live in Discussions and appear on this page.
+        Sign in with GitHub to post publicly. Threads live in GitHub Discussions and appear on this page through Giscus.
       </p>
     ) : (
-      <p class="nyt-comments__compose-lede">
-        Live commenting uses GitHub Discussions via Giscus. Until that category is connected,
-        {' '}<a href={discussUrl}>start a discussion on GitHub</a>
-        {' '}or add a markdown file under <code>src/content/comments/</code> in a pull request.
-      </p>
+      <div class="nyt-comments__compose-lede">
+        <p>Comments are not open on this page. Include the article link if you post feedback in a public GitHub issue.</p>
+        <p>
+          <a href={`${REPO}/issues`}>Read public issues</a>
+          {' · '}<a href={`${REPO}/issues/new?blank=1`}>Sign in on GitHub to post public feedback</a>
+        </p>
+      </div>
     )}
 
     {giscusReady && (

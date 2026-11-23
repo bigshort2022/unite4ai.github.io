@@ -1,7 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
 import NoResults from '../../components/NoResults.astro';
-import { reproductionLabel } from '@unite4ai/core';
+import { submitterLabel } from '@unite4ai/core';
 import { CATEGORIES, CATEGORY_LABELS, SUBMIT_GUIDE, deviceLine, formatNumber, loadEvals, runsLabel, runtimeLabel, scoreRange, withUnit } from '../../lib/evals';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -21,7 +21,7 @@ const hasRows = boards.some((b) => b.rows.length > 0);
     <p class="lede">
       Local runs use contributors' own machines; approved API comparators are labelled separately.
       Each result includes its exact command, setup, and a hash of the raw output. Results are
-      self-reported: give the most weight to the ones other people have reproduced.
+      self-reported. Counts show contributing accounts, not independent reproductions.
     </p>
     <p>These leaderboards are the experiments behind <a href={href('/exchange')}>exchange findings</a>. A score alone is not a reviewed finding; follow the exchange for hypotheses, review states and lineage.</p>
     <p style="margin-top:.8rem;color:var(--u-text-dim)">
@@ -124,7 +124,7 @@ const hasRows = boards.some((b) => b.rows.length > 0);
                           <td class="num">{row.tokens_per_second === null ? '—' : `${formatNumber(row.tokens_per_second)} tok/s`}</td>
                         )}
                         <td>
-                          <span class={`tag${row.submitters.length > 1 ? ' tag-open' : ''}`}>{reproductionLabel(row)}</span>
+                          <span class="tag">{submitterLabel(row)}</span>
                           <small>{runsLabel(row.runs, benchmark.data.repeat !== undefined)} · latest {row.latest}</small>
                         </td>
                       </tr>;

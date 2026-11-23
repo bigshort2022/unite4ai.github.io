@@ -23,10 +23,12 @@ bun run validate     # content gate (CI)
 bun run typecheck    # tsc over packages/ and the CLI (CI)
 bun run build        # static site + Pagefind
 bun test             # all tests
-bun run sync:d1      # refresh registry JSON from markdown
+bun run sync:d1      # refresh the bundled Worker registry snapshot
 bun run eval -- --help   # run a benchmark against a local model
 bun run exchange -- --help   # scaffold exchange records (docs/exchange/agent-guide.md)
 ```
+
+To check site search locally, build first and then run `bun run preview`. Pagefind's index is generated during the build, not by `bun run dev`.
 
 ## Coding agents
 
@@ -36,9 +38,11 @@ bun run exchange -- --help   # scaffold exchange records (docs/exchange/agent-gu
 
 See [apps/api/README.md](apps/api/README.md). Deploy to Cloudflare Workers (free tier: 100k req/day).
 
+The static site's [registry feed](https://unite4ai.com/data/registry-index.json) builds with the registry pages from the same Astro content collections. It updates on site publication, not on Worker snapshot refresh, and may be cached. Start at [`/llms.txt`](https://unite4ai.com/llms.txt) for the public feed contracts.
+
 ## Submit content
 
-- Web form: `/submit` on the site
+- Web form: `/submit` prepares an editable draft locally. Sign in separately to paste and post it as a public GitHub issue.
 - CLI: `bun run publish:cli -- new-model my-slug`
 - Git PR: add markdown under `apps/web/src/content/`
 - School: [Learn about Sovereign AI](https://unite4ai.com/school/sovereign-ai/) offers four account-free exercises and optional source links; edit `apps/web/src/pages/school/sovereign-ai.astro`.

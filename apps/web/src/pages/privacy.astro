@@ -5,38 +5,35 @@ import { REPO } from '../lib/site';
 <Base title="Privacy">
   <section class="wrap section">
     <p class="eyebrow">Privacy</p>
-    <h1>We can't surveil you</h1>
+    <h1>Privacy on Unite4AI</h1>
     <p class="lede">
-      Not "we promise not to" — we architecturally cannot. This site is static files served from a
-      CDN. There is no application server, no user database, and no session state. Here is the
-      complete, honest accounting.
+      You can read the site and draft a registry submission without an account. The site is hosted
+      on GitHub Pages; public posting happens separately on GitHub.
     </p>
 
     <div class="grid grid-2" style="margin-top:2.5rem">
       <article class="card">
-        <h3>What we don't collect</h3>
+        <h3>What stays in your browser</h3>
         <ul style="margin:0;padding-left:1.2rem">
-          <li>No accounts, no passwords, no email addresses</li>
-          <li>No cookies of any kind</li>
-          <li>No advertising or third-party trackers</li>
-          <li>No search queries — search runs in your browser</li>
-          <li>No fingerprinting, no session recording</li>
+          <li>Search text is processed locally. Your browser requests public index files from Unite4AI as needed; it does not send the search text.</li>
+          <li>Registry form entries and local drafts are not saved to site storage or put into a URL or network request. Copying writes the selected draft text to your clipboard. The handoff opens a blank issue; you decide what to paste and post.</li>
+          <li>Your light/dark appearance choice stays in browser local storage. Clearing site data restores your system preference.</li>
+          <li>Unite4AI does not create visitor accounts or use advertising trackers.</li>
         </ul>
       </article>
       <article class="card">
-        <h3>What is unavoidably visible</h3>
+        <h3>What leaves your browser</h3>
         <ul style="margin:0;padding-left:1.2rem">
-          <li>Our host (GitHub Pages) sees standard request logs, including your IP, under <a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement">GitHub's privacy statement</a>. We cannot access these.</li>
-          <li>If you comment on a blog post, open a discussion, or file an issue, that happens on GitHub under your GitHub identity and is public. Curated comments may also ship as markdown in this repository.</li>
-          <li>Course progress, if we add it, stays in your browser's local storage and never leaves your device.</li>
-          <li>Your light/dark appearance choice stays in this browser's local storage. It is not sent to us; clearing site data restores your system preference.</li>
+          <li>GitHub Pages can log ordinary requests, including your IP, under <a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement">GitHub’s privacy statement</a>. The site also requests fonts from Google Fonts.</li>
+          <li>The browser may attempt a performance request to this site containing a metric, its value, the page path, and a timestamp. It does not include draft text or search terms.</li>
+          <li>Posting an issue or pull request requires GitHub sign-in and is public under your GitHub identity. Do not post credentials or private information.</li>
+          <li>Where enabled, Giscus loads from <code>giscus.app</code> and uses GitHub Discussions for public comments. Curated comments are published in the repository.</li>
         </ul>
       </article>
     </div>
 
     <p style="margin-top:2rem">
-      Verify all of this yourself: open your browser's network tab, or read
-      <a href={REPO}>the source</a>. That is the point of building it this way.
+      You can inspect requests in your browser’s network panel or read <a href={REPO}>the source</a>.
     </p>
   </section>
 </Base>

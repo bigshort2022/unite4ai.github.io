@@ -3,7 +3,7 @@ import { REPO_SLUG } from '../lib/site';
 
 /**
  * Giscus comments — requires repo configuration at https://giscus.app
- * Set PUBLIC_GISCUS_REPO and PUBLIC_GISCUS_REPO_ID in build env to enable.
+ * Set PUBLIC_GISCUS_REPO_ID and PUBLIC_GISCUS_CATEGORY_ID in the build env to enable.
  */
 interface Props {
   term?: string;
@@ -19,8 +19,9 @@ const enabled = Boolean(repoId && categoryId);
 {enabled && (
   <section class="giscus-section wrap section" style="padding-top:0" aria-label="Discussion">
     <h2>Discussion</h2>
-    <p class="lede" style="font-size:.9rem">Comments are powered by GitHub Discussions. No account on this site — sign in with GitHub to participate.</p>
+    <p class="lede" style="font-size:.9rem">GitHub Discussions are loaded through Giscus. Sign in with GitHub to post publicly under your GitHub identity.</p>
     <script
+      is:inline
       src="https://giscus.app/client.js"
       data-repo={repo}
       data-repo-id={repoId}

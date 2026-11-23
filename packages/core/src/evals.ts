@@ -209,10 +209,10 @@ export function indistinguishableFrom(rows: EvalGroup[]): (number | null)[] {
   });
 }
 
-/** Results are self-reported; independent submitters are the trust signal, however many runs one of them made. */
-export function reproductionLabel(group: EvalGroup): string {
-  const others = group.submitters.length - 1;
-  return others > 0 ? `reproduced by ${others}` : 'not yet reproduced';
+/** Account attribution is self-reported and does not establish independent reproduction. */
+export function submitterLabel(group: EvalGroup): string {
+  const count = group.submitters.length;
+  return `${count} submitting ${count === 1 ? 'account' : 'accounts'}`;
 }
 
 /**

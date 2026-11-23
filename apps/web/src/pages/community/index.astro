@@ -16,17 +16,18 @@ const posts = (await getCollection('posts')).sort((a, b) => b.data.published.val
     <p class="eyebrow">Community</p>
     <h1>Show up. Build. Belong.</h1>
     <p class="lede">
-      Workshops, hackathons, and office hours — plus a discussion forum where every thread is
-      public and searchable. Membership here is earned by contribution, not by filling in a form.
+      Find workshops, hackathons, office hours, and project updates. Read public project issues
+      without an account. To ask a question or make a suggestion, sign in to GitHub and post publicly.
     </p>
     <div class="hero-actions">
-      <a class="btn btn-primary" href={`${REPO}/discussions`}>Join the discussion</a>
-      <a class="btn btn-ghost" href={href('/contribute')}>Contribute</a>
+      <a class="btn btn-primary" href={`${REPO}/issues`}>Read public issues</a>
+      <a class="btn btn-ghost" href={`${REPO}/issues/new?blank=1`}>Sign in on GitHub to post a public issue</a>
+      <a class="btn btn-ghost" href={href('/contribute')}>Ways to contribute</a>
     </div>
 
     <h2 style="margin-top:3rem">Upcoming events</h2>
     {upcoming.length === 0 ? (
-      <div class="empty" style="margin-top:1rem">Nothing scheduled yet — propose one in Discussions.</div>
+      <div class="empty" style="margin-top:1rem">Nothing scheduled yet. You can propose an event in a public GitHub issue.</div>
     ) : (
       <div class="grid grid-2" style="margin-top:1.2rem">
         {upcoming.map((e) => (

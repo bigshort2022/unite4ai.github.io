@@ -112,8 +112,8 @@ test('leaderboard and benchmark page render fixture results', { timeout: 120_000
   assert.match(board, /<td class="rank num">2<\/td>/);
   assert.match(board, /<span class="score">62%<\/span>/);
   assert.match(board, /60–64/);
-  assert.match(board, /reproduced by 1/);
-  assert.match(board, /not yet reproduced/);
+  assert.match(board, /2 submitting accounts/);
+  assert.match(board, /1 submitting account</);
   assert.match(board, /self-reported/i);
   assert.match(
     board.replace(/\s+/g, ' '),

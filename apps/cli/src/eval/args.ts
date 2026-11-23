@@ -4,17 +4,20 @@ import type { ApiRequestOptions } from './api.ts';
 import { publicBaseUrl } from './client.ts';
 import type { Hardware } from './hardware.ts';
 import { DEFAULT_MAX_SECONDS, DEFAULT_REQUEST_TIMEOUT_SECONDS, type EvalOptions } from './run.ts';
+import { CLI, UsageError } from '../terminal.ts';
 
 const REQUIRED = ['benchmark', 'model', 'served-model', 'submitter', 'runtime', 'runtime-version', 'format', 'quantization'];
 const PRICE_FLAGS = ['price-snapshot', 'price-date', 'price-sha256'];
 const API_FLAGS = ['api-approval', ...PRICE_FLAGS];
 const OPTIONAL = ['notes', 'base-url', 'max-seconds', 'request-timeout', 'source-file', 'device', 'accelerator', 'memory-gb', ...API_FLAGS];
+const FLAGS = new Set([...REQUIRED, ...OPTIONAL]);
 
 export const EVAL_USAGE = `usage: bun run eval -- --benchmark <id> --model <model-card-id> --served-model <id of the model the server has loaded>
   --submitter <github-handle> --runtime <${EVAL_RUNTIMES.join('|')}> --runtime-version <version>
   --format <${EVAL_FORMATS.join('|')}> --quantization <text, e.g. 4bit or Q4_K_M or none>
   [--notes <one line about the setup, e.g. "thinking disabled">]
-  [--base-url <url>] [--source-file <path>] (the benchmark source only; an answers file still comes from the cache or the network)
+  [--base-url <url>] Default: $AGENT_MODEL_BASE_URL or http://127.0.0.1:18082/v1 (local runtime).
+  [--source-file <path>] (the benchmark source only; an answers file still comes from the cache or the network)
   [--max-seconds ${DEFAULT_MAX_SECONDS}] (per invocation: a resumed run gets a fresh limit)
       a 2048-token benchmark can take hours on a slow machine; the limit is checked between replies,
       so a run can overrun it by one reply timeout; re-running the same command resumes
@@ -24,24 +27,30 @@ export const EVAL_USAGE = `usage: bun run eval -- --benchmark <id> --model <mode
   Paid API (repeat-run benchmarks only): --runtime api --base-url <exact HTTPS URL> --api-approval <local JSON>
   Use --format other --quantization undisclosed and report the client hardware.
   Reads U4AI_EVAL_API_KEY from the environment. Set a provider-side spending cap first.
-  [--price-snapshot <local JSON> --price-date <YYYY-MM-DD> --price-sha256 <hex>] (all three or none)`;
+  [--price-snapshot <local JSON> --price-date <YYYY-MM-DD> --price-sha256 <hex>] (all three or none)
+
+Run only against an authorized server. Help does not load a model, call a server or write a result.
+Examples:
+  ${CLI} eval --help
+  ls apps/web/src/content/benchmarks
+See CONTRIBUTING.md for fully specified local and paid run examples.`;
 
 const quote = (arg: string) => (/^[\w./:@=,+-]+$/.test(arg) ? arg : `'${arg.replace(/'/g, `'\\''`)}'`);
 
 function oneOf(flag: string, value: string, allowed: readonly string[]): void {
-  if (!allowed.includes(value)) throw new Error(`--${flag} must be one of: ${allowed.join(', ')}`);
+  if (!allowed.includes(value)) throw new UsageError(`--${flag} must be one of: ${allowed.join(', ')}`);
 }
 
 function positive(flag: string, value: string): number {
   const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) throw new Error(`--${flag} must be a positive number`);
+  if (!Number.isFinite(parsed) || parsed <= 0) throw new UsageError(`--${flag} must be a positive number`);
   return parsed;
 }
 
 /** Below a second no reply could finish, and a value that rounds to no time at all would fail every item. */
 function requestTimeoutSeconds(value: string): number {
   const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 1) throw new Error('--request-timeout must be a number of seconds, at least 1');
+  if (!Number.isFinite(parsed) || parsed < 1) throw new UsageError('--request-timeout must be a number of seconds, at least 1');
   return parsed;
 }
 
@@ -51,20 +60,23 @@ export function parseEvalArgs(
 ): EvalOptions {
   const flags = new Map<string, string>();
   for (let i = 0; i < argv.length; i += 2) {
-    const name = argv[i]?.replace(/^--/, '');
-    if (!argv[i]?.startsWith('--') || ![...REQUIRED, ...OPTIONAL].includes(name)) throw new Error(`unknown flag ${argv[i]}\n${EVAL_USAGE}`);
-    if (argv[i + 1] === undefined) throw new Error(`--${name} needs a value\n${EVAL_USAGE}`);
-    flags.set(name, argv[i + 1]);
+    const flag = argv[i];
+    const name = flag.slice(2);
+    if (!flag.startsWith('--') || !FLAGS.has(name)) throw new UsageError(`unknown flag ${flag}`);
+    const value = argv[i + 1];
+    if (value === undefined || value.startsWith('--')) throw new UsageError(`${flag} needs a value`);
+    if (flags.has(name)) throw new UsageError(`duplicate flag ${flag}`);
+    flags.set(name, value);
   }
   const missing = REQUIRED.filter((name) => !flags.has(name));
-  if (missing.length > 0) throw new Error(`missing: ${missing.map((name) => `--${name}`).join(', ')}\n${EVAL_USAGE}`);
+  if (missing.length > 0) throw new UsageError(`missing: ${missing.map((name) => `--${name}`).join(', ')}`);
   const get = (name: string) => flags.get(name) as string;
 
   oneOf('runtime', get('runtime'), EVAL_RUNTIMES);
   oneOf('format', get('format'), EVAL_FORMATS);
   // The same pattern the content gate applies to run.submitter.
   if (!evalResultSchema.shape.run.shape.submitter.safeParse(get('submitter')).success) {
-    throw new Error('--submitter must be a lowercase GitHub handle');
+    throw new UsageError('--submitter must be a lowercase GitHub handle');
   }
 
   const hardware: Partial<Hardware> = {};
@@ -75,17 +87,33 @@ export function parseEvalArgs(
   }
   if (flags.has('memory-gb')) hardware.memory_gb = positive('memory-gb', get('memory-gb'));
 
-  let apiRequest: ApiRequestOptions | undefined;
   const paid = get('runtime') === 'api';
+  const hasPrices = PRICE_FLAGS.some((flag) => flags.has(flag));
   if (paid) {
-    if (!flags.get('api-approval')) throw new Error('--runtime api requires --api-approval');
-    if (!flags.get('base-url')) throw new Error('--runtime api requires an explicit --base-url');
+    if (!flags.get('api-approval')) throw new UsageError('--runtime api requires --api-approval');
+    if (!flags.get('base-url')) throw new UsageError('--runtime api requires an explicit --base-url');
+    if (hasPrices && PRICE_FLAGS.some((flag) => !flags.get(flag))) {
+      throw new UsageError('--price-snapshot, --price-date and --price-sha256 are required together');
+    }
+  } else if (API_FLAGS.some((flag) => flags.has(flag))) {
+    throw new UsageError('--api-approval and price snapshot flags require --runtime api');
+  }
+  const baseUrl = paid
+    ? get('base-url')
+    : (flags.get('base-url') ?? context.env.AGENT_MODEL_BASE_URL ?? 'http://127.0.0.1:18082/v1').replace(/\/$/, '');
+  if (!(paid ? /^https:\/\// : /^https?:\/\//).test(baseUrl) || !URL.canParse(baseUrl)) {
+    const message = paid ? 'API --base-url must be an exact HTTPS URL' : '--base-url must be a URL like http://127.0.0.1:18082/v1';
+    if (flags.has('base-url')) throw new UsageError(message);
+    throw new Error(`AGENT_MODEL_BASE_URL: ${message}`);
+  }
+  const maxSeconds = flags.has('max-seconds') ? positive('max-seconds', get('max-seconds')) : DEFAULT_MAX_SECONDS;
+  const requestTimeoutMs = Math.round(
+    (flags.has('request-timeout') ? requestTimeoutSeconds(get('request-timeout')) : DEFAULT_REQUEST_TIMEOUT_SECONDS) * 1000,
+  );
+  let apiRequest: ApiRequestOptions | undefined;
+  if (paid) {
     const key = context.env.U4AI_EVAL_API_KEY;
     if (!key) throw new Error('--runtime api requires U4AI_EVAL_API_KEY from the environment');
-    const hasPrices = PRICE_FLAGS.some((flag) => flags.has(flag));
-    if (hasPrices && PRICE_FLAGS.some((flag) => !flags.get(flag))) {
-      throw new Error('--price-snapshot, --price-date and --price-sha256 are required together');
-    }
     apiRequest = {
       approvalFile: get('api-approval'),
       key,
@@ -93,14 +121,6 @@ export function parseEvalArgs(
         ? { priceSnapshot: { file: get('price-snapshot'), date: get('price-date'), sha256: get('price-sha256') } }
         : {}),
     };
-  } else if (API_FLAGS.some((flag) => flags.has(flag))) {
-    throw new Error('--api-approval and price snapshot flags require --runtime api');
-  }
-  const baseUrl = paid
-    ? get('base-url')
-    : (flags.get('base-url') ?? context.env.AGENT_MODEL_BASE_URL ?? 'http://127.0.0.1:18082/v1').replace(/\/$/, '');
-  if (!/^https?:\/\//.test(baseUrl) || !URL.canParse(baseUrl)) {
-    throw new Error(paid ? 'API --base-url must be an exact HTTPS URL' : '--base-url must be a URL like http://127.0.0.1:18082/v1');
   }
   // The command is published with the result: it always says which server the run used, and
   // it gives away neither a private file path nor URL secrets.
@@ -130,10 +150,8 @@ export function parseEvalArgs(
     contentRoot: join(context.root, 'apps/web/src/content'),
     workDir: join(context.root, '.agent/evals'),
     command: `bun run eval -- ${published.map(quote).join(' ')}`,
-    maxSeconds: flags.has('max-seconds') ? positive('max-seconds', get('max-seconds')) : DEFAULT_MAX_SECONDS,
-    requestTimeoutMs: Math.round(
-      (flags.has('request-timeout') ? requestTimeoutSeconds(get('request-timeout')) : DEFAULT_REQUEST_TIMEOUT_SECONDS) * 1000,
-    ),
+    maxSeconds,
+    requestTimeoutMs,
     ...(flags.has('notes') ? { notes: get('notes') } : {}),
     ...(flags.has('source-file') ? { sourceFile: get('source-file') } : {}),
     hardware,
