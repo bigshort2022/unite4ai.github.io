@@ -1,0 +1,5839 @@
+{
+ "commit": "f7cf7359b7ac615a0b294831c5ba2bc95ee4a000",
+ "checker_sha256": "2aae7a68461a8f76c0be3894c8901b66b56967a1989d3ab066051e3fb97f1538",
+ "questions_sha256": "aef168155ebd74b7ac2401198b201343bc7d16d7a3d7e0d4e6d8ee82c6969b2a",
+ "answers_sha256": "244e00ce9395df948bcafc7bee64e8f9c87ef70887587d83cae45b13699f3047",
+ "entries": [
+  {
+   "id": "multiple_0",
+   "variant": "canonical",
+   "tool": "triangle_properties.get",
+   "arguments": {
+    "side1": 5,
+    "side2": 4,
+    "side3": 3,
+    "get_area": true,
+    "get_perimeter": true,
+    "get_angles": true
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_0",
+   "variant": "minimal",
+   "tool": "triangle_properties.get",
+   "arguments": {
+    "side1": 5,
+    "side2": 4,
+    "side3": 3
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_0",
+   "variant": "wrong_function",
+   "tool": "circle_properties.get",
+   "arguments": {
+    "side1": 5,
+    "side2": 4,
+    "side3": 3,
+    "get_area": true,
+    "get_perimeter": true,
+    "get_angles": true
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_0",
+   "variant": "missing_required",
+   "tool": "triangle_properties.get",
+   "arguments": {
+    "side2": 4,
+    "side3": 3,
+    "get_area": true,
+    "get_perimeter": true,
+    "get_angles": true
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_0",
+   "variant": "unexpected_param",
+   "tool": "triangle_properties.get",
+   "arguments": {
+    "side1": 5,
+    "side2": 4,
+    "side3": 3,
+    "get_area": true,
+    "get_perimeter": true,
+    "get_angles": true,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_0",
+   "variant": "integer_as_string",
+   "tool": "triangle_properties.get",
+   "arguments": {
+    "side1": "5",
+    "side2": 4,
+    "side3": 3,
+    "get_area": true,
+    "get_perimeter": true,
+    "get_angles": true
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_0",
+   "variant": "integer_as_fraction",
+   "tool": "triangle_properties.get",
+   "arguments": {
+    "side1": 5.5,
+    "side2": 4,
+    "side3": 3,
+    "get_area": true,
+    "get_perimeter": true,
+    "get_angles": true
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_0",
+   "variant": "integer_off_by_one",
+   "tool": "triangle_properties.get",
+   "arguments": {
+    "side1": 6,
+    "side2": 4,
+    "side3": 3,
+    "get_area": true,
+    "get_perimeter": true,
+    "get_angles": true
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_0",
+   "variant": "boolean_flipped",
+   "tool": "triangle_properties.get",
+   "arguments": {
+    "side1": 5,
+    "side2": 4,
+    "side3": 3,
+    "get_area": false,
+    "get_perimeter": true,
+    "get_angles": true
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_0",
+   "variant": "boolean_as_string",
+   "tool": "triangle_properties.get",
+   "arguments": {
+    "side1": 5,
+    "side2": 4,
+    "side3": 3,
+    "get_area": "true",
+    "get_perimeter": true,
+    "get_angles": true
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_0",
+   "variant": "boolean_as_number",
+   "tool": "triangle_properties.get",
+   "arguments": {
+    "side1": 5,
+    "side2": 4,
+    "side3": 3,
+    "get_area": 1,
+    "get_perimeter": true,
+    "get_angles": true
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_1",
+   "variant": "canonical",
+   "tool": "math.triangle_area_heron",
+   "arguments": {
+    "side1": 3,
+    "side2": 4,
+    "side3": 5
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_1",
+   "variant": "minimal",
+   "tool": "math.triangle_area_heron",
+   "arguments": {
+    "side1": 3,
+    "side2": 4,
+    "side3": 5
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_1",
+   "variant": "wrong_function",
+   "tool": "math.circle_area",
+   "arguments": {
+    "side1": 3,
+    "side2": 4,
+    "side3": 5
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_1",
+   "variant": "missing_required",
+   "tool": "math.triangle_area_heron",
+   "arguments": {
+    "side2": 4,
+    "side3": 5
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_1",
+   "variant": "unexpected_param",
+   "tool": "math.triangle_area_heron",
+   "arguments": {
+    "side1": 3,
+    "side2": 4,
+    "side3": 5,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_1",
+   "variant": "integer_as_string",
+   "tool": "math.triangle_area_heron",
+   "arguments": {
+    "side1": "3",
+    "side2": 4,
+    "side3": 5
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_1",
+   "variant": "integer_as_fraction",
+   "tool": "math.triangle_area_heron",
+   "arguments": {
+    "side1": 3.5,
+    "side2": 4,
+    "side3": 5
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_1",
+   "variant": "integer_off_by_one",
+   "tool": "math.triangle_area_heron",
+   "arguments": {
+    "side1": 4,
+    "side2": 4,
+    "side3": 5
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_2",
+   "variant": "canonical",
+   "tool": "country_info.capital",
+   "arguments": {
+    "country": "Brazil"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_2",
+   "variant": "minimal",
+   "tool": "country_info.capital",
+   "arguments": {
+    "country": "Brazil"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_2",
+   "variant": "wrong_function",
+   "tool": "country_info.largest_city",
+   "arguments": {
+    "country": "Brazil"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_2",
+   "variant": "missing_required",
+   "tool": "country_info.capital",
+   "arguments": {},
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_2",
+   "variant": "unexpected_param",
+   "tool": "country_info.capital",
+   "arguments": {
+    "country": "Brazil",
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_2",
+   "variant": "string_case_and_separators",
+   "tool": "country_info.capital",
+   "arguments": {
+    "country": "BRAZIL"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_2",
+   "variant": "string_wrong",
+   "tool": "country_info.capital",
+   "arguments": {
+    "country": "Brazil x"
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_3",
+   "variant": "canonical",
+   "tool": "EuclideanDistance.calculate",
+   "arguments": {
+    "pointA": [
+     3,
+     4
+    ],
+    "pointB": [
+     1,
+     2
+    ],
+    "rounding": 0
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_3",
+   "variant": "minimal",
+   "tool": "EuclideanDistance.calculate",
+   "arguments": {
+    "pointA": [
+     3,
+     4
+    ],
+    "pointB": [
+     1,
+     2
+    ]
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_3",
+   "variant": "wrong_function",
+   "tool": "angleToXAxis.calculate",
+   "arguments": {
+    "pointA": [
+     3,
+     4
+    ],
+    "pointB": [
+     1,
+     2
+    ],
+    "rounding": 0
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_3",
+   "variant": "missing_required",
+   "tool": "EuclideanDistance.calculate",
+   "arguments": {
+    "pointB": [
+     1,
+     2
+    ],
+    "rounding": 0
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_3",
+   "variant": "unexpected_param",
+   "tool": "EuclideanDistance.calculate",
+   "arguments": {
+    "pointA": [
+     3,
+     4
+    ],
+    "pointB": [
+     1,
+     2
+    ],
+    "rounding": 0,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_3",
+   "variant": "integer_as_string",
+   "tool": "EuclideanDistance.calculate",
+   "arguments": {
+    "pointA": [
+     3,
+     4
+    ],
+    "pointB": [
+     1,
+     2
+    ],
+    "rounding": "0"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_3",
+   "variant": "integer_as_fraction",
+   "tool": "EuclideanDistance.calculate",
+   "arguments": {
+    "pointA": [
+     3,
+     4
+    ],
+    "pointB": [
+     1,
+     2
+    ],
+    "rounding": 0.5
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_3",
+   "variant": "integer_off_by_one",
+   "tool": "EuclideanDistance.calculate",
+   "arguments": {
+    "pointA": [
+     3,
+     4
+    ],
+    "pointB": [
+     1,
+     2
+    ],
+    "rounding": 1
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_3",
+   "variant": "array_reversed",
+   "tool": "EuclideanDistance.calculate",
+   "arguments": {
+    "pointA": [
+     4,
+     3
+    ],
+    "pointB": [
+     1,
+     2
+    ],
+    "rounding": 0
+   },
+   "valid": false,
+   "error_type": "value_error:list/tuple"
+  },
+  {
+   "id": "multiple_3",
+   "variant": "array_as_string",
+   "tool": "EuclideanDistance.calculate",
+   "arguments": {
+    "pointA": "[3, 4]",
+    "pointB": [
+     1,
+     2
+    ],
+    "rounding": 0
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_4",
+   "variant": "canonical",
+   "tool": "kinematics.calculate_displacement",
+   "arguments": {
+    "initial_speed": 20,
+    "acceleration": 10,
+    "time": 5,
+    "rounding": 2
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_4",
+   "variant": "minimal",
+   "tool": "kinematics.calculate_displacement",
+   "arguments": {
+    "initial_speed": 20,
+    "acceleration": 10,
+    "time": 5
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_4",
+   "variant": "wrong_function",
+   "tool": "kinematics.calculate_final_speed",
+   "arguments": {
+    "initial_speed": 20,
+    "acceleration": 10,
+    "time": 5,
+    "rounding": 2
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_4",
+   "variant": "missing_required",
+   "tool": "kinematics.calculate_displacement",
+   "arguments": {
+    "acceleration": 10,
+    "time": 5,
+    "rounding": 2
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_4",
+   "variant": "unexpected_param",
+   "tool": "kinematics.calculate_displacement",
+   "arguments": {
+    "initial_speed": 20,
+    "acceleration": 10,
+    "time": 5,
+    "rounding": 2,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_4",
+   "variant": "integer_as_string",
+   "tool": "kinematics.calculate_displacement",
+   "arguments": {
+    "initial_speed": "20",
+    "acceleration": 10,
+    "time": 5,
+    "rounding": 2
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_4",
+   "variant": "integer_as_fraction",
+   "tool": "kinematics.calculate_displacement",
+   "arguments": {
+    "initial_speed": 20.5,
+    "acceleration": 10,
+    "time": 5,
+    "rounding": 2
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_4",
+   "variant": "integer_off_by_one",
+   "tool": "kinematics.calculate_displacement",
+   "arguments": {
+    "initial_speed": 21,
+    "acceleration": 10,
+    "time": 5,
+    "rounding": 2
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_5",
+   "variant": "canonical",
+   "tool": "weather.get_by_coordinates_date",
+   "arguments": {
+    "coordinates": [
+     46.603354,
+     1.888334
+    ],
+    "date": "2019-12-13"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_5",
+   "variant": "minimal",
+   "tool": "weather.get_by_coordinates_date",
+   "arguments": {
+    "coordinates": [
+     46.603354,
+     1.888334
+    ],
+    "date": "2019-12-13"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_5",
+   "variant": "wrong_function",
+   "tool": "weather.get_by_city_date",
+   "arguments": {
+    "coordinates": [
+     46.603354,
+     1.888334
+    ],
+    "date": "2019-12-13"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_5",
+   "variant": "missing_required",
+   "tool": "weather.get_by_coordinates_date",
+   "arguments": {
+    "date": "2019-12-13"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_5",
+   "variant": "unexpected_param",
+   "tool": "weather.get_by_coordinates_date",
+   "arguments": {
+    "coordinates": [
+     46.603354,
+     1.888334
+    ],
+    "date": "2019-12-13",
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_5",
+   "variant": "string_case_and_separators",
+   "tool": "weather.get_by_coordinates_date",
+   "arguments": {
+    "coordinates": [
+     46.603354,
+     1.888334
+    ],
+    "date": "2019-12-13"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_5",
+   "variant": "string_wrong",
+   "tool": "weather.get_by_coordinates_date",
+   "arguments": {
+    "coordinates": [
+     46.603354,
+     1.888334
+    ],
+    "date": "2019-12-13 x"
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_5",
+   "variant": "tuple_reversed",
+   "tool": "weather.get_by_coordinates_date",
+   "arguments": {
+    "coordinates": [
+     1.888334,
+     46.603354
+    ],
+    "date": "2019-12-13"
+   },
+   "valid": false,
+   "error_type": "value_error:list/tuple"
+  },
+  {
+   "id": "multiple_5",
+   "variant": "tuple_as_string",
+   "tool": "weather.get_by_coordinates_date",
+   "arguments": {
+    "coordinates": "[46.603354, 1.888334]",
+    "date": "2019-12-13"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_6",
+   "variant": "canonical",
+   "tool": "capacitance_calculator.calculate",
+   "arguments": {
+    "A": 10,
+    "d": 0.01,
+    "K": 1.0
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_6",
+   "variant": "minimal",
+   "tool": "capacitance_calculator.calculate",
+   "arguments": {
+    "A": 10,
+    "d": 0.01
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_6",
+   "variant": "wrong_function",
+   "tool": "resistance_calculator.calculate",
+   "arguments": {
+    "A": 10,
+    "d": 0.01,
+    "K": 1.0
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_6",
+   "variant": "missing_required",
+   "tool": "capacitance_calculator.calculate",
+   "arguments": {
+    "d": 0.01,
+    "K": 1.0
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_6",
+   "variant": "unexpected_param",
+   "tool": "capacitance_calculator.calculate",
+   "arguments": {
+    "A": 10,
+    "d": 0.01,
+    "K": 1.0,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_6",
+   "variant": "integer_as_string",
+   "tool": "capacitance_calculator.calculate",
+   "arguments": {
+    "A": "10",
+    "d": 0.01,
+    "K": 1.0
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_6",
+   "variant": "integer_as_fraction",
+   "tool": "capacitance_calculator.calculate",
+   "arguments": {
+    "A": 10.5,
+    "d": 0.01,
+    "K": 1.0
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_6",
+   "variant": "integer_off_by_one",
+   "tool": "capacitance_calculator.calculate",
+   "arguments": {
+    "A": 11,
+    "d": 0.01,
+    "K": 1.0
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_6",
+   "variant": "float_as_whole_number",
+   "tool": "capacitance_calculator.calculate",
+   "arguments": {
+    "A": 10,
+    "d": 0,
+    "K": 1.0
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_6",
+   "variant": "float_as_string",
+   "tool": "capacitance_calculator.calculate",
+   "arguments": {
+    "A": 10,
+    "d": "0.01",
+    "K": 1.0
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_7",
+   "variant": "canonical",
+   "tool": "wildlife_population.assess_growth",
+   "arguments": {
+    "species": "deer",
+    "location": "Washington state",
+    "duration": 10
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_7",
+   "variant": "minimal",
+   "tool": "wildlife_population.assess_growth",
+   "arguments": {
+    "species": "deer",
+    "location": "Washington state",
+    "duration": 10
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_7",
+   "variant": "wrong_function",
+   "tool": "ecological_impact.analyze",
+   "arguments": {
+    "species": "deer",
+    "location": "Washington state",
+    "duration": 10
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_7",
+   "variant": "missing_required",
+   "tool": "wildlife_population.assess_growth",
+   "arguments": {
+    "location": "Washington state",
+    "duration": 10
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_7",
+   "variant": "unexpected_param",
+   "tool": "wildlife_population.assess_growth",
+   "arguments": {
+    "species": "deer",
+    "location": "Washington state",
+    "duration": 10,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_7",
+   "variant": "string_case_and_separators",
+   "tool": "wildlife_population.assess_growth",
+   "arguments": {
+    "species": "DEER",
+    "location": "Washington state",
+    "duration": 10
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_7",
+   "variant": "string_wrong",
+   "tool": "wildlife_population.assess_growth",
+   "arguments": {
+    "species": "deer x",
+    "location": "Washington state",
+    "duration": 10
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_7",
+   "variant": "integer_as_string",
+   "tool": "wildlife_population.assess_growth",
+   "arguments": {
+    "species": "deer",
+    "location": "Washington state",
+    "duration": "10"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_7",
+   "variant": "integer_as_fraction",
+   "tool": "wildlife_population.assess_growth",
+   "arguments": {
+    "species": "deer",
+    "location": "Washington state",
+    "duration": 10.5
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_7",
+   "variant": "integer_off_by_one",
+   "tool": "wildlife_population.assess_growth",
+   "arguments": {
+    "species": "deer",
+    "location": "Washington state",
+    "duration": 11
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_8",
+   "variant": "canonical",
+   "tool": "realestate.find_properties",
+   "arguments": {
+    "location": "SD",
+    "propertyType": "villa",
+    "bedrooms": 3,
+    "budget": {
+     "min": 300000,
+     "max": 400000
+    }
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_8",
+   "variant": "minimal",
+   "tool": "realestate.find_properties",
+   "arguments": {
+    "location": "SD",
+    "propertyType": "villa",
+    "bedrooms": 3,
+    "budget": {
+     "min": 300000,
+     "max": 400000
+    }
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_8",
+   "variant": "wrong_function",
+   "tool": "property_valuation.get",
+   "arguments": {
+    "location": "SD",
+    "propertyType": "villa",
+    "bedrooms": 3,
+    "budget": {
+     "min": 300000,
+     "max": 400000
+    }
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_8",
+   "variant": "missing_required",
+   "tool": "realestate.find_properties",
+   "arguments": {
+    "propertyType": "villa",
+    "bedrooms": 3,
+    "budget": {
+     "min": 300000,
+     "max": 400000
+    }
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_8",
+   "variant": "unexpected_param",
+   "tool": "realestate.find_properties",
+   "arguments": {
+    "location": "SD",
+    "propertyType": "villa",
+    "bedrooms": 3,
+    "budget": {
+     "min": 300000,
+     "max": 400000
+    },
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_8",
+   "variant": "string_case_and_separators",
+   "tool": "realestate.find_properties",
+   "arguments": {
+    "location": "SD",
+    "propertyType": "villa",
+    "bedrooms": 3,
+    "budget": {
+     "min": 300000,
+     "max": 400000
+    }
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_8",
+   "variant": "string_wrong",
+   "tool": "realestate.find_properties",
+   "arguments": {
+    "location": "SD x",
+    "propertyType": "villa",
+    "bedrooms": 3,
+    "budget": {
+     "min": 300000,
+     "max": 400000
+    }
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_8",
+   "variant": "integer_as_string",
+   "tool": "realestate.find_properties",
+   "arguments": {
+    "location": "SD",
+    "propertyType": "villa",
+    "bedrooms": "3",
+    "budget": {
+     "min": 300000,
+     "max": 400000
+    }
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_8",
+   "variant": "integer_as_fraction",
+   "tool": "realestate.find_properties",
+   "arguments": {
+    "location": "SD",
+    "propertyType": "villa",
+    "bedrooms": 3.5,
+    "budget": {
+     "min": 300000,
+     "max": 400000
+    }
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_8",
+   "variant": "integer_off_by_one",
+   "tool": "realestate.find_properties",
+   "arguments": {
+    "location": "SD",
+    "propertyType": "villa",
+    "bedrooms": 4,
+    "budget": {
+     "min": 300000,
+     "max": 400000
+    }
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_8",
+   "variant": "dict_missing_key",
+   "tool": "realestate.find_properties",
+   "arguments": {
+    "location": "SD",
+    "propertyType": "villa",
+    "bedrooms": 3,
+    "budget": {
+     "max": 400000
+    }
+   },
+   "valid": false,
+   "error_type": "value_error:dict_key"
+  },
+  {
+   "id": "multiple_8",
+   "variant": "dict_extra_key",
+   "tool": "realestate.find_properties",
+   "arguments": {
+    "location": "SD",
+    "propertyType": "villa",
+    "bedrooms": 3,
+    "budget": {
+     "min": 300000,
+     "max": 400000,
+     "unite4ai_extra": 1
+    }
+   },
+   "valid": false,
+   "error_type": "value_error:dict_key"
+  },
+  {
+   "id": "multiple_9",
+   "variant": "canonical",
+   "tool": "calculate_average",
+   "arguments": {
+    "gradeDict": {
+     "math": 90,
+     "science": 75,
+     "history": 82,
+     "music": 89
+    }
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_9",
+   "variant": "minimal",
+   "tool": "calculate_average",
+   "arguments": {
+    "gradeDict": {
+     "math": 90,
+     "science": 75,
+     "history": 82,
+     "music": 89
+    }
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_9",
+   "variant": "wrong_function",
+   "tool": "calculate_standard_deviation",
+   "arguments": {
+    "gradeDict": {
+     "math": 90,
+     "science": 75,
+     "history": 82,
+     "music": 89
+    }
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_9",
+   "variant": "missing_required",
+   "tool": "calculate_average",
+   "arguments": {},
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_9",
+   "variant": "unexpected_param",
+   "tool": "calculate_average",
+   "arguments": {
+    "gradeDict": {
+     "math": 90,
+     "science": 75,
+     "history": 82,
+     "music": 89
+    },
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_9",
+   "variant": "dict_missing_key",
+   "tool": "calculate_average",
+   "arguments": {
+    "gradeDict": {
+     "science": 75,
+     "history": 82,
+     "music": 89
+    }
+   },
+   "valid": false,
+   "error_type": "value_error:dict_key"
+  },
+  {
+   "id": "multiple_9",
+   "variant": "dict_extra_key",
+   "tool": "calculate_average",
+   "arguments": {
+    "gradeDict": {
+     "math": 90,
+     "science": 75,
+     "history": 82,
+     "music": 89,
+     "unite4ai_extra": 1
+    }
+   },
+   "valid": false,
+   "error_type": "value_error:dict_key"
+  },
+  {
+   "id": "multiple_10",
+   "variant": "canonical",
+   "tool": "database.modify_columns",
+   "arguments": {
+    "db_name": "employees",
+    "table": "personal_data",
+    "operation": "delete",
+    "columns": [
+     "email",
+     "ssn"
+    ]
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_10",
+   "variant": "minimal",
+   "tool": "database.modify_columns",
+   "arguments": {
+    "db_name": "employees",
+    "table": "personal_data",
+    "operation": "delete",
+    "columns": [
+     "email",
+     "ssn"
+    ]
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_10",
+   "variant": "wrong_function",
+   "tool": "database.create_backup",
+   "arguments": {
+    "db_name": "employees",
+    "table": "personal_data",
+    "operation": "delete",
+    "columns": [
+     "email",
+     "ssn"
+    ]
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_10",
+   "variant": "missing_required",
+   "tool": "database.modify_columns",
+   "arguments": {
+    "table": "personal_data",
+    "operation": "delete",
+    "columns": [
+     "email",
+     "ssn"
+    ]
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_10",
+   "variant": "unexpected_param",
+   "tool": "database.modify_columns",
+   "arguments": {
+    "db_name": "employees",
+    "table": "personal_data",
+    "operation": "delete",
+    "columns": [
+     "email",
+     "ssn"
+    ],
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_10",
+   "variant": "string_case_and_separators",
+   "tool": "database.modify_columns",
+   "arguments": {
+    "db_name": "EMPLOYEES",
+    "table": "personal_data",
+    "operation": "delete",
+    "columns": [
+     "email",
+     "ssn"
+    ]
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_10",
+   "variant": "string_wrong",
+   "tool": "database.modify_columns",
+   "arguments": {
+    "db_name": "employees x",
+    "table": "personal_data",
+    "operation": "delete",
+    "columns": [
+     "email",
+     "ssn"
+    ]
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_10",
+   "variant": "array_reversed",
+   "tool": "database.modify_columns",
+   "arguments": {
+    "db_name": "employees",
+    "table": "personal_data",
+    "operation": "delete",
+    "columns": [
+     "ssn",
+     "email"
+    ]
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_10",
+   "variant": "array_strings_upper",
+   "tool": "database.modify_columns",
+   "arguments": {
+    "db_name": "employees",
+    "table": "personal_data",
+    "operation": "delete",
+    "columns": [
+     "EMAIL",
+     "SSN"
+    ]
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_10",
+   "variant": "array_as_string",
+   "tool": "database.modify_columns",
+   "arguments": {
+    "db_name": "employees",
+    "table": "personal_data",
+    "operation": "delete",
+    "columns": "[\"email\", \"ssn\"]"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_11",
+   "variant": "canonical",
+   "tool": "math_roots.quadratic",
+   "arguments": {
+    "a": 5,
+    "b": 20,
+    "c": -25
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_11",
+   "variant": "minimal",
+   "tool": "math_roots.quadratic",
+   "arguments": {
+    "a": 5,
+    "b": 20,
+    "c": -25
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_11",
+   "variant": "wrong_function",
+   "tool": "math.roots.cubic",
+   "arguments": {
+    "a": 5,
+    "b": 20,
+    "c": -25
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_11",
+   "variant": "missing_required",
+   "tool": "math_roots.quadratic",
+   "arguments": {
+    "b": 20,
+    "c": -25
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_11",
+   "variant": "unexpected_param",
+   "tool": "math_roots.quadratic",
+   "arguments": {
+    "a": 5,
+    "b": 20,
+    "c": -25,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_11",
+   "variant": "integer_as_string",
+   "tool": "math_roots.quadratic",
+   "arguments": {
+    "a": "5",
+    "b": 20,
+    "c": -25
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_11",
+   "variant": "integer_as_fraction",
+   "tool": "math_roots.quadratic",
+   "arguments": {
+    "a": 5.5,
+    "b": 20,
+    "c": -25
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_11",
+   "variant": "integer_off_by_one",
+   "tool": "math_roots.quadratic",
+   "arguments": {
+    "a": 6,
+    "b": 20,
+    "c": -25
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_12",
+   "variant": "canonical",
+   "tool": "corporate_finance.calculate_YOY_growth_rate",
+   "arguments": {
+    "company_name": "Tech Inc",
+    "year1": 2019,
+    "year1_revenue": 1000000,
+    "year2": 2020,
+    "year2_revenue": 1200000
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_12",
+   "variant": "minimal",
+   "tool": "corporate_finance.calculate_YOY_growth_rate",
+   "arguments": {
+    "company_name": "Tech Inc",
+    "year1": 2019,
+    "year1_revenue": 1000000,
+    "year2": 2020,
+    "year2_revenue": 1200000
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_12",
+   "variant": "wrong_function",
+   "tool": "financial_ratios.calculate_ROE",
+   "arguments": {
+    "company_name": "Tech Inc",
+    "year1": 2019,
+    "year1_revenue": 1000000,
+    "year2": 2020,
+    "year2_revenue": 1200000
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_12",
+   "variant": "missing_required",
+   "tool": "corporate_finance.calculate_YOY_growth_rate",
+   "arguments": {
+    "year1": 2019,
+    "year1_revenue": 1000000,
+    "year2": 2020,
+    "year2_revenue": 1200000
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_12",
+   "variant": "unexpected_param",
+   "tool": "corporate_finance.calculate_YOY_growth_rate",
+   "arguments": {
+    "company_name": "Tech Inc",
+    "year1": 2019,
+    "year1_revenue": 1000000,
+    "year2": 2020,
+    "year2_revenue": 1200000,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_12",
+   "variant": "string_case_and_separators",
+   "tool": "corporate_finance.calculate_YOY_growth_rate",
+   "arguments": {
+    "company_name": "TECH_INC",
+    "year1": 2019,
+    "year1_revenue": 1000000,
+    "year2": 2020,
+    "year2_revenue": 1200000
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_12",
+   "variant": "string_wrong",
+   "tool": "corporate_finance.calculate_YOY_growth_rate",
+   "arguments": {
+    "company_name": "Tech Inc x",
+    "year1": 2019,
+    "year1_revenue": 1000000,
+    "year2": 2020,
+    "year2_revenue": 1200000
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_12",
+   "variant": "integer_as_string",
+   "tool": "corporate_finance.calculate_YOY_growth_rate",
+   "arguments": {
+    "company_name": "Tech Inc",
+    "year1": "2019",
+    "year1_revenue": 1000000,
+    "year2": 2020,
+    "year2_revenue": 1200000
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_12",
+   "variant": "integer_as_fraction",
+   "tool": "corporate_finance.calculate_YOY_growth_rate",
+   "arguments": {
+    "company_name": "Tech Inc",
+    "year1": 2019.5,
+    "year1_revenue": 1000000,
+    "year2": 2020,
+    "year2_revenue": 1200000
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_12",
+   "variant": "integer_off_by_one",
+   "tool": "corporate_finance.calculate_YOY_growth_rate",
+   "arguments": {
+    "company_name": "Tech Inc",
+    "year1": 2020,
+    "year1_revenue": 1000000,
+    "year2": 2020,
+    "year2_revenue": 1200000
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_13",
+   "variant": "canonical",
+   "tool": "corporate_finance.revenue_forecast",
+   "arguments": {
+    "company": "XYZ",
+    "product": "A",
+    "sales_units_increase_percentage": 10
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_13",
+   "variant": "minimal",
+   "tool": "corporate_finance.revenue_forecast",
+   "arguments": {
+    "company": "XYZ",
+    "product": "A",
+    "sales_units_increase_percentage": 10
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_13",
+   "variant": "wrong_function",
+   "tool": "corporate_finance.product_price",
+   "arguments": {
+    "company": "XYZ",
+    "product": "A",
+    "sales_units_increase_percentage": 10
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_13",
+   "variant": "missing_required",
+   "tool": "corporate_finance.revenue_forecast",
+   "arguments": {
+    "product": "A",
+    "sales_units_increase_percentage": 10
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_13",
+   "variant": "unexpected_param",
+   "tool": "corporate_finance.revenue_forecast",
+   "arguments": {
+    "company": "XYZ",
+    "product": "A",
+    "sales_units_increase_percentage": 10,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_13",
+   "variant": "missing_needed_optional",
+   "tool": "corporate_finance.revenue_forecast",
+   "arguments": {
+    "company": "XYZ",
+    "product": "A"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_optional"
+  },
+  {
+   "id": "multiple_13",
+   "variant": "string_case_and_separators",
+   "tool": "corporate_finance.revenue_forecast",
+   "arguments": {
+    "company": "XYZ",
+    "product": "A",
+    "sales_units_increase_percentage": 10
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_13",
+   "variant": "string_wrong",
+   "tool": "corporate_finance.revenue_forecast",
+   "arguments": {
+    "company": "XYZ x",
+    "product": "A",
+    "sales_units_increase_percentage": 10
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_13",
+   "variant": "integer_as_string",
+   "tool": "corporate_finance.revenue_forecast",
+   "arguments": {
+    "company": "XYZ",
+    "product": "A",
+    "sales_units_increase_percentage": "10"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_13",
+   "variant": "integer_as_fraction",
+   "tool": "corporate_finance.revenue_forecast",
+   "arguments": {
+    "company": "XYZ",
+    "product": "A",
+    "sales_units_increase_percentage": 10.5
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_13",
+   "variant": "integer_off_by_one",
+   "tool": "corporate_finance.revenue_forecast",
+   "arguments": {
+    "company": "XYZ",
+    "product": "A",
+    "sales_units_increase_percentage": 11
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_14",
+   "variant": "canonical",
+   "tool": "finance.property_depreciation",
+   "arguments": {
+    "initial_cost": 200000,
+    "depreciation_rate": 3,
+    "years": 5,
+    "monthly": false
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_14",
+   "variant": "minimal",
+   "tool": "finance.property_depreciation",
+   "arguments": {
+    "initial_cost": 200000,
+    "depreciation_rate": 3,
+    "years": 5
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_14",
+   "variant": "wrong_function",
+   "tool": "finance.loan_repayment",
+   "arguments": {
+    "initial_cost": 200000,
+    "depreciation_rate": 3,
+    "years": 5,
+    "monthly": false
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_14",
+   "variant": "missing_required",
+   "tool": "finance.property_depreciation",
+   "arguments": {
+    "depreciation_rate": 3,
+    "years": 5,
+    "monthly": false
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_14",
+   "variant": "unexpected_param",
+   "tool": "finance.property_depreciation",
+   "arguments": {
+    "initial_cost": 200000,
+    "depreciation_rate": 3,
+    "years": 5,
+    "monthly": false,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_14",
+   "variant": "integer_as_string",
+   "tool": "finance.property_depreciation",
+   "arguments": {
+    "initial_cost": "200000",
+    "depreciation_rate": 3,
+    "years": 5,
+    "monthly": false
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_14",
+   "variant": "integer_as_fraction",
+   "tool": "finance.property_depreciation",
+   "arguments": {
+    "initial_cost": 200000.5,
+    "depreciation_rate": 3,
+    "years": 5,
+    "monthly": false
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_14",
+   "variant": "integer_off_by_one",
+   "tool": "finance.property_depreciation",
+   "arguments": {
+    "initial_cost": 200001,
+    "depreciation_rate": 3,
+    "years": 5,
+    "monthly": false
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_14",
+   "variant": "boolean_flipped",
+   "tool": "finance.property_depreciation",
+   "arguments": {
+    "initial_cost": 200000,
+    "depreciation_rate": 3,
+    "years": 5,
+    "monthly": true
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_14",
+   "variant": "boolean_as_string",
+   "tool": "finance.property_depreciation",
+   "arguments": {
+    "initial_cost": 200000,
+    "depreciation_rate": 3,
+    "years": 5,
+    "monthly": "false"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_14",
+   "variant": "boolean_as_number",
+   "tool": "finance.property_depreciation",
+   "arguments": {
+    "initial_cost": 200000,
+    "depreciation_rate": 3,
+    "years": 5,
+    "monthly": 0
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_15",
+   "variant": "canonical",
+   "tool": "solarFarm.potential",
+   "arguments": {
+    "coordinates": [
+     43.653225,
+     -79.383186
+    ],
+    "panelArea": 80000,
+    "month": "December"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_15",
+   "variant": "minimal",
+   "tool": "solarFarm.potential",
+   "arguments": {
+    "coordinates": [
+     43.653225,
+     -79.383186
+    ],
+    "panelArea": 80000,
+    "month": "December"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_15",
+   "variant": "wrong_function",
+   "tool": "windFarm.potential",
+   "arguments": {
+    "coordinates": [
+     43.653225,
+     -79.383186
+    ],
+    "panelArea": 80000,
+    "month": "December"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_15",
+   "variant": "missing_required",
+   "tool": "solarFarm.potential",
+   "arguments": {
+    "panelArea": 80000,
+    "month": "December"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_15",
+   "variant": "unexpected_param",
+   "tool": "solarFarm.potential",
+   "arguments": {
+    "coordinates": [
+     43.653225,
+     -79.383186
+    ],
+    "panelArea": 80000,
+    "month": "December",
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_15",
+   "variant": "missing_needed_optional",
+   "tool": "solarFarm.potential",
+   "arguments": {
+    "coordinates": [
+     43.653225,
+     -79.383186
+    ],
+    "panelArea": 80000
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_optional"
+  },
+  {
+   "id": "multiple_15",
+   "variant": "string_case_and_separators",
+   "tool": "solarFarm.potential",
+   "arguments": {
+    "coordinates": [
+     43.653225,
+     -79.383186
+    ],
+    "panelArea": 80000,
+    "month": "DECEMBER"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_15",
+   "variant": "string_wrong",
+   "tool": "solarFarm.potential",
+   "arguments": {
+    "coordinates": [
+     43.653225,
+     -79.383186
+    ],
+    "panelArea": 80000,
+    "month": "December x"
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_15",
+   "variant": "integer_as_string",
+   "tool": "solarFarm.potential",
+   "arguments": {
+    "coordinates": [
+     43.653225,
+     -79.383186
+    ],
+    "panelArea": "80000",
+    "month": "December"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_15",
+   "variant": "integer_as_fraction",
+   "tool": "solarFarm.potential",
+   "arguments": {
+    "coordinates": [
+     43.653225,
+     -79.383186
+    ],
+    "panelArea": 80000.5,
+    "month": "December"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_15",
+   "variant": "integer_off_by_one",
+   "tool": "solarFarm.potential",
+   "arguments": {
+    "coordinates": [
+     43.653225,
+     -79.383186
+    ],
+    "panelArea": 80001,
+    "month": "December"
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_15",
+   "variant": "array_reversed",
+   "tool": "solarFarm.potential",
+   "arguments": {
+    "coordinates": [
+     -79.383186,
+     43.653225
+    ],
+    "panelArea": 80000,
+    "month": "December"
+   },
+   "valid": false,
+   "error_type": "value_error:list/tuple"
+  },
+  {
+   "id": "multiple_15",
+   "variant": "array_as_string",
+   "tool": "solarFarm.potential",
+   "arguments": {
+    "coordinates": "[43.653225, -79.383186]",
+    "panelArea": 80000,
+    "month": "December"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_16",
+   "variant": "canonical",
+   "tool": "population_genetics.calculate_ne",
+   "arguments": {
+    "species": "wild tiger",
+    "generations": 100,
+    "probability": 0.95
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_16",
+   "variant": "minimal",
+   "tool": "population_genetics.calculate_ne",
+   "arguments": {
+    "species": "wild tiger",
+    "generations": 100,
+    "probability": 0.95
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_16",
+   "variant": "wrong_function",
+   "tool": "species_distribution_modeling.project_range_shift",
+   "arguments": {
+    "species": "wild tiger",
+    "generations": 100,
+    "probability": 0.95
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_16",
+   "variant": "missing_required",
+   "tool": "population_genetics.calculate_ne",
+   "arguments": {
+    "generations": 100,
+    "probability": 0.95
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_16",
+   "variant": "unexpected_param",
+   "tool": "population_genetics.calculate_ne",
+   "arguments": {
+    "species": "wild tiger",
+    "generations": 100,
+    "probability": 0.95,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_16",
+   "variant": "string_case_and_separators",
+   "tool": "population_genetics.calculate_ne",
+   "arguments": {
+    "species": "WILD_TIGER",
+    "generations": 100,
+    "probability": 0.95
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_16",
+   "variant": "string_wrong",
+   "tool": "population_genetics.calculate_ne",
+   "arguments": {
+    "species": "wild tiger x",
+    "generations": 100,
+    "probability": 0.95
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_16",
+   "variant": "integer_as_string",
+   "tool": "population_genetics.calculate_ne",
+   "arguments": {
+    "species": "wild tiger",
+    "generations": "100",
+    "probability": 0.95
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_16",
+   "variant": "integer_as_fraction",
+   "tool": "population_genetics.calculate_ne",
+   "arguments": {
+    "species": "wild tiger",
+    "generations": 100.5,
+    "probability": 0.95
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_16",
+   "variant": "integer_off_by_one",
+   "tool": "population_genetics.calculate_ne",
+   "arguments": {
+    "species": "wild tiger",
+    "generations": 101,
+    "probability": 0.95
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_16",
+   "variant": "float_as_whole_number",
+   "tool": "population_genetics.calculate_ne",
+   "arguments": {
+    "species": "wild tiger",
+    "generations": 100,
+    "probability": 1
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_16",
+   "variant": "float_as_string",
+   "tool": "population_genetics.calculate_ne",
+   "arguments": {
+    "species": "wild tiger",
+    "generations": 100,
+    "probability": "0.95"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_17",
+   "variant": "canonical",
+   "tool": "currency_conversion.get_rate",
+   "arguments": {
+    "from_currency": "EUR",
+    "to_currency": "Dollar",
+    "date": "2022-01-01"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_17",
+   "variant": "minimal",
+   "tool": "currency_conversion.get_rate",
+   "arguments": {
+    "from_currency": "EUR",
+    "to_currency": "Dollar",
+    "date": "2022-01-01"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_17",
+   "variant": "wrong_function",
+   "tool": "currency_conversion.convert",
+   "arguments": {
+    "from_currency": "EUR",
+    "to_currency": "Dollar",
+    "date": "2022-01-01"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_17",
+   "variant": "missing_required",
+   "tool": "currency_conversion.get_rate",
+   "arguments": {
+    "to_currency": "Dollar",
+    "date": "2022-01-01"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_17",
+   "variant": "unexpected_param",
+   "tool": "currency_conversion.get_rate",
+   "arguments": {
+    "from_currency": "EUR",
+    "to_currency": "Dollar",
+    "date": "2022-01-01",
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_17",
+   "variant": "missing_needed_optional",
+   "tool": "currency_conversion.get_rate",
+   "arguments": {
+    "from_currency": "EUR",
+    "to_currency": "Dollar"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_optional"
+  },
+  {
+   "id": "multiple_17",
+   "variant": "string_case_and_separators",
+   "tool": "currency_conversion.get_rate",
+   "arguments": {
+    "from_currency": "EUR",
+    "to_currency": "Dollar",
+    "date": "2022-01-01"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_17",
+   "variant": "string_wrong",
+   "tool": "currency_conversion.get_rate",
+   "arguments": {
+    "from_currency": "EUR x",
+    "to_currency": "Dollar",
+    "date": "2022-01-01"
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_18",
+   "variant": "canonical",
+   "tool": "european_history.battle_details",
+   "arguments": {
+    "battle": "Battle of Stalingrad"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_18",
+   "variant": "minimal",
+   "tool": "european_history.battle_details",
+   "arguments": {
+    "battle": "Battle of Stalingrad"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_18",
+   "variant": "wrong_function",
+   "tool": "european_history.war_details",
+   "arguments": {
+    "battle": "Battle of Stalingrad"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_18",
+   "variant": "missing_required",
+   "tool": "european_history.battle_details",
+   "arguments": {},
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_18",
+   "variant": "unexpected_param",
+   "tool": "european_history.battle_details",
+   "arguments": {
+    "battle": "Battle of Stalingrad",
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_18",
+   "variant": "string_case_and_separators",
+   "tool": "european_history.battle_details",
+   "arguments": {
+    "battle": "BATTLE_OF_STALINGRAD"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_18",
+   "variant": "string_wrong",
+   "tool": "european_history.battle_details",
+   "arguments": {
+    "battle": "Battle of Stalingrad x"
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_19",
+   "variant": "canonical",
+   "tool": "religion_history.get_schisms",
+   "arguments": {
+    "religion": "Christianity",
+    "count": 3
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_19",
+   "variant": "minimal",
+   "tool": "religion_history.get_schisms",
+   "arguments": {
+    "religion": "Christianity",
+    "count": 3
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_19",
+   "variant": "wrong_function",
+   "tool": "religion_history.get_councils",
+   "arguments": {
+    "religion": "Christianity",
+    "count": 3
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_19",
+   "variant": "missing_required",
+   "tool": "religion_history.get_schisms",
+   "arguments": {
+    "count": 3
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_19",
+   "variant": "unexpected_param",
+   "tool": "religion_history.get_schisms",
+   "arguments": {
+    "religion": "Christianity",
+    "count": 3,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_19",
+   "variant": "string_case_and_separators",
+   "tool": "religion_history.get_schisms",
+   "arguments": {
+    "religion": "CHRISTIANITY",
+    "count": 3
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_19",
+   "variant": "string_wrong",
+   "tool": "religion_history.get_schisms",
+   "arguments": {
+    "religion": "Christianity x",
+    "count": 3
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_19",
+   "variant": "integer_as_string",
+   "tool": "religion_history.get_schisms",
+   "arguments": {
+    "religion": "Christianity",
+    "count": "3"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_19",
+   "variant": "integer_as_fraction",
+   "tool": "religion_history.get_schisms",
+   "arguments": {
+    "religion": "Christianity",
+    "count": 3.5
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_19",
+   "variant": "integer_off_by_one",
+   "tool": "religion_history.get_schisms",
+   "arguments": {
+    "religion": "Christianity",
+    "count": 4
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_20",
+   "variant": "canonical",
+   "tool": "sculpture_price.calculate",
+   "arguments": {
+    "material": "marble",
+    "size": 3,
+    "complexity": "medium"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_20",
+   "variant": "minimal",
+   "tool": "sculpture_price.calculate",
+   "arguments": {
+    "material": "marble",
+    "size": 3
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_20",
+   "variant": "wrong_function",
+   "tool": "sculptor_info.get",
+   "arguments": {
+    "material": "marble",
+    "size": 3,
+    "complexity": "medium"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_20",
+   "variant": "missing_required",
+   "tool": "sculpture_price.calculate",
+   "arguments": {
+    "size": 3,
+    "complexity": "medium"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_20",
+   "variant": "unexpected_param",
+   "tool": "sculpture_price.calculate",
+   "arguments": {
+    "material": "marble",
+    "size": 3,
+    "complexity": "medium",
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_20",
+   "variant": "string_case_and_separators",
+   "tool": "sculpture_price.calculate",
+   "arguments": {
+    "material": "MARBLE",
+    "size": 3,
+    "complexity": "medium"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_20",
+   "variant": "string_wrong",
+   "tool": "sculpture_price.calculate",
+   "arguments": {
+    "material": "marble x",
+    "size": 3,
+    "complexity": "medium"
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_20",
+   "variant": "integer_as_string",
+   "tool": "sculpture_price.calculate",
+   "arguments": {
+    "material": "marble",
+    "size": "3",
+    "complexity": "medium"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_20",
+   "variant": "integer_as_fraction",
+   "tool": "sculpture_price.calculate",
+   "arguments": {
+    "material": "marble",
+    "size": 3.5,
+    "complexity": "medium"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_20",
+   "variant": "integer_off_by_one",
+   "tool": "sculpture_price.calculate",
+   "arguments": {
+    "material": "marble",
+    "size": 4,
+    "complexity": "medium"
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_21",
+   "variant": "canonical",
+   "tool": "generate_sound_wave",
+   "arguments": {
+    "frequency": 440,
+    "duration": 5,
+    "wave_type": "sine"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_21",
+   "variant": "minimal",
+   "tool": "generate_sound_wave",
+   "arguments": {
+    "frequency": 440,
+    "duration": 5
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_21",
+   "variant": "wrong_function",
+   "tool": "play_sound_wave",
+   "arguments": {
+    "frequency": 440,
+    "duration": 5,
+    "wave_type": "sine"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_21",
+   "variant": "missing_required",
+   "tool": "generate_sound_wave",
+   "arguments": {
+    "duration": 5,
+    "wave_type": "sine"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_21",
+   "variant": "unexpected_param",
+   "tool": "generate_sound_wave",
+   "arguments": {
+    "frequency": 440,
+    "duration": 5,
+    "wave_type": "sine",
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_21",
+   "variant": "string_case_and_separators",
+   "tool": "generate_sound_wave",
+   "arguments": {
+    "frequency": 440,
+    "duration": 5,
+    "wave_type": "SINE"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_21",
+   "variant": "string_wrong",
+   "tool": "generate_sound_wave",
+   "arguments": {
+    "frequency": 440,
+    "duration": 5,
+    "wave_type": "sine x"
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_21",
+   "variant": "integer_as_string",
+   "tool": "generate_sound_wave",
+   "arguments": {
+    "frequency": "440",
+    "duration": 5,
+    "wave_type": "sine"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_21",
+   "variant": "integer_as_fraction",
+   "tool": "generate_sound_wave",
+   "arguments": {
+    "frequency": 440.5,
+    "duration": 5,
+    "wave_type": "sine"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_21",
+   "variant": "integer_off_by_one",
+   "tool": "generate_sound_wave",
+   "arguments": {
+    "frequency": 441,
+    "duration": 5,
+    "wave_type": "sine"
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_22",
+   "variant": "canonical",
+   "tool": "sports_data.basketball.most_points_single_game",
+   "arguments": {
+    "league": "NBA"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_22",
+   "variant": "minimal",
+   "tool": "sports_data.basketball.most_points_single_game",
+   "arguments": {
+    "league": "NBA"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_22",
+   "variant": "wrong_function",
+   "tool": "sports_data.basketball.most_points_single_season",
+   "arguments": {
+    "league": "NBA"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_22",
+   "variant": "missing_required",
+   "tool": "sports_data.basketball.most_points_single_game",
+   "arguments": {},
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_22",
+   "variant": "unexpected_param",
+   "tool": "sports_data.basketball.most_points_single_game",
+   "arguments": {
+    "league": "NBA",
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_22",
+   "variant": "string_case_and_separators",
+   "tool": "sports_data.basketball.most_points_single_game",
+   "arguments": {
+    "league": "NBA"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_22",
+   "variant": "string_wrong",
+   "tool": "sports_data.basketball.most_points_single_game",
+   "arguments": {
+    "league": "NBA x"
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_23",
+   "variant": "canonical",
+   "tool": "basketball.player_stats.get",
+   "arguments": {
+    "player_name": "LeBron James",
+    "stats_fields": [
+     "points per game",
+     "assists",
+     "minutes per game"
+    ]
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_23",
+   "variant": "minimal",
+   "tool": "basketball.player_stats.get",
+   "arguments": {
+    "player_name": "LeBron James",
+    "stats_fields": [
+     "points per game",
+     "assists",
+     "minutes per game"
+    ]
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_23",
+   "variant": "wrong_function",
+   "tool": "basketball.game_stats.get",
+   "arguments": {
+    "player_name": "LeBron James",
+    "stats_fields": [
+     "points per game",
+     "assists",
+     "minutes per game"
+    ]
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_23",
+   "variant": "missing_required",
+   "tool": "basketball.player_stats.get",
+   "arguments": {
+    "stats_fields": [
+     "points per game",
+     "assists",
+     "minutes per game"
+    ]
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_23",
+   "variant": "unexpected_param",
+   "tool": "basketball.player_stats.get",
+   "arguments": {
+    "player_name": "LeBron James",
+    "stats_fields": [
+     "points per game",
+     "assists",
+     "minutes per game"
+    ],
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_23",
+   "variant": "string_case_and_separators",
+   "tool": "basketball.player_stats.get",
+   "arguments": {
+    "player_name": "LEBRON_JAMES",
+    "stats_fields": [
+     "points per game",
+     "assists",
+     "minutes per game"
+    ]
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_23",
+   "variant": "string_wrong",
+   "tool": "basketball.player_stats.get",
+   "arguments": {
+    "player_name": "LeBron James x",
+    "stats_fields": [
+     "points per game",
+     "assists",
+     "minutes per game"
+    ]
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_23",
+   "variant": "array_reversed",
+   "tool": "basketball.player_stats.get",
+   "arguments": {
+    "player_name": "LeBron James",
+    "stats_fields": [
+     "minutes per game",
+     "assists",
+     "points per game"
+    ]
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_23",
+   "variant": "array_strings_upper",
+   "tool": "basketball.player_stats.get",
+   "arguments": {
+    "player_name": "LeBron James",
+    "stats_fields": [
+     "POINTS PER GAME",
+     "ASSISTS",
+     "MINUTES PER GAME"
+    ]
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_23",
+   "variant": "array_as_string",
+   "tool": "basketball.player_stats.get",
+   "arguments": {
+    "player_name": "LeBron James",
+    "stats_fields": "[\"points per game\", \"assists\", \"minutes per game\"]"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_24",
+   "variant": "canonical",
+   "tool": "route_planner.calculate_route",
+   "arguments": {
+    "start": "London",
+    "destination": "Edinburgh",
+    "method": "fastest"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_24",
+   "variant": "minimal",
+   "tool": "route_planner.calculate_route",
+   "arguments": {
+    "start": "London",
+    "destination": "Edinburgh"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_24",
+   "variant": "wrong_function",
+   "tool": "chess_club_details.find",
+   "arguments": {
+    "start": "London",
+    "destination": "Edinburgh",
+    "method": "fastest"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_24",
+   "variant": "missing_required",
+   "tool": "route_planner.calculate_route",
+   "arguments": {
+    "destination": "Edinburgh",
+    "method": "fastest"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_24",
+   "variant": "unexpected_param",
+   "tool": "route_planner.calculate_route",
+   "arguments": {
+    "start": "London",
+    "destination": "Edinburgh",
+    "method": "fastest",
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_24",
+   "variant": "string_case_and_separators",
+   "tool": "route_planner.calculate_route",
+   "arguments": {
+    "start": "LONDON",
+    "destination": "Edinburgh",
+    "method": "fastest"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_24",
+   "variant": "string_wrong",
+   "tool": "route_planner.calculate_route",
+   "arguments": {
+    "start": "London x",
+    "destination": "Edinburgh",
+    "method": "fastest"
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_25",
+   "variant": "canonical",
+   "tool": "video_games.store_price",
+   "arguments": {
+    "game_title": "Assassins Creed Valhalla",
+    "platform": "PlayStation",
+    "region": "United States"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_25",
+   "variant": "minimal",
+   "tool": "video_games.store_price",
+   "arguments": {
+    "game_title": "Assassins Creed Valhalla",
+    "platform": "PlayStation"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_25",
+   "variant": "wrong_function",
+   "tool": "video_games.store_currency",
+   "arguments": {
+    "game_title": "Assassins Creed Valhalla",
+    "platform": "PlayStation",
+    "region": "United States"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_25",
+   "variant": "missing_required",
+   "tool": "video_games.store_price",
+   "arguments": {
+    "platform": "PlayStation",
+    "region": "United States"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_25",
+   "variant": "unexpected_param",
+   "tool": "video_games.store_price",
+   "arguments": {
+    "game_title": "Assassins Creed Valhalla",
+    "platform": "PlayStation",
+    "region": "United States",
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_25",
+   "variant": "string_case_and_separators",
+   "tool": "video_games.store_price",
+   "arguments": {
+    "game_title": "ASSASSINS_CREED_VALHALLA",
+    "platform": "PlayStation",
+    "region": "United States"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_25",
+   "variant": "string_wrong",
+   "tool": "video_games.store_price",
+   "arguments": {
+    "game_title": "Assassins Creed Valhalla x",
+    "platform": "PlayStation",
+    "region": "United States"
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_26",
+   "variant": "canonical",
+   "tool": "game_rewards.get",
+   "arguments": {
+    "game": "Fortnite",
+    "platform": "Playstation"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_26",
+   "variant": "minimal",
+   "tool": "game_rewards.get",
+   "arguments": {
+    "game": "Fortnite",
+    "platform": "Playstation"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_26",
+   "variant": "wrong_function",
+   "tool": "game_scores.get",
+   "arguments": {
+    "game": "Fortnite",
+    "platform": "Playstation"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_26",
+   "variant": "missing_required",
+   "tool": "game_rewards.get",
+   "arguments": {
+    "platform": "Playstation"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_26",
+   "variant": "unexpected_param",
+   "tool": "game_rewards.get",
+   "arguments": {
+    "game": "Fortnite",
+    "platform": "Playstation",
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_26",
+   "variant": "string_case_and_separators",
+   "tool": "game_rewards.get",
+   "arguments": {
+    "game": "FORTNITE",
+    "platform": "Playstation"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_26",
+   "variant": "string_wrong",
+   "tool": "game_rewards.get",
+   "arguments": {
+    "game": "Fortnite x",
+    "platform": "Playstation"
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_27",
+   "variant": "canonical",
+   "tool": "maps.shortest_path",
+   "arguments": {
+    "start_location": "Paris, France",
+    "end_location": "Rome, Italy",
+    "mode": "transit"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_27",
+   "variant": "minimal",
+   "tool": "maps.shortest_path",
+   "arguments": {
+    "start_location": "Paris, France",
+    "end_location": "Rome, Italy",
+    "mode": "transit"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_27",
+   "variant": "wrong_function",
+   "tool": "maps.route_times",
+   "arguments": {
+    "start_location": "Paris, France",
+    "end_location": "Rome, Italy",
+    "mode": "transit"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_27",
+   "variant": "missing_required",
+   "tool": "maps.shortest_path",
+   "arguments": {
+    "end_location": "Rome, Italy",
+    "mode": "transit"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_27",
+   "variant": "unexpected_param",
+   "tool": "maps.shortest_path",
+   "arguments": {
+    "start_location": "Paris, France",
+    "end_location": "Rome, Italy",
+    "mode": "transit",
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_27",
+   "variant": "missing_needed_optional",
+   "tool": "maps.shortest_path",
+   "arguments": {
+    "start_location": "Paris, France",
+    "end_location": "Rome, Italy"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_optional"
+  },
+  {
+   "id": "multiple_27",
+   "variant": "string_case_and_separators",
+   "tool": "maps.shortest_path",
+   "arguments": {
+    "start_location": "PARIS,_FRANCE",
+    "end_location": "Rome, Italy",
+    "mode": "transit"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_27",
+   "variant": "string_wrong",
+   "tool": "maps.shortest_path",
+   "arguments": {
+    "start_location": "Paris, France x",
+    "end_location": "Rome, Italy",
+    "mode": "transit"
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_28",
+   "variant": "canonical",
+   "tool": "solve.quadratic_equation",
+   "arguments": {
+    "a": 2,
+    "b": 3,
+    "c": -4
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_28",
+   "variant": "minimal",
+   "tool": "solve.quadratic_equation",
+   "arguments": {
+    "a": 2,
+    "b": 3,
+    "c": -4
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_28",
+   "variant": "wrong_function",
+   "tool": "convert.rgb_to_hex",
+   "arguments": {
+    "a": 2,
+    "b": 3,
+    "c": -4
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_28",
+   "variant": "missing_required",
+   "tool": "solve.quadratic_equation",
+   "arguments": {
+    "b": 3,
+    "c": -4
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_28",
+   "variant": "unexpected_param",
+   "tool": "solve.quadratic_equation",
+   "arguments": {
+    "a": 2,
+    "b": 3,
+    "c": -4,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_28",
+   "variant": "integer_as_string",
+   "tool": "solve.quadratic_equation",
+   "arguments": {
+    "a": "2",
+    "b": 3,
+    "c": -4
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_28",
+   "variant": "integer_as_fraction",
+   "tool": "solve.quadratic_equation",
+   "arguments": {
+    "a": 2.5,
+    "b": 3,
+    "c": -4
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_28",
+   "variant": "integer_off_by_one",
+   "tool": "solve.quadratic_equation",
+   "arguments": {
+    "a": 3,
+    "b": 3,
+    "c": -4
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_29",
+   "variant": "canonical",
+   "tool": "functions.intersect",
+   "arguments": {
+    "function1": "3x + 2",
+    "function2": "2x + 3"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_29",
+   "variant": "minimal",
+   "tool": "functions.intersect",
+   "arguments": {
+    "function1": "3x + 2",
+    "function2": "2x + 3"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_29",
+   "variant": "wrong_function",
+   "tool": "functions.zero",
+   "arguments": {
+    "function1": "3x + 2",
+    "function2": "2x + 3"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_29",
+   "variant": "missing_required",
+   "tool": "functions.intersect",
+   "arguments": {
+    "function2": "2x + 3"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_29",
+   "variant": "unexpected_param",
+   "tool": "functions.intersect",
+   "arguments": {
+    "function1": "3x + 2",
+    "function2": "2x + 3",
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_29",
+   "variant": "string_case_and_separators",
+   "tool": "functions.intersect",
+   "arguments": {
+    "function1": "3X_+_2",
+    "function2": "2x + 3"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_29",
+   "variant": "string_wrong",
+   "tool": "functions.intersect",
+   "arguments": {
+    "function1": "3x + 2 x",
+    "function2": "2x + 3"
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_30",
+   "variant": "canonical",
+   "tool": "rectangle.area",
+   "arguments": {
+    "length": 12,
+    "width": 5
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_30",
+   "variant": "minimal",
+   "tool": "rectangle.area",
+   "arguments": {
+    "length": 12,
+    "width": 5
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_30",
+   "variant": "wrong_function",
+   "tool": "circle.area",
+   "arguments": {
+    "length": 12,
+    "width": 5
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_30",
+   "variant": "missing_required",
+   "tool": "rectangle.area",
+   "arguments": {
+    "width": 5
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_30",
+   "variant": "unexpected_param",
+   "tool": "rectangle.area",
+   "arguments": {
+    "length": 12,
+    "width": 5,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_30",
+   "variant": "integer_as_string",
+   "tool": "rectangle.area",
+   "arguments": {
+    "length": "12",
+    "width": 5
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_30",
+   "variant": "integer_as_fraction",
+   "tool": "rectangle.area",
+   "arguments": {
+    "length": 12.5,
+    "width": 5
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_30",
+   "variant": "integer_off_by_one",
+   "tool": "rectangle.area",
+   "arguments": {
+    "length": 13,
+    "width": 5
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_31",
+   "variant": "canonical",
+   "tool": "geometry_rectangle.calculate",
+   "arguments": {
+    "width": 7,
+    "length": 10
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_31",
+   "variant": "minimal",
+   "tool": "geometry_rectangle.calculate",
+   "arguments": {
+    "width": 7,
+    "length": 10
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_31",
+   "variant": "wrong_function",
+   "tool": "geometry_square.calculate",
+   "arguments": {
+    "width": 7,
+    "length": 10
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_31",
+   "variant": "missing_required",
+   "tool": "geometry_rectangle.calculate",
+   "arguments": {
+    "length": 10
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_31",
+   "variant": "unexpected_param",
+   "tool": "geometry_rectangle.calculate",
+   "arguments": {
+    "width": 7,
+    "length": 10,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_31",
+   "variant": "integer_as_string",
+   "tool": "geometry_rectangle.calculate",
+   "arguments": {
+    "width": "7",
+    "length": 10
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_31",
+   "variant": "integer_as_fraction",
+   "tool": "geometry_rectangle.calculate",
+   "arguments": {
+    "width": 7.5,
+    "length": 10
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_31",
+   "variant": "integer_off_by_one",
+   "tool": "geometry_rectangle.calculate",
+   "arguments": {
+    "width": 8,
+    "length": 10
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_32",
+   "variant": "canonical",
+   "tool": "geometry.calculate_cone_volume",
+   "arguments": {
+    "radius": 4,
+    "height": 7,
+    "round_off": 0
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_32",
+   "variant": "minimal",
+   "tool": "geometry.calculate_cone_volume",
+   "arguments": {
+    "radius": 4,
+    "height": 7
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_32",
+   "variant": "wrong_function",
+   "tool": "physics.calculate_cone_mass",
+   "arguments": {
+    "radius": 4,
+    "height": 7,
+    "round_off": 0
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_32",
+   "variant": "missing_required",
+   "tool": "geometry.calculate_cone_volume",
+   "arguments": {
+    "height": 7,
+    "round_off": 0
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_32",
+   "variant": "unexpected_param",
+   "tool": "geometry.calculate_cone_volume",
+   "arguments": {
+    "radius": 4,
+    "height": 7,
+    "round_off": 0,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_32",
+   "variant": "integer_as_string",
+   "tool": "geometry.calculate_cone_volume",
+   "arguments": {
+    "radius": "4",
+    "height": 7,
+    "round_off": 0
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_32",
+   "variant": "integer_as_fraction",
+   "tool": "geometry.calculate_cone_volume",
+   "arguments": {
+    "radius": 4.5,
+    "height": 7,
+    "round_off": 0
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_32",
+   "variant": "integer_off_by_one",
+   "tool": "geometry.calculate_cone_volume",
+   "arguments": {
+    "radius": 5,
+    "height": 7,
+    "round_off": 0
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_33",
+   "variant": "canonical",
+   "tool": "calculate_integral",
+   "arguments": {
+    "func": "3x**2",
+    "a": 1,
+    "b": 2
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_33",
+   "variant": "minimal",
+   "tool": "calculate_integral",
+   "arguments": {
+    "func": "3x**2",
+    "a": 1,
+    "b": 2
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_33",
+   "variant": "wrong_function",
+   "tool": "calculate_derivative",
+   "arguments": {
+    "func": "3x**2",
+    "a": 1,
+    "b": 2
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_33",
+   "variant": "missing_required",
+   "tool": "calculate_integral",
+   "arguments": {
+    "a": 1,
+    "b": 2
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_33",
+   "variant": "unexpected_param",
+   "tool": "calculate_integral",
+   "arguments": {
+    "func": "3x**2",
+    "a": 1,
+    "b": 2,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_33",
+   "variant": "string_case_and_separators",
+   "tool": "calculate_integral",
+   "arguments": {
+    "func": "3X**2",
+    "a": 1,
+    "b": 2
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_33",
+   "variant": "string_wrong",
+   "tool": "calculate_integral",
+   "arguments": {
+    "func": "3x**2 x",
+    "a": 1,
+    "b": 2
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_33",
+   "variant": "integer_as_string",
+   "tool": "calculate_integral",
+   "arguments": {
+    "func": "3x**2",
+    "a": "1",
+    "b": 2
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_33",
+   "variant": "integer_as_fraction",
+   "tool": "calculate_integral",
+   "arguments": {
+    "func": "3x**2",
+    "a": 1.5,
+    "b": 2
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_33",
+   "variant": "integer_off_by_one",
+   "tool": "calculate_integral",
+   "arguments": {
+    "func": "3x**2",
+    "a": 2,
+    "b": 2
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_34",
+   "variant": "canonical",
+   "tool": "math.lcm",
+   "arguments": {
+    "num1": 18,
+    "num2": 12
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_34",
+   "variant": "minimal",
+   "tool": "math.lcm",
+   "arguments": {
+    "num1": 18,
+    "num2": 12
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_34",
+   "variant": "wrong_function",
+   "tool": "math.gcd",
+   "arguments": {
+    "num1": 18,
+    "num2": 12
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_34",
+   "variant": "missing_required",
+   "tool": "math.lcm",
+   "arguments": {
+    "num2": 12
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_34",
+   "variant": "unexpected_param",
+   "tool": "math.lcm",
+   "arguments": {
+    "num1": 18,
+    "num2": 12,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_34",
+   "variant": "integer_as_string",
+   "tool": "math.lcm",
+   "arguments": {
+    "num1": "18",
+    "num2": 12
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_34",
+   "variant": "integer_as_fraction",
+   "tool": "math.lcm",
+   "arguments": {
+    "num1": 18.5,
+    "num2": 12
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_34",
+   "variant": "integer_off_by_one",
+   "tool": "math.lcm",
+   "arguments": {
+    "num1": 19,
+    "num2": 12
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_35",
+   "variant": "canonical",
+   "tool": "calculate_gcd",
+   "arguments": {
+    "num1": 128,
+    "num2": 256,
+    "algorithm": "euclidean"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_35",
+   "variant": "minimal",
+   "tool": "calculate_gcd",
+   "arguments": {
+    "num1": 128,
+    "num2": 256
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_35",
+   "variant": "wrong_function",
+   "tool": "calculate_lcm",
+   "arguments": {
+    "num1": 128,
+    "num2": 256,
+    "algorithm": "euclidean"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_35",
+   "variant": "missing_required",
+   "tool": "calculate_gcd",
+   "arguments": {
+    "num2": 256,
+    "algorithm": "euclidean"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_35",
+   "variant": "unexpected_param",
+   "tool": "calculate_gcd",
+   "arguments": {
+    "num1": 128,
+    "num2": 256,
+    "algorithm": "euclidean",
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_35",
+   "variant": "string_case_and_separators",
+   "tool": "calculate_gcd",
+   "arguments": {
+    "num1": 128,
+    "num2": 256,
+    "algorithm": "EUCLIDEAN"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_35",
+   "variant": "string_wrong",
+   "tool": "calculate_gcd",
+   "arguments": {
+    "num1": 128,
+    "num2": 256,
+    "algorithm": "euclidean x"
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_35",
+   "variant": "integer_as_string",
+   "tool": "calculate_gcd",
+   "arguments": {
+    "num1": "128",
+    "num2": 256,
+    "algorithm": "euclidean"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_35",
+   "variant": "integer_as_fraction",
+   "tool": "calculate_gcd",
+   "arguments": {
+    "num1": 128.5,
+    "num2": 256,
+    "algorithm": "euclidean"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_35",
+   "variant": "integer_off_by_one",
+   "tool": "calculate_gcd",
+   "arguments": {
+    "num1": 129,
+    "num2": 256,
+    "algorithm": "euclidean"
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_36",
+   "variant": "canonical",
+   "tool": "kinematics.calculate_speed_from_rest",
+   "arguments": {
+    "distance": 20,
+    "time": 4,
+    "initial_speed": 0
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_36",
+   "variant": "minimal",
+   "tool": "kinematics.calculate_speed_from_rest",
+   "arguments": {
+    "distance": 20,
+    "time": 4
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_36",
+   "variant": "wrong_function",
+   "tool": "kinematics.calculate_acceleration",
+   "arguments": {
+    "distance": 20,
+    "time": 4,
+    "initial_speed": 0
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_36",
+   "variant": "missing_required",
+   "tool": "kinematics.calculate_speed_from_rest",
+   "arguments": {
+    "time": 4,
+    "initial_speed": 0
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_36",
+   "variant": "unexpected_param",
+   "tool": "kinematics.calculate_speed_from_rest",
+   "arguments": {
+    "distance": 20,
+    "time": 4,
+    "initial_speed": 0,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_36",
+   "variant": "integer_as_string",
+   "tool": "kinematics.calculate_speed_from_rest",
+   "arguments": {
+    "distance": "20",
+    "time": 4,
+    "initial_speed": 0
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_36",
+   "variant": "integer_as_fraction",
+   "tool": "kinematics.calculate_speed_from_rest",
+   "arguments": {
+    "distance": 20.5,
+    "time": 4,
+    "initial_speed": 0
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_36",
+   "variant": "integer_off_by_one",
+   "tool": "kinematics.calculate_speed_from_rest",
+   "arguments": {
+    "distance": 21,
+    "time": 4,
+    "initial_speed": 0
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_37",
+   "variant": "canonical",
+   "tool": "kinematics.final_velocity",
+   "arguments": {
+    "initial_velocity": 40,
+    "time": 6,
+    "acceleration": -9.81
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_37",
+   "variant": "minimal",
+   "tool": "kinematics.final_velocity",
+   "arguments": {
+    "initial_velocity": 40,
+    "time": 6
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_37",
+   "variant": "wrong_function",
+   "tool": "physics.wave_velocity",
+   "arguments": {
+    "initial_velocity": 40,
+    "time": 6,
+    "acceleration": -9.81
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_37",
+   "variant": "missing_required",
+   "tool": "kinematics.final_velocity",
+   "arguments": {
+    "time": 6,
+    "acceleration": -9.81
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_37",
+   "variant": "unexpected_param",
+   "tool": "kinematics.final_velocity",
+   "arguments": {
+    "initial_velocity": 40,
+    "time": 6,
+    "acceleration": -9.81,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_37",
+   "variant": "integer_as_string",
+   "tool": "kinematics.final_velocity",
+   "arguments": {
+    "initial_velocity": "40",
+    "time": 6,
+    "acceleration": -9.81
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_37",
+   "variant": "integer_as_fraction",
+   "tool": "kinematics.final_velocity",
+   "arguments": {
+    "initial_velocity": 40.5,
+    "time": 6,
+    "acceleration": -9.81
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_37",
+   "variant": "integer_off_by_one",
+   "tool": "kinematics.final_velocity",
+   "arguments": {
+    "initial_velocity": 41,
+    "time": 6,
+    "acceleration": -9.81
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_37",
+   "variant": "float_as_whole_number",
+   "tool": "kinematics.final_velocity",
+   "arguments": {
+    "initial_velocity": 40,
+    "time": 6,
+    "acceleration": -10
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_37",
+   "variant": "float_as_string",
+   "tool": "kinematics.final_velocity",
+   "arguments": {
+    "initial_velocity": 40,
+    "time": 6,
+    "acceleration": "-9.81"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_38",
+   "variant": "canonical",
+   "tool": "library.search_book",
+   "arguments": {
+    "book_name": "The Alchemist",
+    "city": "New York",
+    "availability": false
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_38",
+   "variant": "minimal",
+   "tool": "library.search_book",
+   "arguments": {
+    "book_name": "The Alchemist",
+    "city": "New York"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_38",
+   "variant": "wrong_function",
+   "tool": "library.reserve_book",
+   "arguments": {
+    "book_name": "The Alchemist",
+    "city": "New York",
+    "availability": false
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_38",
+   "variant": "missing_required",
+   "tool": "library.search_book",
+   "arguments": {
+    "city": "New York",
+    "availability": false
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_38",
+   "variant": "unexpected_param",
+   "tool": "library.search_book",
+   "arguments": {
+    "book_name": "The Alchemist",
+    "city": "New York",
+    "availability": false,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_38",
+   "variant": "string_case_and_separators",
+   "tool": "library.search_book",
+   "arguments": {
+    "book_name": "THE_ALCHEMIST",
+    "city": "New York",
+    "availability": false
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_38",
+   "variant": "string_wrong",
+   "tool": "library.search_book",
+   "arguments": {
+    "book_name": "The Alchemist x",
+    "city": "New York",
+    "availability": false
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_38",
+   "variant": "boolean_flipped",
+   "tool": "library.search_book",
+   "arguments": {
+    "book_name": "The Alchemist",
+    "city": "New York",
+    "availability": true
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_38",
+   "variant": "boolean_as_string",
+   "tool": "library.search_book",
+   "arguments": {
+    "book_name": "The Alchemist",
+    "city": "New York",
+    "availability": "false"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_38",
+   "variant": "boolean_as_number",
+   "tool": "library.search_book",
+   "arguments": {
+    "book_name": "The Alchemist",
+    "city": "New York",
+    "availability": 0
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_39",
+   "variant": "canonical",
+   "tool": "ride_hailing.get_rides",
+   "arguments": {
+    "source": "New York",
+    "destination": "Philadelphia",
+    "max_cost": 50
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_39",
+   "variant": "minimal",
+   "tool": "ride_hailing.get_rides",
+   "arguments": {
+    "source": "New York",
+    "destination": "Philadelphia",
+    "max_cost": 50
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_39",
+   "variant": "wrong_function",
+   "tool": "grocery_delivery.order",
+   "arguments": {
+    "source": "New York",
+    "destination": "Philadelphia",
+    "max_cost": 50
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_39",
+   "variant": "missing_required",
+   "tool": "ride_hailing.get_rides",
+   "arguments": {
+    "destination": "Philadelphia",
+    "max_cost": 50
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_39",
+   "variant": "unexpected_param",
+   "tool": "ride_hailing.get_rides",
+   "arguments": {
+    "source": "New York",
+    "destination": "Philadelphia",
+    "max_cost": 50,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_39",
+   "variant": "missing_needed_optional",
+   "tool": "ride_hailing.get_rides",
+   "arguments": {
+    "source": "New York",
+    "destination": "Philadelphia"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_optional"
+  },
+  {
+   "id": "multiple_39",
+   "variant": "string_case_and_separators",
+   "tool": "ride_hailing.get_rides",
+   "arguments": {
+    "source": "NEW_YORK",
+    "destination": "Philadelphia",
+    "max_cost": 50
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_39",
+   "variant": "string_wrong",
+   "tool": "ride_hailing.get_rides",
+   "arguments": {
+    "source": "New York x",
+    "destination": "Philadelphia",
+    "max_cost": 50
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_39",
+   "variant": "integer_as_string",
+   "tool": "ride_hailing.get_rides",
+   "arguments": {
+    "source": "New York",
+    "destination": "Philadelphia",
+    "max_cost": "50"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_39",
+   "variant": "integer_as_fraction",
+   "tool": "ride_hailing.get_rides",
+   "arguments": {
+    "source": "New York",
+    "destination": "Philadelphia",
+    "max_cost": 50.5
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_39",
+   "variant": "integer_off_by_one",
+   "tool": "ride_hailing.get_rides",
+   "arguments": {
+    "source": "New York",
+    "destination": "Philadelphia",
+    "max_cost": 51
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_40",
+   "variant": "canonical",
+   "tool": "electromagnetism.biot_savart_law",
+   "arguments": {
+    "current": 12,
+    "distance": 8,
+    "mu0": 1.256e-06
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_40",
+   "variant": "minimal",
+   "tool": "electromagnetism.biot_savart_law",
+   "arguments": {
+    "current": 12,
+    "distance": 8
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_40",
+   "variant": "wrong_function",
+   "tool": "electromagnetism.ampere_law",
+   "arguments": {
+    "current": 12,
+    "distance": 8,
+    "mu0": 1.256e-06
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_40",
+   "variant": "missing_required",
+   "tool": "electromagnetism.biot_savart_law",
+   "arguments": {
+    "distance": 8,
+    "mu0": 1.256e-06
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_40",
+   "variant": "unexpected_param",
+   "tool": "electromagnetism.biot_savart_law",
+   "arguments": {
+    "current": 12,
+    "distance": 8,
+    "mu0": 1.256e-06,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_40",
+   "variant": "integer_as_string",
+   "tool": "electromagnetism.biot_savart_law",
+   "arguments": {
+    "current": "12",
+    "distance": 8,
+    "mu0": 1.256e-06
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_40",
+   "variant": "integer_as_fraction",
+   "tool": "electromagnetism.biot_savart_law",
+   "arguments": {
+    "current": 12.5,
+    "distance": 8,
+    "mu0": 1.256e-06
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_40",
+   "variant": "integer_off_by_one",
+   "tool": "electromagnetism.biot_savart_law",
+   "arguments": {
+    "current": 13,
+    "distance": 8,
+    "mu0": 1.256e-06
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_40",
+   "variant": "float_as_whole_number",
+   "tool": "electromagnetism.biot_savart_law",
+   "arguments": {
+    "current": 12,
+    "distance": 8,
+    "mu0": 0
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_40",
+   "variant": "float_as_string",
+   "tool": "electromagnetism.biot_savart_law",
+   "arguments": {
+    "current": 12,
+    "distance": 8,
+    "mu0": "1.256e-06"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_41",
+   "variant": "canonical",
+   "tool": "magnetic_field.calculate",
+   "arguments": {
+    "I": 10,
+    "r": 0.01
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_41",
+   "variant": "minimal",
+   "tool": "magnetic_field.calculate",
+   "arguments": {
+    "I": 10,
+    "r": 0.01
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_41",
+   "variant": "wrong_function",
+   "tool": "electric_field.calculate",
+   "arguments": {
+    "I": 10,
+    "r": 0.01
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_41",
+   "variant": "missing_required",
+   "tool": "magnetic_field.calculate",
+   "arguments": {
+    "r": 0.01
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_41",
+   "variant": "unexpected_param",
+   "tool": "magnetic_field.calculate",
+   "arguments": {
+    "I": 10,
+    "r": 0.01,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_41",
+   "variant": "integer_as_string",
+   "tool": "magnetic_field.calculate",
+   "arguments": {
+    "I": "10",
+    "r": 0.01
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_41",
+   "variant": "integer_as_fraction",
+   "tool": "magnetic_field.calculate",
+   "arguments": {
+    "I": 10.5,
+    "r": 0.01
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_41",
+   "variant": "integer_off_by_one",
+   "tool": "magnetic_field.calculate",
+   "arguments": {
+    "I": 11,
+    "r": 0.01
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_41",
+   "variant": "float_as_whole_number",
+   "tool": "magnetic_field.calculate",
+   "arguments": {
+    "I": 10,
+    "r": 0
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_41",
+   "variant": "float_as_string",
+   "tool": "magnetic_field.calculate",
+   "arguments": {
+    "I": 10,
+    "r": "0.01"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_42",
+   "variant": "canonical",
+   "tool": "calculate_final_temperature",
+   "arguments": {
+    "quantity1": 2,
+    "temperature1": 300,
+    "quantity2": 3,
+    "temperature2": 400
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_42",
+   "variant": "minimal",
+   "tool": "calculate_final_temperature",
+   "arguments": {
+    "quantity1": 2,
+    "temperature1": 300,
+    "quantity2": 3,
+    "temperature2": 400
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_42",
+   "variant": "wrong_function",
+   "tool": "calculate_mass",
+   "arguments": {
+    "quantity1": 2,
+    "temperature1": 300,
+    "quantity2": 3,
+    "temperature2": 400
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_42",
+   "variant": "missing_required",
+   "tool": "calculate_final_temperature",
+   "arguments": {
+    "temperature1": 300,
+    "quantity2": 3,
+    "temperature2": 400
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_42",
+   "variant": "unexpected_param",
+   "tool": "calculate_final_temperature",
+   "arguments": {
+    "quantity1": 2,
+    "temperature1": 300,
+    "quantity2": 3,
+    "temperature2": 400,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_42",
+   "variant": "integer_as_string",
+   "tool": "calculate_final_temperature",
+   "arguments": {
+    "quantity1": "2",
+    "temperature1": 300,
+    "quantity2": 3,
+    "temperature2": 400
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_42",
+   "variant": "integer_as_fraction",
+   "tool": "calculate_final_temperature",
+   "arguments": {
+    "quantity1": 2.5,
+    "temperature1": 300,
+    "quantity2": 3,
+    "temperature2": 400
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_42",
+   "variant": "integer_off_by_one",
+   "tool": "calculate_final_temperature",
+   "arguments": {
+    "quantity1": 3,
+    "temperature1": 300,
+    "quantity2": 3,
+    "temperature2": 400
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_43",
+   "variant": "canonical",
+   "tool": "biological.calc_energy",
+   "arguments": {
+    "mols": 5,
+    "substance": "C6H12O6",
+    "joules_per_mol": 2800
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_43",
+   "variant": "minimal",
+   "tool": "biological.calc_energy",
+   "arguments": {
+    "mols": 5,
+    "substance": "C6H12O6"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_43",
+   "variant": "wrong_function",
+   "tool": "biological.calc_biomass",
+   "arguments": {
+    "mols": 5,
+    "substance": "C6H12O6",
+    "joules_per_mol": 2800
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_43",
+   "variant": "missing_required",
+   "tool": "biological.calc_energy",
+   "arguments": {
+    "substance": "C6H12O6",
+    "joules_per_mol": 2800
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_43",
+   "variant": "unexpected_param",
+   "tool": "biological.calc_energy",
+   "arguments": {
+    "mols": 5,
+    "substance": "C6H12O6",
+    "joules_per_mol": 2800,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_43",
+   "variant": "string_case_and_separators",
+   "tool": "biological.calc_energy",
+   "arguments": {
+    "mols": 5,
+    "substance": "C6H12O6",
+    "joules_per_mol": 2800
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_43",
+   "variant": "string_wrong",
+   "tool": "biological.calc_energy",
+   "arguments": {
+    "mols": 5,
+    "substance": "C6H12O6 x",
+    "joules_per_mol": 2800
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_43",
+   "variant": "integer_as_string",
+   "tool": "biological.calc_energy",
+   "arguments": {
+    "mols": "5",
+    "substance": "C6H12O6",
+    "joules_per_mol": 2800
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_43",
+   "variant": "integer_as_fraction",
+   "tool": "biological.calc_energy",
+   "arguments": {
+    "mols": 5.5,
+    "substance": "C6H12O6",
+    "joules_per_mol": 2800
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_43",
+   "variant": "integer_off_by_one",
+   "tool": "biological.calc_energy",
+   "arguments": {
+    "mols": 6,
+    "substance": "C6H12O6",
+    "joules_per_mol": 2800
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_44",
+   "variant": "canonical",
+   "tool": "calculate.weight_in_space",
+   "arguments": {
+    "weight_earth_kg": 70,
+    "planet": "Mars"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_44",
+   "variant": "minimal",
+   "tool": "calculate.weight_in_space",
+   "arguments": {
+    "weight_earth_kg": 70,
+    "planet": "Mars"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_44",
+   "variant": "wrong_function",
+   "tool": "unit_conversion.convert",
+   "arguments": {
+    "weight_earth_kg": 70,
+    "planet": "Mars"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_44",
+   "variant": "missing_required",
+   "tool": "calculate.weight_in_space",
+   "arguments": {
+    "planet": "Mars"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_44",
+   "variant": "unexpected_param",
+   "tool": "calculate.weight_in_space",
+   "arguments": {
+    "weight_earth_kg": 70,
+    "planet": "Mars",
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_44",
+   "variant": "string_case_and_separators",
+   "tool": "calculate.weight_in_space",
+   "arguments": {
+    "weight_earth_kg": 70,
+    "planet": "MARS"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_44",
+   "variant": "string_wrong",
+   "tool": "calculate.weight_in_space",
+   "arguments": {
+    "weight_earth_kg": 70,
+    "planet": "Mars x"
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_44",
+   "variant": "integer_as_string",
+   "tool": "calculate.weight_in_space",
+   "arguments": {
+    "weight_earth_kg": "70",
+    "planet": "Mars"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_44",
+   "variant": "integer_as_fraction",
+   "tool": "calculate.weight_in_space",
+   "arguments": {
+    "weight_earth_kg": 70.5,
+    "planet": "Mars"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_44",
+   "variant": "integer_off_by_one",
+   "tool": "calculate.weight_in_space",
+   "arguments": {
+    "weight_earth_kg": 71,
+    "planet": "Mars"
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_45",
+   "variant": "canonical",
+   "tool": "geology.get_era",
+   "arguments": {
+    "era_name": "Ice age",
+    "calculate_years_ago": true
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_45",
+   "variant": "minimal",
+   "tool": "geology.get_era",
+   "arguments": {
+    "era_name": "Ice age",
+    "calculate_years_ago": true
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_45",
+   "variant": "wrong_function",
+   "tool": "history.get_event_date",
+   "arguments": {
+    "era_name": "Ice age",
+    "calculate_years_ago": true
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_45",
+   "variant": "missing_required",
+   "tool": "geology.get_era",
+   "arguments": {
+    "calculate_years_ago": true
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_45",
+   "variant": "unexpected_param",
+   "tool": "geology.get_era",
+   "arguments": {
+    "era_name": "Ice age",
+    "calculate_years_ago": true,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_45",
+   "variant": "missing_needed_optional",
+   "tool": "geology.get_era",
+   "arguments": {
+    "era_name": "Ice age"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_optional"
+  },
+  {
+   "id": "multiple_45",
+   "variant": "string_case_and_separators",
+   "tool": "geology.get_era",
+   "arguments": {
+    "era_name": "ICE_AGE",
+    "calculate_years_ago": true
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_45",
+   "variant": "string_wrong",
+   "tool": "geology.get_era",
+   "arguments": {
+    "era_name": "Ice age x",
+    "calculate_years_ago": true
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_45",
+   "variant": "boolean_flipped",
+   "tool": "geology.get_era",
+   "arguments": {
+    "era_name": "Ice age",
+    "calculate_years_ago": false
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_45",
+   "variant": "boolean_as_string",
+   "tool": "geology.get_era",
+   "arguments": {
+    "era_name": "Ice age",
+    "calculate_years_ago": "true"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_45",
+   "variant": "boolean_as_number",
+   "tool": "geology.get_era",
+   "arguments": {
+    "era_name": "Ice age",
+    "calculate_years_ago": 1
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_46",
+   "variant": "canonical",
+   "tool": "sort_list",
+   "arguments": {
+    "elements": [
+     "Sam",
+     "Alice",
+     "Jack"
+    ],
+    "order": "asc"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_46",
+   "variant": "minimal",
+   "tool": "sort_list",
+   "arguments": {
+    "elements": [
+     "Sam",
+     "Alice",
+     "Jack"
+    ]
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_46",
+   "variant": "wrong_function",
+   "tool": "filter_list",
+   "arguments": {
+    "elements": [
+     "Sam",
+     "Alice",
+     "Jack"
+    ],
+    "order": "asc"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_46",
+   "variant": "missing_required",
+   "tool": "sort_list",
+   "arguments": {
+    "order": "asc"
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_46",
+   "variant": "unexpected_param",
+   "tool": "sort_list",
+   "arguments": {
+    "elements": [
+     "Sam",
+     "Alice",
+     "Jack"
+    ],
+    "order": "asc",
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_46",
+   "variant": "string_case_and_separators",
+   "tool": "sort_list",
+   "arguments": {
+    "elements": [
+     "Sam",
+     "Alice",
+     "Jack"
+    ],
+    "order": "ASC"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_46",
+   "variant": "string_wrong",
+   "tool": "sort_list",
+   "arguments": {
+    "elements": [
+     "Sam",
+     "Alice",
+     "Jack"
+    ],
+    "order": "asc x"
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_46",
+   "variant": "array_reversed",
+   "tool": "sort_list",
+   "arguments": {
+    "elements": [
+     "Jack",
+     "Alice",
+     "Sam"
+    ],
+    "order": "asc"
+   },
+   "valid": false,
+   "error_type": "value_error:list/tuple"
+  },
+  {
+   "id": "multiple_46",
+   "variant": "array_strings_upper",
+   "tool": "sort_list",
+   "arguments": {
+    "elements": [
+     "SAM",
+     "ALICE",
+     "JACK"
+    ],
+    "order": "asc"
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_46",
+   "variant": "array_as_string",
+   "tool": "sort_list",
+   "arguments": {
+    "elements": "[\"Sam\", \"Alice\", \"Jack\"]",
+    "order": "asc"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_47",
+   "variant": "canonical",
+   "tool": "cosine_similarity.calculate",
+   "arguments": {
+    "vector1": [
+     3,
+     2,
+     1
+    ],
+    "vector2": [
+     1,
+     2,
+     3
+    ],
+    "rounding": 0
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_47",
+   "variant": "minimal",
+   "tool": "cosine_similarity.calculate",
+   "arguments": {
+    "vector1": [
+     3,
+     2,
+     1
+    ],
+    "vector2": [
+     1,
+     2,
+     3
+    ]
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_47",
+   "variant": "wrong_function",
+   "tool": "correlation.calculate",
+   "arguments": {
+    "vector1": [
+     3,
+     2,
+     1
+    ],
+    "vector2": [
+     1,
+     2,
+     3
+    ],
+    "rounding": 0
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_47",
+   "variant": "missing_required",
+   "tool": "cosine_similarity.calculate",
+   "arguments": {
+    "vector2": [
+     1,
+     2,
+     3
+    ],
+    "rounding": 0
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_47",
+   "variant": "unexpected_param",
+   "tool": "cosine_similarity.calculate",
+   "arguments": {
+    "vector1": [
+     3,
+     2,
+     1
+    ],
+    "vector2": [
+     1,
+     2,
+     3
+    ],
+    "rounding": 0,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_47",
+   "variant": "integer_as_string",
+   "tool": "cosine_similarity.calculate",
+   "arguments": {
+    "vector1": [
+     3,
+     2,
+     1
+    ],
+    "vector2": [
+     1,
+     2,
+     3
+    ],
+    "rounding": "0"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_47",
+   "variant": "integer_as_fraction",
+   "tool": "cosine_similarity.calculate",
+   "arguments": {
+    "vector1": [
+     3,
+     2,
+     1
+    ],
+    "vector2": [
+     1,
+     2,
+     3
+    ],
+    "rounding": 0.5
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_47",
+   "variant": "integer_off_by_one",
+   "tool": "cosine_similarity.calculate",
+   "arguments": {
+    "vector1": [
+     3,
+     2,
+     1
+    ],
+    "vector2": [
+     1,
+     2,
+     3
+    ],
+    "rounding": 1
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_47",
+   "variant": "array_reversed",
+   "tool": "cosine_similarity.calculate",
+   "arguments": {
+    "vector1": [
+     1,
+     2,
+     3
+    ],
+    "vector2": [
+     1,
+     2,
+     3
+    ],
+    "rounding": 0
+   },
+   "valid": false,
+   "error_type": "value_error:list/tuple"
+  },
+  {
+   "id": "multiple_47",
+   "variant": "array_as_string",
+   "tool": "cosine_similarity.calculate",
+   "arguments": {
+    "vector1": "[3, 2, 1]",
+    "vector2": [
+     1,
+     2,
+     3
+    ],
+    "rounding": 0
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_48",
+   "variant": "canonical",
+   "tool": "library.find_nearby",
+   "arguments": {
+    "location": "New York City",
+    "preferences": [
+     "Pet-friendly",
+     "Disabled Access"
+    ]
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_48",
+   "variant": "minimal",
+   "tool": "library.find_nearby",
+   "arguments": {
+    "location": "New York City",
+    "preferences": [
+     "Pet-friendly",
+     "Disabled Access"
+    ]
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_48",
+   "variant": "wrong_function",
+   "tool": "store.find_nearby",
+   "arguments": {
+    "location": "New York City",
+    "preferences": [
+     "Pet-friendly",
+     "Disabled Access"
+    ]
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_48",
+   "variant": "missing_required",
+   "tool": "library.find_nearby",
+   "arguments": {
+    "preferences": [
+     "Pet-friendly",
+     "Disabled Access"
+    ]
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_48",
+   "variant": "unexpected_param",
+   "tool": "library.find_nearby",
+   "arguments": {
+    "location": "New York City",
+    "preferences": [
+     "Pet-friendly",
+     "Disabled Access"
+    ],
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_48",
+   "variant": "string_case_and_separators",
+   "tool": "library.find_nearby",
+   "arguments": {
+    "location": "NEW_YORK_CITY",
+    "preferences": [
+     "Pet-friendly",
+     "Disabled Access"
+    ]
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_48",
+   "variant": "string_wrong",
+   "tool": "library.find_nearby",
+   "arguments": {
+    "location": "New York City x",
+    "preferences": [
+     "Pet-friendly",
+     "Disabled Access"
+    ]
+   },
+   "valid": false,
+   "error_type": "value_error:string"
+  },
+  {
+   "id": "multiple_48",
+   "variant": "array_reversed",
+   "tool": "library.find_nearby",
+   "arguments": {
+    "location": "New York City",
+    "preferences": [
+     "Disabled Access",
+     "Pet-friendly"
+    ]
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_48",
+   "variant": "array_strings_upper",
+   "tool": "library.find_nearby",
+   "arguments": {
+    "location": "New York City",
+    "preferences": [
+     "PET-FRIENDLY",
+     "DISABLED ACCESS"
+    ]
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_48",
+   "variant": "array_as_string",
+   "tool": "library.find_nearby",
+   "arguments": {
+    "location": "New York City",
+    "preferences": "[\"Pet-friendly\", \"Disabled Access\"]"
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_49",
+   "variant": "canonical",
+   "tool": "calc_Compound_Interest",
+   "arguments": {
+    "principle_amount": 1500,
+    "duration": 2,
+    "annual_rate": 2.5,
+    "compound_freq": 1
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_49",
+   "variant": "minimal",
+   "tool": "calc_Compound_Interest",
+   "arguments": {
+    "principle_amount": 1500,
+    "duration": 2,
+    "annual_rate": 2.5
+   },
+   "valid": true,
+   "error_type": null
+  },
+  {
+   "id": "multiple_49",
+   "variant": "wrong_function",
+   "tool": "future_value",
+   "arguments": {
+    "principle_amount": 1500,
+    "duration": 2,
+    "annual_rate": 2.5,
+    "compound_freq": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:wrong_func_name"
+  },
+  {
+   "id": "multiple_49",
+   "variant": "missing_required",
+   "tool": "calc_Compound_Interest",
+   "arguments": {
+    "duration": 2,
+    "annual_rate": 2.5,
+    "compound_freq": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:missing_required"
+  },
+  {
+   "id": "multiple_49",
+   "variant": "unexpected_param",
+   "tool": "calc_Compound_Interest",
+   "arguments": {
+    "principle_amount": 1500,
+    "duration": 2,
+    "annual_rate": 2.5,
+    "compound_freq": 1,
+    "unite4ai_extra": 1
+   },
+   "valid": false,
+   "error_type": "simple_function_checker:unexpected_param"
+  },
+  {
+   "id": "multiple_49",
+   "variant": "integer_as_string",
+   "tool": "calc_Compound_Interest",
+   "arguments": {
+    "principle_amount": "1500",
+    "duration": 2,
+    "annual_rate": 2.5,
+    "compound_freq": 1
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_49",
+   "variant": "integer_as_fraction",
+   "tool": "calc_Compound_Interest",
+   "arguments": {
+    "principle_amount": 1500.5,
+    "duration": 2,
+    "annual_rate": 2.5,
+    "compound_freq": 1
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  },
+  {
+   "id": "multiple_49",
+   "variant": "integer_off_by_one",
+   "tool": "calc_Compound_Interest",
+   "arguments": {
+    "principle_amount": 1501,
+    "duration": 2,
+    "annual_rate": 2.5,
+    "compound_freq": 1
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_49",
+   "variant": "float_as_whole_number",
+   "tool": "calc_Compound_Interest",
+   "arguments": {
+    "principle_amount": 1500,
+    "duration": 2,
+    "annual_rate": 2,
+    "compound_freq": 1
+   },
+   "valid": false,
+   "error_type": "value_error:others"
+  },
+  {
+   "id": "multiple_49",
+   "variant": "float_as_string",
+   "tool": "calc_Compound_Interest",
+   "arguments": {
+    "principle_amount": 1500,
+    "duration": 2,
+    "annual_rate": "2.5",
+    "compound_freq": 1
+   },
+   "valid": false,
+   "error_type": "type_error:simple"
+  }
+ ]
+}

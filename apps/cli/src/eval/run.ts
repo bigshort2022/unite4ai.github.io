@@ -136,27 +136,40 @@ async function loadSource(
   url: string,
   pinned: string | undefined,
   localSource: string | undefined,
+  what = 'benchmark source',
 ): Promise<string> {
   if (!pinned) throw new Error('the benchmark definition has no source_sha256; refusing to run against an unpinned source');
   const vendored = localSource === undefined ? null : join(options.contentRoot, localSource);
   const cached = join(options.workDir, 'cache', `${pinned}.txt`);
   let bytes: Uint8Array;
+  let origin: string;
   let fetched = false;
   if (options.sourceFile) {
-    bytes = readFileSync(options.sourceFile);
+    origin = options.sourceFile;
   } else if (vendored !== null && existsSync(vendored)) {
-    bytes = readFileSync(vendored);
+    origin = vendored;
   } else if (existsSync(cached)) {
-    bytes = readFileSync(cached);
+    origin = cached;
   } else {
-    const response = await fetch(url, { signal: AbortSignal.timeout(60_000) });
-    if (!response.ok) throw new Error(`could not fetch the benchmark source: ${response.status} ${url}`);
-    bytes = new Uint8Array(await response.arrayBuffer());
+    origin = url;
     fetched = true;
+  }
+  if (fetched) {
+    let response: Response;
+    try {
+      response = await fetch(url, { signal: AbortSignal.timeout(60_000) });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`could not fetch the ${what} from ${url}: ${message}; a run needs it once, then it is kept in ${cached}`);
+    }
+    if (!response.ok) throw new Error(`could not fetch the ${what}: ${response.status} ${url}`);
+    bytes = new Uint8Array(await response.arrayBuffer());
+  } else {
+    bytes = readFileSync(origin);
   }
   // The pin covers the file's bytes as published, so they are hashed before any decoding.
   const actual = sha256(bytes);
-  if (actual !== pinned) throw new Error(`source hash mismatch: expected ${pinned}, got ${actual}`);
+  if (actual !== pinned) throw new Error(`${what} hash mismatch in ${origin}: expected ${pinned}, got ${actual}`);
   if (fetched) {
     mkdirSync(join(options.workDir, 'cache'), { recursive: true });
     writeFileSync(cached, bytes);
@@ -379,7 +392,11 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
     throw new Error(`this run could not be published: ${problems.join('; ')}`);
   }
   const source = await loadSource(options, definition.source_url, definition.source_sha256, suite.localSource);
-  const items = suite.items(source, definition.items);
+  // A file the caller names stands in for the source only; the answers come from the cache or the network.
+  const answers = suite.answers === undefined
+    ? undefined
+    : await loadSource({ ...options, sourceFile: undefined }, suite.answers.url, suite.answers.sha256, undefined, 'answers file');
+  const items = suite.items(source, definition.items, answers);
   const method = definition.repeat;
   const runs = method?.runs ?? 1;
   const unit = method === undefined ? 'items' : 'answers';
@@ -398,6 +415,8 @@ export async function runEval(options: EvalOptions): Promise<EvalOutcome> {
     benchmark: options.benchmark,
     benchmark_version: definition.version,
     source_sha256: definition.source_sha256,
+    // Only a suite with an answers file adds this, so other transcripts keep their names and resume.
+    ...(suite.answers === undefined ? {} : { answers_sha256: suite.answers.sha256 }),
     prompt_version: suite.promptVersion,
     model: options.model,
     served_model: options.servedModel,

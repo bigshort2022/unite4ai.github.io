@@ -11,7 +11,7 @@ export const EVAL_USAGE = `usage: bun run eval -- --benchmark <id> --model <mode
   --submitter <github-handle> --runtime <${EVAL_RUNTIMES.join('|')}> --runtime-version <version>
   --format <${EVAL_FORMATS.join('|')}> --quantization <text, e.g. 4bit or Q4_K_M or none>
   [--notes <one line about the setup, e.g. "thinking disabled">]
-  [--base-url <url>] [--source-file <path>]
+  [--base-url <url>] [--source-file <path>] (the benchmark source only; an answers file still comes from the cache or the network)
   [--max-seconds ${DEFAULT_MAX_SECONDS}] (per invocation: a resumed run gets a fresh limit)
       a 2048-token benchmark can take hours on a slow machine; the limit is checked between replies,
       so a run can overrun it by one reply timeout; re-running the same command resumes

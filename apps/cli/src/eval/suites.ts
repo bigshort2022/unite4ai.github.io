@@ -1,3 +1,4 @@
+import * as bfcl from './bfcl.ts';
 import * as canary from './canary.ts';
 import { MAX_TOKENS, PROMPT_VERSION, buildMessages, judge, parseItems, type ChatMessage, type ReplyEnd } from './gsm8k.ts';
 import * as toolSelection from './tool-selection.ts';
@@ -20,8 +21,13 @@ export interface Suite {
    * reply comes with neither a finish reason nor a token count, instead of scoring it.
    */
   needsEndSignal?: true;
-  /** Builds the items from the pinned source text; throws when the source does not fit. */
-  items(source: string, count: number): SuiteItem[];
+  /**
+   * Builds the items from the pinned source text, and from the pinned answers when the suite
+   * names an `answers` file; throws when the source does not fit.
+   */
+  items(source: string, count: number, answers?: string): SuiteItem[];
+  /** A second pinned file the items need, such as an answer key published apart from the questions. */
+  answers?: { url: string; sha256: string };
   /** Path, relative to the content root, of a vendored copy of the source. Still hash-checked. */
   localSource?: string;
   /** Id of the measured benchmark that publishes this suite's decode speed, when one is defined. */
@@ -67,9 +73,25 @@ const toolSelectionSuite: Suite = {
   })),
 };
 
+const bfclMultiple: Suite = {
+  promptVersion: bfcl.PROMPT_VERSION,
+  maxTokens: bfcl.MAX_TOKENS,
+  answers: bfcl.ANSWERS,
+  items: (source, count, answers) => {
+    if (answers === undefined) throw new Error('bfcl-multiple-50 needs its answers file');
+    return bfcl.parseItems(source, answers, count).map((item, index) => ({
+      index,
+      messages: bfcl.buildMessages(item),
+      expected: JSON.stringify(item.answer),
+      judge: (reply) => bfcl.judge(reply, item),
+    }));
+  },
+};
+
 /** Benchmark ids the runner can execute. A definition without a suite here cannot be run. */
 export const SUITES: Record<string, Suite> = {
   'gsm8k-200': gsm8k,
   'canary-injection-v1': canaryInjection,
   'tool-selection-v1': toolSelectionSuite,
+  'bfcl-multiple-50': bfclMultiple,
 };
