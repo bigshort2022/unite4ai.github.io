@@ -89,6 +89,7 @@ test('the agent index leads to the deployed data and the same registry cards as 
     ['/data/evals.json', 'schema_version'], ['/data/registry-index.json', 'schema_version'],
     ['/data/exchange.json', 'schema_version'], ['/data/global-exchange.json', 'schemaVersion'],
     ['/data/exchange-text.json', 'schema_version'],
+    ['/data/eval-exports.json', 'schema_version'],
   ].map(async ([path, versionKey]) => {
     const feed = JSON.parse(await readRoute(path));
     assert.equal(feed[versionKey], 1, path);
@@ -108,6 +109,42 @@ test('the agent index leads to the deployed data and the same registry cards as 
       assert.equal(href.origin, origin);
       assert.equal(href.pathname, `${prefix}${record.id}/`);
       await readFile(new URL(`${href.pathname.slice(1)}index.html`, dist), 'utf8');
+    }
+  }
+});
+
+test('static exports preserve all published result files and link back to their exact evidence', async () => {
+  const dist = new URL('dist/', ROOT);
+  const readJson = async (path) => JSON.parse(await readFile(new URL(path.replace(/^\//, ''), dist), 'utf8'));
+  const source = new URL('src/content/evals/', ROOT);
+  const files = (await readdir(source)).filter((name) => name.endsWith('.json')).sort();
+  const { results } = await readJson('/data/eval-exports.json');
+  assert.deepEqual(results.map((row) => `${row.id}.json`), files);
+  assert.ok(results.length > 0);
+  for (const row of results) {
+    const original = JSON.parse(await readFile(new URL(`${row.id}.json`, source), 'utf8'));
+    const evidence = await readJson(row.evidence);
+    const eee = await readJson(row.every_eval_ever);
+    assert.equal(evidence.evidence.sha256, original.evidence.sha256);
+    assert.equal(evidence.score, original.score);
+    assert.equal(evidence.n, original.n);
+    assert.deepEqual(evidence.repeat, original.repeat);
+    assert.equal(Object.hasOwn(evidence.run, 'command'), false);
+    assert.equal(Object.hasOwn(evidence.evidence, 'url'), false);
+    assert.equal(Object.hasOwn(eee, 'detailed_evaluation_results'), false);
+    assert.equal(eee.evaluation_results[0].score_details.score, original.score);
+    const result = new URL(row.result_url);
+    assert.equal(result.origin, 'https://unite4ai.com');
+    assert.equal(result.hash, `#run-${row.id}`);
+    const page = await readFile(new URL(`${result.pathname.replace(/^\/|\/$/g, '')}/index.html`, dist), 'utf8');
+    assert.ok(page.includes(`id="run-${row.id}"`));
+    if (row.hugging_face.status === 'blocked') {
+      assert.ok(row.hugging_face.reasons.length > 0);
+      assert.equal('yaml' in row.hugging_face, false);
+      await assert.rejects(stat(new URL(`data/eval-exports/${row.id}/huggingface.yaml`, dist)), { code: 'ENOENT' });
+    } else {
+      assert.equal(row.hugging_face.status, 'ready');
+      assert.ok((await stat(new URL(row.hugging_face.yaml.slice(1), dist))).isFile());
     }
   }
 });
