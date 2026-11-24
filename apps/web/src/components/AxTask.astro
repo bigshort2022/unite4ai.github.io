@@ -1,0 +1,28 @@
+---
+interface Props { text: string }
+const { text } = Astro.props;
+---
+<section id="ax-task" class="ax-task wrap" aria-labelledby="ax-task-title" data-pagefind-ignore hidden>
+  <h2 id="ax-task-title">Agent task</h2>
+  <p>Copy this task to your agent. It does not authorize a benchmark run or submission.</p>
+  <textarea data-ax-prompt aria-label="Agent task text" readonly rows="9">{text}</textarea>
+  <div class="ax-task-actions">
+    <button type="button" class="btn btn-ghost" data-ax-copy>Copy agent task</button>
+    <span role="status" data-ax-status></span>
+  </div>
+</section>
+<script>
+  import '../lib/ax-ui.js';
+</script>
+<style>
+  .ax-task { padding-block: 1.5rem; }
+  .ax-task h2 { font-size: 1.25rem; }
+  .ax-task p { color: var(--u-text-dim); }
+  textarea {
+    display: block; width: 100%; resize: vertical; min-height: 9rem;
+    color: var(--u-text); background: var(--u-bg-elev);
+    border: 1px solid var(--u-border-bright); border-radius: var(--u-radius-sm);
+    font: .85rem/1.5 var(--u-mono); padding: .8rem;
+  }
+  .ax-task-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; margin-top: .6rem; }
+</style>

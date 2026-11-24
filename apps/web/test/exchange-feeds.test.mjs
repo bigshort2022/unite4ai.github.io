@@ -125,6 +125,9 @@ test('record pages preserve computed lineage, corrections, review states and esc
     assert.match(old, /Fixture &amp;lt;script&amp;gt;/);
     assert.doesNotMatch(old, /<script>alert/);
     assert.ok(old.includes(hash(JSON.stringify(records['fixture-finding']))), 'review pins exact finding bytes');
+    const task = old.match(/<textarea\b[^>]*\bdata-ax-prompt[^>]*>([\s\S]*?)<\/textarea>/)?.[1];
+    assert.match(task ?? '', new RegExp(`unite4ai-axi review fixture-finding --finding-sha256 ${hash(JSON.stringify(records['fixture-finding']))}`));
+    assert.doesNotMatch(task, /Fixture|--confirm/);
     assert.match(old, new RegExp(`href=\"/evals/gsm8k-200#run-${RESULT}\"`));
     assert.match(page('evals/gsm8k-200/index.html'), new RegExp(`id=\"run-${RESULT}\"`));
     const model = page('registry/models/darsy-xray-analysis/index.html');

@@ -47,7 +47,7 @@ const disagreements = calibration?.agreement.flatMap((agreed, position) => agree
   note: disagreementNotes?.[position],
 }]) ?? [];
 ---
-<Base title={d.name} description={d.summary}>
+<Base title={d.name} description={d.summary} measuredOn={d.measured_on}>
   <article class="wrap section" data-pagefind-body>
     <p class="eyebrow"><a href={href('/evals')}>Evaluations</a> · {CATEGORY_LABELS[d.category]} · Benchmark</p>
     <h1>{d.name}</h1>

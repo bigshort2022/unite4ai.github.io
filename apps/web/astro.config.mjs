@@ -2,9 +2,10 @@
 import { defineConfig } from 'astro/config';
 import mdx from '@astrojs/mdx';
 import sitemap from '@astrojs/sitemap';
+import { axBuildChecks } from './scripts/check-ax-build.mjs';
 
 // ─────────────────────────────────────────────────────────────
-// EDIT THESE TWO LINES ONLY.
+// To change the deployment URL, update SITE and BASE below.
 //
 // Option A — project page  https://<user>.github.io/unite4ai
 //   site: 'https://<user>.github.io',  base: '/unite4ai'
@@ -22,7 +23,7 @@ export default defineConfig({
   site: SITE,
   base: BASE,
   trailingSlash: 'ignore',
-  integrations: [mdx(), sitemap()],
+  integrations: [mdx(), sitemap(), axBuildChecks()],
   build: { format: 'directory' },
   markdown: {
     shikiConfig: {
