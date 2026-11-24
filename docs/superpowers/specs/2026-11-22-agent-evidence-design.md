@@ -175,6 +175,27 @@ after an unflattering result.
 - **Label:** "replicated by N" counts consistent replications by distinct identities;
   "contested" appears when any replication is inconsistent.
 
+### BFCL replication task card
+
+- The BFCL benchmark page offers one task pinned to the published calibration result
+  `qwen3-8-27b--bfcl-multiple-50--bigshort2022--2026-11-23--5e58a1a8`.
+  It links to that exact run and its evidence receipt, not to a model-wide average.
+  The card is absent when that run is missing or no longer matches the current v1 method.
+- Before starting, the contributor needs an owner-approved idle Apple Silicon host with
+  at least 64 GB unified memory and the exact `mlx-community/Qwen3.8-27B-4bit` MLX 4-bit
+  artifact already loaded with thinking disabled. Hardware and runtime may differ from
+  the reference and must be disclosed. The paid-spend cap is USD 0; the owner's overall
+  time cap is 60 minutes, with a 55-minute runner target and a 90-second reply timeout.
+  If the preconditions fail, report the blocker instead of swapping models, paying, or
+  resuming without approval. No tools named by the model may be executed.
+- The deliverable is one complete, new v1 result submitted under a genuinely independent
+  contributor's matching GitHub account, plus a private transcript available for review.
+  The reviewer checks 250 attempts, method and artifact, observed setup/time and limits,
+  score and both 95% intervals, and transcript size and hash. A different score is valid
+  evidence, not a reason to retry or withhold submission. Independence of people or
+  identical weights is not verified by this task card. The card authorizes neither run
+  nor submission and offers no payout.
+
 ## Switch findings
 
 A switch finding is an ordinary finding whose hypothesis states: on task family X, setup

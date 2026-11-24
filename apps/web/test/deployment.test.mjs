@@ -67,6 +67,24 @@ test('production build targets the unite4ai.com custom domain', { timeout: 120_0
   if (exchange.hypotheses.length === 0) assert.match(exchangeHtml, /No open hypotheses published/);
   if (exchange.findings.length === 0) assert.match(exchangeHtml, /No unreviewed findings published/);
 
+  const bfcl = await readFile(new URL('dist/evals/bfcl-multiple-50/index.html', ROOT), 'utf8');
+  const card = bfcl.match(/<section\b[^>]*\bid="replication-task"[^>]*>[\s\S]*?<\/section>/)?.[0];
+  assert.ok(card, 'the published BFCL reference should offer a replication task');
+  const run = 'qwen3-8-27b--bfcl-multiple-50--bigshort2022--2026-11-23--5e58a1a8';
+  assert.ok(card.includes(`href="#run-${run}"`));
+  assert.ok(bfcl.includes(`id="run-${run}"`));
+  const receipt = card.match(/href="(\/data\/eval-exports\/[^"]+\/evidence\.json)"/)?.[1];
+  assert.ok(receipt, 'the card links to the actual evidence receipt');
+  const evidence = JSON.parse(await readFile(new URL(`dist${receipt}`, ROOT), 'utf8'));
+  assert.equal(evidence.result_id, run);
+  assert.ok(card.includes(evidence.setup.served_model));
+  assert.match(card, /64 GB/);
+  assert.match(card, /\$0[\s\S]*60 minutes[\s\S]*55 minutes[\s\S]*90 seconds/);
+  assert.match(card, /250 attempts/);
+  assert.match(card, /not a target/i);
+  assert.match(exchangeHtml, /href="\/evals\/bfcl-multiple-50"[^>]*>BFCL replication task</);
+  assert.doesNotMatch(await readFile(new URL('dist/evals/gsm8k-200/index.html', ROOT), 'utf8'), /id="replication-task"/);
+
   // Cost guard: GitHub Pages serves at most 1 GB; fail long before that.
   const bytes = await directorySize(new URL('dist/', ROOT));
   assert.ok(bytes < 250 * 1024 * 1024, `dist is ${bytes} bytes; the budget is 250 MB`);

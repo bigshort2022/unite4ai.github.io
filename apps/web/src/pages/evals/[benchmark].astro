@@ -1,8 +1,10 @@
 ---
 import Base from '../../layouts/Base.astro';
+import BfclReplicationTask from '../../components/BfclReplicationTask.astro';
 import { getCollection, render } from 'astro:content';
 import { submitterLabel } from '@unite4ai/core';
 import { CATEGORY_LABELS, SUBMIT_GUIDE, deviceLine, evalRunAnchor, evalRunLabel, formatNumber, loadEvals, repeatLines, resourceLines, runsLabel, runtimeLabel, scoreRange, withUnit, type Board } from '../../lib/evals';
+import { EXPORT_FILES, exportPath } from '../../lib/eval-exports';
 
 export async function getStaticPaths() {
   const benchmarks = await getCollection('benchmarks');
@@ -40,6 +42,15 @@ const usd = (value: number) => `$${formatNumber(value)}`;
 const calibration = entry.id === 'bfcl-multiple-50' ? bfclCalibration : undefined;
 const calibratedRun = calibration && allRuns.find((run) =>
   run.benchmark_version === '1' && run.evidence.sha256 === calibration.transcript_sha256);
+const replicationReference = entry.id === 'bfcl-multiple-50' && d.version === '1'
+  && d.source_sha256 === 'aef168155ebd74b7ac2401198b201343bc7d16d7a3d7e0d4e6d8ee82c6969b2a'
+  && d.items === 50 && d.repeat?.runs === 5 && d.repeat.temperature === 0.7 && d.repeat.top_p === 1
+  ? runs.find((run) =>
+      run.id === 'qwen3-8-27b--bfcl-multiple-50--bigshort2022--2026-11-23--5e58a1a8'
+      && run.n === 50 && run.repeat?.runs === 5 && run.repeat.temperature === 0.7 && run.repeat.top_p === 1
+      && run.setup.served_model === 'mlx-community/Qwen3.8-27B-4bit'
+      && run.setup.format === 'mlx' && run.setup.quantization === '4bit' && run.setup.runtime !== 'api')
+  : undefined;
 const disagreementNotes = calibration?.disagreement_notes;
 const disagreements = calibration?.agreement.flatMap((agreed, position) => agreed ? [] : [{
   pass: Math.floor(position / 50) + 1,
@@ -61,6 +72,13 @@ const disagreements = calibration?.agreement.flatMap((agreed, position) => agree
       {d.repeat && <span class="tag">{`${d.repeat.runs} runs per item at temperature ${d.repeat.temperature}`}</span>}
       <span class="tag">{d.metric.name}{d.metric.unit && ` (${d.metric.unit})`}, {d.metric.higher_is_better ? 'higher' : 'lower'} is better</span>
     </div>
+
+    {replicationReference?.repeat && <BfclReplicationTask
+      reference={replicationReference}
+      repeat={replicationReference.repeat}
+      runHref={runHref(replicationReference.id)}
+      evidenceHref={exportPath(replicationReference.id, EXPORT_FILES.evidence)}
+    />}
 
     <h2>Leaderboard</h2>
     <p class="muted">Results are self-reported. The number of submitting accounts does not establish independent reproduction.</p>
