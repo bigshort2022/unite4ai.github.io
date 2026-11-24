@@ -29,7 +29,7 @@ const sides = comparison && incumbent && candidate ? [
 ] : null;
 const interval = (score: number, [low, high]: [number, number]) => `${score}% [${low}%, ${high}%]`;
 ---
-<Base title={`Finding: ${record.id}`}>
+<Base title={`Finding: ${record.id}`} findingHash={record.sha256}>
   <article class="wrap section exchange" data-pagefind-body>
     <p class="eyebrow"><a href={href('/exchange')}>Exchange</a> · Finding record</p>
     <h1>{record.id}</h1>

@@ -1,0 +1,372 @@
+{
+  "schema_version": 1,
+  "bin": "unite4ai-axi",
+  "root_flags": [
+    {
+      "name": "help",
+      "description": "Show help without loading configuration or calling dependencies."
+    },
+    {
+      "name": "version",
+      "description": "Show the installed version."
+    }
+  ],
+  "commands": [
+    {
+      "name": "home",
+      "summary": "Show discovery, identity and workspace status.",
+      "positionals": [],
+      "flags": [
+        {
+          "name": "help",
+          "description": "Show help without loading configuration or calling dependencies."
+        }
+      ],
+      "examples": [
+        "next --kind baseline",
+        "setup workspace"
+      ]
+    },
+    {
+      "name": "next",
+      "summary": "Find a baseline, replication or review and explain blockers.",
+      "positionals": [],
+      "flags": [
+        {
+          "name": "kind",
+          "description": "Type of evidence work; omit for all kinds.",
+          "value": "baseline|replication|review"
+        },
+        {
+          "name": "limit",
+          "description": "Maximum number of work items (default 10, range 1–100).",
+          "value": "count"
+        },
+        {
+          "name": "fields",
+          "description": "Comma-separated output fields.",
+          "value": "fields"
+        },
+        {
+          "name": "full",
+          "description": "Show extended guidance and provenance."
+        },
+        {
+          "name": "help",
+          "description": "Show help without loading configuration or calling dependencies."
+        }
+      ],
+      "examples": [
+        "next --kind replication --limit 3"
+      ]
+    },
+    {
+      "name": "prompt",
+      "summary": "Print static, page-specific instructions without fetching HTML.",
+      "positionals": [
+        "page"
+      ],
+      "flags": [
+        {
+          "name": "full",
+          "description": "Show extended guidance and provenance."
+        },
+        {
+          "name": "help",
+          "description": "Show help without loading configuration or calling dependencies."
+        }
+      ],
+      "examples": [
+        "prompt /exchange --full"
+      ]
+    },
+    {
+      "name": "setup workspace",
+      "summary": "Prepare the pinned upstream checkout; no inference.",
+      "positionals": [],
+      "flags": [
+        {
+          "name": "help",
+          "description": "Show help without loading configuration or calling dependencies."
+        }
+      ],
+      "examples": [
+        "setup workspace"
+      ]
+    },
+    {
+      "name": "setup hooks",
+      "summary": "Print opt-in hook guidance without changing the host.",
+      "positionals": [],
+      "flags": [
+        {
+          "name": "help",
+          "description": "Show help without loading configuration or calling dependencies."
+        }
+      ],
+      "examples": [
+        "setup hooks"
+      ]
+    },
+    {
+      "name": "skill",
+      "summary": "Locate the packaged agent skill and show how to install it.",
+      "positionals": [],
+      "flags": [
+        {
+          "name": "help",
+          "description": "Show help without loading configuration or calling dependencies."
+        }
+      ],
+      "examples": [
+        "skill"
+      ]
+    },
+    {
+      "name": "run",
+      "summary": "Preview or explicitly run a registered local benchmark.",
+      "positionals": [
+        "benchmark"
+      ],
+      "flags": [
+        {
+          "name": "model",
+          "description": "Unite4AI model card ID.",
+          "value": "model-card-id",
+          "required": true
+        },
+        {
+          "name": "server",
+          "description": "Configured local endpoint.",
+          "value": "id",
+          "required": true
+        },
+        {
+          "name": "max-seconds",
+          "description": "Owner-approved wall-clock budget.",
+          "value": "seconds",
+          "required": true
+        },
+        {
+          "name": "served-model",
+          "description": "Additional assertion for the already loaded model.",
+          "value": "exact-id"
+        },
+        {
+          "name": "confirm",
+          "description": "Perform this operation only after explicit owner approval. Omit for a preview."
+        },
+        {
+          "name": "help",
+          "description": "Show help without loading configuration or calling dependencies."
+        }
+      ],
+      "examples": [
+        "run bfcl-multiple-50 --model qwen3-8-27b --server mini --max-seconds 900"
+      ]
+    },
+    {
+      "name": "replicate",
+      "summary": "Preview or rerun a published result on a configured local server.",
+      "positionals": [
+        "result"
+      ],
+      "flags": [
+        {
+          "name": "server",
+          "description": "Configured local endpoint.",
+          "value": "id",
+          "required": true
+        },
+        {
+          "name": "max-seconds",
+          "description": "Owner-approved wall-clock budget.",
+          "value": "seconds",
+          "required": true
+        },
+        {
+          "name": "served-model",
+          "description": "Additional assertion for the already loaded model.",
+          "value": "exact-id"
+        },
+        {
+          "name": "confirm",
+          "description": "Perform this operation only after explicit owner approval. Omit for a preview."
+        },
+        {
+          "name": "help",
+          "description": "Show help without loading configuration or calling dependencies."
+        }
+      ],
+      "examples": [
+        "replicate <result-id> --server mini --max-seconds 900"
+      ]
+    },
+    {
+      "name": "finding draft",
+      "summary": "Validate and write an add-only finding to the local evidence workspace.",
+      "positionals": [],
+      "flags": [
+        {
+          "name": "id",
+          "description": "New finding ID.",
+          "value": "id",
+          "required": true
+        },
+        {
+          "name": "hypothesis",
+          "description": "Published hypothesis ID.",
+          "value": "id",
+          "required": true
+        },
+        {
+          "name": "results",
+          "description": "Comma-separated result IDs.",
+          "value": "ids",
+          "required": true
+        },
+        {
+          "name": "verdict",
+          "description": "Finding verdict from the exchange schema.",
+          "value": "verdict",
+          "required": true
+        },
+        {
+          "name": "summary",
+          "description": "What the evidence establishes.",
+          "value": "text",
+          "required": true
+        },
+        {
+          "name": "limitations",
+          "description": "Limits and comparability caveats.",
+          "value": "text",
+          "required": true
+        },
+        {
+          "name": "date",
+          "description": "UTC date of the work.",
+          "value": "YYYY-MM-DD",
+          "required": true
+        },
+        {
+          "name": "agent-model",
+          "description": "Actual authoring model.",
+          "value": "model",
+          "required": true
+        },
+        {
+          "name": "agent-harness",
+          "description": "Actual authoring harness.",
+          "value": "harness",
+          "required": true
+        },
+        {
+          "name": "incumbent",
+          "description": "Result for the configured incumbent.",
+          "value": "result-id"
+        },
+        {
+          "name": "candidate",
+          "description": "Result for the candidate.",
+          "value": "result-id"
+        },
+        {
+          "name": "supersedes",
+          "description": "Previous finding explicitly replaced by this one.",
+          "value": "id"
+        },
+        {
+          "name": "help",
+          "description": "Show help without loading configuration or calling dependencies."
+        }
+      ],
+      "examples": [
+        "prompt /exchange --full"
+      ]
+    },
+    {
+      "name": "review",
+      "summary": "Validate and write an exact-hash review to the local evidence workspace.",
+      "positionals": [
+        "finding"
+      ],
+      "flags": [
+        {
+          "name": "verdict",
+          "description": "Review verdict from the exchange schema.",
+          "value": "verdict",
+          "required": true
+        },
+        {
+          "name": "checks",
+          "description": "Checks actually performed.",
+          "value": "checks",
+          "required": true
+        },
+        {
+          "name": "notes",
+          "description": "Review evidence and limitations.",
+          "value": "text",
+          "required": true
+        },
+        {
+          "name": "finding-sha256",
+          "description": "SHA-256 of the exact finding bytes reviewed.",
+          "value": "hash",
+          "required": true
+        },
+        {
+          "name": "date",
+          "description": "UTC date of the work.",
+          "value": "YYYY-MM-DD",
+          "required": true
+        },
+        {
+          "name": "agent-model",
+          "description": "Actual authoring model.",
+          "value": "model",
+          "required": true
+        },
+        {
+          "name": "agent-harness",
+          "description": "Actual authoring harness.",
+          "value": "harness",
+          "required": true
+        },
+        {
+          "name": "help",
+          "description": "Show help without loading configuration or calling dependencies."
+        }
+      ],
+      "examples": [
+        "next --kind review"
+      ]
+    },
+    {
+      "name": "submit",
+      "summary": "Validate a preview or open one confirmed add-only draft PR.",
+      "positionals": [],
+      "flags": [
+        {
+          "name": "record",
+          "description": "New record path relative to the upstream tree. Repeat for related records.",
+          "value": "path",
+          "required": true,
+          "repeatable": true
+        },
+        {
+          "name": "confirm",
+          "description": "Perform this operation only after explicit owner approval. Omit for a preview."
+        },
+        {
+          "name": "help",
+          "description": "Show help without loading configuration or calling dependencies."
+        }
+      ],
+      "examples": [
+        "submit --record apps/web/src/content/findings/<id>.json"
+      ]
+    }
+  ]
+}
