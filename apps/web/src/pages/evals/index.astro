@@ -31,7 +31,9 @@ const hasRows = boards.some((b) => b.rows.length > 0);
     <p style="margin-top:1rem">
       <a class="btn btn-primary" href={SUBMIT_GUIDE}>Submit a result</a>
       <a class="btn btn-ghost" href={href('/data/evals.json')}>Data feed (JSON)</a>
+      <a class="btn btn-ghost" href={href('/data/eval-exports.json')}>Per-result exports (JSON)</a>
     </p>
+    <p>Exports retain the published scores and uncertainty. Hugging Face YAML requires a matching registered benchmark task and model artifact. Nothing is submitted automatically.</p>
 
     {categories.length > 0 && (
       <div class="registry-controls" style="margin-top:1.5rem">

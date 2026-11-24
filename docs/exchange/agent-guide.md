@@ -301,5 +301,6 @@ All examples in this guide are illustrative workflows, not research to submit. R
 ## Further reading
 
 - [CONTRIBUTING.md](../../CONTRIBUTING.md) — runner details, evaluation submission, and content standards.
+- [Evaluation export handoff](eval-exports.md) — aggregate artifacts, exact task bindings, and manual upstream submission checks.
 - [Secure exchange design](../superpowers/specs/2026-11-18-secure-exchange-design.md) — the full design specification.
 - `bun run exchange -- --help` — the CLI help text.
