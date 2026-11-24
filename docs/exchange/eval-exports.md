@@ -21,6 +21,9 @@ Historical scores do not inherit today's metric definition; where upstream requi
 
 The index gives `hugging_face.status: ready` only if the reviewed task binding and recorded model artifact agree. `ready` means YAML can be staged for a human to review; it does not imply a successful upload, verification, or inclusion on a leaderboard. The current binding registry starts empty. In particular, a 200-item deterministic GSM8K run is not the [published HF GSM8K task](https://huggingface.co/datasets/openai/gsm8k/blob/main/eval.yaml), and the name “BFCL” does not prove that another dataset's task reproduces the pinned multiple-call slice and all-runs metric.
 
+For the exact 50-item BFCL slice, see the [BFCL dataset-task handoff](hf-bfcl-task.md). The
+offline package does not activate the site's binding or submit a score.
+
 To add a binding, review the external dataset repository's exact `eval.yaml` at an immutable revision. Establish that the declared task uses the same items, subset, sampling, prompt, scoring and score unit as the site's benchmark version. Submit a binding in `apps/web/src/data/hf-eval-bindings.json` with `benchmark`, `version`, `dataset` (owner/repo), `task_id`, `revision` (40 lowercase hex), `source_sha256` (the site's published benchmark source hash), and `metric_unit`. This is a human method-equivalence assertion, not proof that two methods match because hashes or names happen to match. The build checks identity, version, hash, and unit against the site's current definition; it does not contact HF.
 
 The index reports concrete blocked reasons for missing bindings, unsupported historical versions or hosted runs, unverified model artifacts, and source or metric mismatches. A blocked row has no uploadable YAML; use its evidence JSON for review. When an exact binding exists:

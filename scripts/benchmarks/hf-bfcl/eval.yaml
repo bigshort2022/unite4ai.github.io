@@ -1,0 +1,13 @@
+name: Unite4AI BFCL Multiple 50 (v1)
+description: >-
+  Prompted tool selection and argument matching on the first 50 BFCL v4
+  multiple items. The score is the percentage of items correct on all five
+  passes (0–100, higher is better), not an official BFCL score.
+
+leaderboard:
+  base_models_only: false
+
+tasks:
+  - id: bfcl-multiple-50-v1-all-runs-pass-at-5
+    config: default
+    split: test
