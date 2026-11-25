@@ -329,3 +329,18 @@ test('API-only hypothesis models require hosted evidence on the exact benchmark'
   context.results.set(CANDIDATE_ID, hosted);
   assert.deepEqual(validateExchange(data, context), []);
 });
+
+test('a hosted-only hypothesis cannot cite an ambiguous model slug on its benchmark', () => {
+  const first = withApi(localSwitchRun(560), { model: 'hosted-only' });
+  const second = {
+    ...first,
+    setup: { ...first.setup, served_model: 'different-served-model' },
+    api: { ...first.api, model_card: 'https://example.org/another-model' },
+  };
+  const { context, data } = switchFixture({ incumbent: first, candidate: second });
+  data.hypotheses[0].data.models = ['hosted-only'];
+  delete data.findings[0].data.switch;
+  assert.match(validateExchange(data, context).join('\n'), /ambiguous hosted model hosted-only on bench-a/);
+  context.results.set(CANDIDATE_ID, { ...second, setup: first.setup });
+  assert.deepEqual(validateExchange(data, context), [], 'documentation URLs need not be identical');
+});

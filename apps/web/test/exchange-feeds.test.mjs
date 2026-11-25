@@ -211,12 +211,12 @@ test('a switch page publishes directed links, both intervals and each hosted cos
     const benchmark = 'tool-selection-v1';
     const method = { runs: 5, temperature: 0.7, top_p: 1 };
     const repeat = repeatSummary(method, {
-      item_pass_histogram: [40, 0, 0, 0, 0, 60], run_correct: [60, 60, 60, 60, 60], seconds_total: 300,
+      item_pass_histogram: [15, 50, 0, 0, 0, 35], run_correct: [45, 45, 45, 45, 45], seconds_total: 300,
       prompt_tokens_total: 100_000, completion_tokens_total: 100_000,
     });
     const prices = estimatedApiCost(repeat, { snapshot_date: '2026-11-10', snapshot_sha256: 'c'.repeat(64),
       input_usd_per_million: 1, output_usd_per_million: 2 });
-    const invoice = { kind: 'invoice', invoice_sha256: 'd'.repeat(64), total_usd: 0.03, usd_per_success: 0.03 / 300 };
+    const invoice = { kind: 'invoice', invoice_sha256: 'd'.repeat(64), total_usd: 0.03, usd_per_success: 0.03 / 225 };
     const writeRun = (run) => {
       const id = `${run.model}--${benchmark}--alice--2026-11-10--${run.evidence.sha256.slice(0, 8)}`;
       writeFileSync(join(evals, `${id}.json`), JSON.stringify(run));
@@ -260,7 +260,8 @@ test('a switch page publishes directed links, both intervals and each hosted cos
     assert.equal(tableLinks.length, 2);
     assert.ok(tableLinks[0].endsWith(`/evals/${benchmark}#run-${incumbent}`), 'incumbent cell links its exact run');
     assert.ok(tableLinks[1].endsWith(`/evals/${benchmark}#run-${candidate}`), 'candidate cell links its exact run');
-    assert.match(findingHtml, /Pass@1.*95%.*Pass@k.*95%/s);
+    assert.match(findingHtml, /Pass@1.*95%.*Correct on all k runs.*95%/s);
+    assert.match(findingHtml, /Intervals for correctness on all runs overlap/);
     for (const [score, [low, high]] of [[repeat.pass_1, repeat.pass_1_ci], [repeat.pass_k, repeat.pass_k_ci]]) {
       assert.ok(findingHtml.includes(`${score}% [${low}%, ${high}%]`));
     }
@@ -284,6 +285,45 @@ test('a switch page publishes directed links, both intervals and each hosted cos
     assert.ok(failedCostRow);
     assert.match(failedCostRow, /No successful attempts.*42 seconds total.*Source: local run timing.*No successful attempts.*0\.05 USD total.*Contributor-reported invoice/s);
     assert.doesNotMatch(failedCostRow, />0 (?:seconds|USD) per success/);
+  }, { customEvals: true });
+});
+
+test('a standalone build rejects invalid switch costs even without the content gate', { timeout: 120_000 }, () => {
+  withBuildFixture(({ paths, build, evals }) => {
+    const benchmark = 'tool-selection-v1';
+    const repeat = repeatSummary({ runs: 5, temperature: 0.7, top_p: 1 }, {
+      item_pass_histogram: [40, 0, 0, 0, 0, 60], run_correct: [60, 60, 60, 60, 60], seconds_total: 600,
+    });
+    const writeRun = (model, digit, fields) => {
+      const id = `${model}--${benchmark}--alice--2026-11-10--${digit.repeat(8)}`;
+      writeFileSync(join(evals, `${id}.json`), JSON.stringify(result({
+        model, benchmark, n: 100, score: repeat.pass_k, repeat, evidence: { sha256: digit.repeat(64) }, ...fields,
+      })));
+      return id;
+    };
+    const apiFields = (served_model, total_usd, usd_per_success) => ({
+      setup: { ...result().setup, runtime: 'api', served_model, format: 'other', quantization: 'undisclosed' },
+      api: { provider: 'fixture-api', model_card: `https://example.org/${served_model}`, terms_url: 'https://example.org/terms',
+        terms_checked_on: '2026-11-10', expected_usd: 1, approved_usd: 2 },
+      cost: { kind: 'invoice', invoice_sha256: 'd'.repeat(64), total_usd, usd_per_success },
+    });
+    const a = writeRun('hosted-a', 'a', apiFields('served-a', 0.3, 0.3 / 300));
+    const b = writeRun('hosted-b', 'b', apiFields('served-b', 0.6, 0.0001));
+    const c = writeRun('darsy-xray-analysis', 'c', {});
+    const d = writeRun('darsy-xray-analysis', 'd', {
+      setup: { ...result().setup, quantization: '8bit' }, repeat: { ...repeat, seconds_per_success: 0.01 },
+    });
+    writeFileSync(paths.hypothesis, markdown(hypothesis({ benchmark, models: ['hosted-a', 'hosted-b', 'darsy-xray-analysis'] })));
+    for (const [incumbent, candidate] of [[a, b], [c, d]]) {
+      writeFileSync(join(dirname(paths.finding), `fixture-${candidate.slice(-1)}.json`), JSON.stringify(
+        finding({ results: [incumbent, candidate], switch: { incumbent, candidate } }),
+      ));
+    }
+    const rejected = build();
+    assert.notEqual(rejected.status, 0, 'invalid inferred per-success costs must stop publication');
+    const diagnostic = `${rejected.stdout}${rejected.stderr}`;
+    assert.match(diagnostic, /cost\.usd_per_success must be .* from total USD and successful attempts/);
+    assert.match(diagnostic, /repeat\.seconds_per_success .* successful attempts/);
   }, { customEvals: true });
 });
 

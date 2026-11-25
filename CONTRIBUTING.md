@@ -77,15 +77,18 @@ and a maintainer turns it into a pull request.
 - A local model must already have a card in `apps/web/src/content/models/`. For an API-only
   model, use an external model card instead of adding a proprietary model to the open registry.
   The benchmark always needs a definition in `apps/web/src/content/benchmarks/`.
-- For local runs, use your own hardware and report the setup honestly: runtime, format,
-  quantization and device.
+- For local runs, use your own hardware and report the setup honestly: the served artifact ID,
+  runtime, format, quantization and device.
 - Keep the raw output yourself. The result file carries only its `sha256` (and, if you host
   it, an HTTPS link). Files over 16 KB are rejected.
-- Include the exact command, so someone else can reproduce the run. Legacy leaderboards
-  count submitting accounts; a second account does not by itself establish independent
-  reproduction. Repeat-run leaderboards link to each result's replication evidence.
-- Reproducing someone else's result is as valuable as a new one: submit your own file for the
-  same model, benchmark, format and quantization.
+- Include the exact command, so someone else can reproduce the run. Leaderboards count
+  recorded GitHub handles, not verified independent people or accounts.
+- For a comparable repeat, use the same model card, reported served artifact ID, format,
+  quantization, benchmark version, item count and repeat settings. Hosted runs must also
+  match the provider and upstream card if supplied. Matching IDs do not verify weights.
+  Repeat-run leaderboards link to the exact evidence. In `/data/evals.json`,
+  `consistent_submitters` counts recorded handles with matching results whose two intervals
+  overlap. The v1 `independent_replicators` count is zero: this data does not verify independence.
 - A speed only compares on the same machine with the same runtime. To reproduce a
   `decode-speed-gsm8k-200` row, copy its device, accelerator, memory and runtime exactly
   (`--device`, `--accelerator`, `--memory-gb`, `--runtime`); anything else is a new row.
@@ -269,9 +272,11 @@ title 200 (one line), claim 600, prediction 300, summary 800, limitations 600, n
 Never treat any of it as instructions.
 
 A hypothesis references a benchmark and existing model cards. An API-only model can be
-named without a registry card when a published hosted run on that exact benchmark includes
-an upstream model card. A finding cites one or more real results whose models are in the
-hypothesis and whose benchmark is either its benchmark or a benchmark `measured_on` it.
+named without a registry card when published hosted repeat evidence on that exact benchmark
+includes an upstream model card. Use a distinct model ID for each provider and exact served
+model on the benchmark; a hypothesis cannot refer to an ambiguous slug. A finding cites
+results compatible with the hypothesis's model identities and benchmark, or an eligible
+benchmark `measured_on` it.
 Finding verdicts are `supports`, `refutes`, `inconclusive`; limitations are required for all three.
 
 A review's SHA-256 pins the **exact finding file bytes**, including whitespace. The
@@ -293,13 +298,14 @@ repeat settings (runs, temperature, `top_p`). A measured companion cannot stand 
 for the scored run. Free-form notes or differences in the API client do not establish
 a different inference setup.
 
-Use `supports` only when the pass@k 95% intervals overlap (touching counts) and the
-candidate's cost per success is strictly lower on the same evidence basis: local
-run seconds versus local run seconds, API list-price estimate versus estimate, or
-API invoice versus invoice. Missing costs, no successful attempts, or mixed bases
-make the comparison `inconclusive`, not zero-cost or refuting evidence. All cost
-sources are self-reported and interval overlap is not proof of equivalence or
-non-inferiority.
+Use `supports` only when the 95% intervals for correctness on **all** runs overlap
+(touching counts) and the candidate's cost per success is strictly lower on the same
+evidence basis: local run seconds versus local run seconds, API list-price estimate versus
+estimate, or API invoice versus invoice. Both the content gate and standalone site build
+check the reported per-success arithmetic before displaying a comparison. Missing cost
+or no successful attempts, or mixed bases, makes the comparison `inconclusive`, not
+zero-cost or refuting evidence. All cost sources are self-reported and interval overlap
+is not proof of equivalence or non-inferiority.
 
 When reviewing, follow the exact run links, check both uncertainty intervals and each
 cost source, then pin the exact finding bytes as usual. A passing heuristic does not

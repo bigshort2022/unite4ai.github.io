@@ -3,7 +3,10 @@ import { byCodeUnit, deviceKey, type EvalRun } from './evals.ts';
 export type ReplicationRelationship = 'consistent' | 'inconsistent' | 'repeated_on_other_hardware';
 
 export interface ReplicationEvidence {
-  independent_replicators: number;
+  /** v1 wire field: these records do not establish independent operators. */
+  independent_replicators: 0;
+  /** Distinct recorded GitHub handles with consistent results, not distinct people or accounts. */
+  consistent_submitters: number;
   contested: boolean;
   peers: { result: string; relationship: ReplicationRelationship }[];
 }
@@ -13,14 +16,15 @@ type Candidate = { run: RepeatRun; evidence: ReplicationEvidence; device: string
 
 function cohortKey(run: RepeatRun): string | undefined {
   const { runtime, format, quantization, served_model } = run.setup;
+  if (!served_model?.trim()) return undefined;
   // Historical definitions are no longer available to validate these method fields.
   const { runs, temperature, top_p } = run.repeat;
   const identity: (string | number | null)[] = [
-    run.benchmark, run.benchmark_version, run.model, format, quantization, run.n, runs, temperature, top_p,
+    run.benchmark, run.benchmark_version, run.model, format, quantization, served_model, run.n, runs, temperature, top_p,
   ];
   if (runtime !== 'api') return JSON.stringify(identity);
-  if (run.api === undefined || served_model === undefined) return undefined;
-  identity.push(run.api.provider, served_model, run.api.model_card ?? null);
+  if (run.api === undefined) return undefined;
+  identity.push(run.api.provider, run.api.model_card ?? null);
   return JSON.stringify(identity);
 }
 
@@ -50,7 +54,7 @@ function addPeer(candidate: Candidate, peer: RepeatRun, relation: ReplicationRel
 
 /**
  * Per-result evidence from scored runs. Compare each pair within an exact cohort once; keep
- * every eligible peer in result ID order but count each consistent submitter only once.
+ * every eligible peer in result ID order but count each consistent recorded handle only once.
  */
 export function buildReplicationIndex(runs: readonly EvalRun[]): ReadonlyMap<string, ReplicationEvidence> {
   const index = new Map<string, ReplicationEvidence>();
@@ -58,7 +62,7 @@ export function buildReplicationIndex(runs: readonly EvalRun[]): ReadonlyMap<str
   const repeated = runs.filter((run): run is RepeatRun => run.repeat !== undefined)
     .sort((a, b) => byCodeUnit(a.id, b.id));
   for (const run of repeated) {
-    const evidence: ReplicationEvidence = { independent_replicators: 0, contested: false, peers: [] };
+    const evidence: ReplicationEvidence = { independent_replicators: 0, consistent_submitters: 0, contested: false, peers: [] };
     index.set(run.id, evidence);
     const key = cohortKey(run);
     if (key === undefined) continue;
@@ -78,7 +82,7 @@ export function buildReplicationIndex(runs: readonly EvalRun[]): ReadonlyMap<str
         addPeer(a, b.run, relation);
         addPeer(b, a.run, relation);
       }
-      a.evidence.independent_replicators = a.consistentSubmitters?.size ?? 0;
+      a.evidence.consistent_submitters = a.consistentSubmitters?.size ?? 0;
     }
   }
   return index;

@@ -9,6 +9,7 @@ const evidence = repeatSummary({ runs: 2, temperature: 0.7, top_p: 1 }, {
 
 function candidate(id, submitter, { pass1 = [60, 70], passK = [50, 65], ...overrides } = {}) {
   const result = run(id, overrides);
+  if (overrides.setup === undefined) result.setup.served_model = 'fixture/model-a-4bit';
   result.run.submitter = submitter;
   result.repeat = { ...evidence, pass_1_ci: pass1, pass_k_ci: passK };
   return result;
@@ -16,7 +17,7 @@ function candidate(id, submitter, { pass1 = [60, 70], passK = [50, 65], ...overr
 
 const peer = (result, relationship) => ({ result, relationship });
 
-test('both intervals must overlap inclusively; count identities once and retain their conflicting runs', () => {
+test('both intervals must overlap inclusively; count each reported handle once and retain conflicting runs', () => {
   const origin = candidate('a', 'alice');
   const edge = candidate('b', 'bob', { pass1: [70, 80], passK: [65, 70] });
   const another = candidate('c', 'bob');
@@ -27,7 +28,8 @@ test('both intervals must overlap inclusively; count identities once and retain 
   const index = buildReplicationIndex(runs);
   assert.deepEqual(index, buildReplicationIndex([...runs].reverse()));
   assert.deepEqual(index.get('a'), {
-    independent_replicators: 2,
+    consistent_submitters: 2,
+    independent_replicators: 0,
     contested: true,
     peers: [
       peer('b', 'consistent'), peer('c', 'consistent'), peer('d', 'consistent'),
@@ -38,7 +40,7 @@ test('both intervals must overlap inclusively; count identities once and retain 
   assert.ok(index.get('d').peers.some(({ result, relationship }) => result === 'b' && relationship === 'consistent'));
 });
 
-test('same-owner local repeats count only as other hardware, not as independent or contested', () => {
+test('same-handle local repeats count only as other hardware, not as consistent submissions or contested', () => {
   const origin = candidate('a', 'alice');
   const { setup } = origin;
   const changes = [
@@ -57,13 +59,13 @@ test('same-owner local repeats count only as other hardware, not as independent 
   });
   const index = buildReplicationIndex([origin, ...sameOwner, sameHardware]);
   assert.deepEqual(index.get('a'), {
-    independent_replicators: 0, contested: false,
+    consistent_submitters: 0, independent_replicators: 0, contested: false,
     peers: sameOwner.map(({ id }) => peer(id, 'repeated_on_other_hardware')),
   });
   assert.ok(index.get('other-0').peers.some(({ result, relationship }) => result === 'a' && relationship === 'repeated_on_other_hardware'));
 });
 
-test('only repeat evidence with the same benchmark, version, model, format and quantization is comparable', () => {
+test('replication peers must match the benchmark, version, model and reported artifact', () => {
   const origin = candidate('a', 'alice');
   const olderA = candidate('old-a', 'bob', { benchmark_version: '0' });
   const olderB = candidate('old-b', 'charlie', { benchmark_version: '0' });
@@ -74,10 +76,15 @@ test('only repeat evidence with the same benchmark, version, model, format and q
     candidate('other-model', 'bob', { model: 'model-b' }),
     candidate('other-format', 'bob', { setup: { ...setup, format: 'gguf' } }),
     candidate('other-quantization', 'bob', { setup: { ...setup, quantization: '8bit' } }),
-    candidate('local-alias', 'diane', { setup: { ...setup, runtime: 'mlx-lm-go', served_model: 'renamed' } }),
+    candidate('other-artifact', 'diane', { setup: { ...setup, served_model: 'different/model-a-4bit' } }),
+    candidate('unknown-artifact-a', 'diane', { setup: { ...setup, served_model: undefined } }),
+    candidate('unknown-artifact-b', 'bob', { setup: { ...setup, served_model: undefined } }),
+    candidate('other-runtime', 'diane', { setup: { ...setup, runtime: 'mlx-lm-go' } }),
   ]);
   assert.equal(index.has('legacy'), false);
-  assert.deepEqual(index.get('a').peers, [peer('local-alias', 'consistent')]);
+  assert.deepEqual(index.get('a').peers, [peer('other-runtime', 'consistent')]);
+  assert.deepEqual(index.get('unknown-artifact-a').peers, []);
+  assert.deepEqual(index.get('unknown-artifact-b').peers, []);
   assert.deepEqual(index.get('old-a').peers, [peer('old-b', 'consistent')]);
   assert.deepEqual(index.get('old-b').peers, [peer('old-a', 'consistent')]);
 });
@@ -115,7 +122,9 @@ test('hosted checkpoints require exact provider, served ID and optional upstream
     candidate('no-card-a', 'alice', { api: { ...api, model_card: undefined }, setup }),
     candidate('no-card-b', 'bob', { api: { ...api, model_card: undefined }, setup }),
   ]);
-  assert.deepEqual(index.get('a'), { independent_replicators: 1, contested: false, peers: [peer('b', 'consistent')] });
+  assert.deepEqual(index.get('a'), {
+    consistent_submitters: 1, independent_replicators: 0, contested: false, peers: [peer('b', 'consistent')],
+  });
   assert.deepEqual(index.get('local').peers, []);
   assert.deepEqual(index.get('no-card-a').peers, [peer('no-card-b', 'consistent')]);
 });

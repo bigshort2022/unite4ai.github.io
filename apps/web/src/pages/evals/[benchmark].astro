@@ -208,7 +208,13 @@ const disagreements = calibration?.agreement.flatMap((agreed, position) => agree
       <section id={id} style="margin-top:2.5rem" data-pagefind-ignore>
         <h2>{title}</h2>
         <p style="color:var(--u-text-dim)">Self-reported. Each row carries the command that produced it and the hash of its raw output.</p>
-        {showReplication && <p style="color:var(--u-text-dim)">A different submitter's result is consistent when both its pass@1 and score 95% intervals overlap this result's. Overlap does not prove equivalence.</p>}
+        {showReplication && <p style="color:var(--u-text-dim)">
+          Peers must match the same model card, benchmark version, item count, repeat method, format and quantization, and reported artifact ID.
+          Hosted runs also match the provider and any upstream model card. Runtime and hardware may differ.
+          A result from another handle is consistent when both 95% intervals (pass@1 and the all-runs score) overlap.
+          One inconsistent peer marks the result contested. These are recorded GitHub handles, not verified independent people.
+          Matching IDs and overlapping intervals do not prove identical weights or equivalent performance.
+        </p>}
         <div class="eval-scroll" tabindex="0" role="region" aria-label={caption}>
           <table class="eval-table">
             <caption class="sr-only">{caption}</caption>
@@ -239,14 +245,17 @@ const disagreements = calibration?.agreement.flatMap((agreed, position) => agree
                     <td>
                       {replication === undefined ? '—' : (
                         <>
-                          <span class="tag">{replication.independent_replicators > 0 ? `replicated by ${replication.independent_replicators}` : 'not yet independently replicated'}</span>
+                          <span class="tag">{replication.consistent_submitters === 0
+                            ? 'No consistent result from another handle'
+                            : replication.consistent_submitters === 1 ? '1 submitting handle with a consistent result'
+                              : `${replication.consistent_submitters} submitting handles with consistent results`}</span>
                           {replication.contested && <span class="tag">contested</span>}
                           {replication.peers.map(({ result, relationship }) => {
                             const peer = runsById.get(result)!;
                             const { setup } = peer;
                             return (
                               <small>
-                                <a href={runHref(result)}>{peerLabels[relationship]} · {peer.run.submitter} · {peer.run.date}</a><br />
+                                <a href={runHref(result)}>{peerLabels[relationship]} · {evalRunLabel(peer)}</a><br />
                                 {setup.format} · {setup.quantization} · {setup.runtime} {setup.runtime_version}
                                 {peer.api && ` · ${peer.api.provider}`}
                                 {setup.served_model && <> · <code>{setup.served_model}</code></>}<br />

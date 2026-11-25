@@ -27,6 +27,7 @@ export const GET: APIRoute = async () => {
         setup: { runtime, runtime_version, format, quantization, served_model, hardware },
         api: run.api === undefined ? undefined : { provider: run.api.provider, model_card: run.api.model_card },
         href: `${base}${evalRunPath(benchmark, id)}`,
+        consistent_submitters: entry.consistent_submitters,
         independent_replicators: entry.independent_replicators,
         contested: entry.contested,
         peers: entry.peers,
@@ -36,7 +37,7 @@ export const GET: APIRoute = async () => {
   replications.sort((a, b) => byCodeUnit(a.result, b.result));
   const body = {
     schema_version: 1,
-    notice: 'Results are self-reported by contributors. Each benchmark page lists every run with its reproduce command and evidence hash.',
+    notice: 'Results are self-reported. consistent_submitters counts distinct recorded GitHub handles, not independently verified operators. independent_replicators is zero because this feed does not verify independence. Each benchmark page lists exact runs, commands and evidence hashes.',
     note: "Groups include runs of previous benchmark versions; compare only groups whose benchmark_version equals the benchmark's version.",
     benchmarks: benchmarks.map((b) => ({
       id: b.id,
