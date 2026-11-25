@@ -276,6 +276,7 @@ chrome-devtools-axi newpage http://127.0.0.1:4321/
 
 - Desktop: observe Learn AI selected and the other panels absent from the accessibility snapshot. Click Learn AI Policy. Press `ArrowRight`, `ArrowRight`, `End`, `Home`, then `Tab`. Expect Join, Learn AI, Join, Learn AI, then focus on Build. Select Join again and verify that Tab reaches Contribution Guide and then Community. Activate each of the four links and verify it takes the same tab to its specified page. Check that Voice leads to the guide, not a comment form; the guide explains the official record, the claims to check, and how to comment.
 - Mobile: `chrome-devtools-axi emulate --viewport '320x740x3,mobile,touch'`. Scroll to the chooser and activate Join. Confirm labels fit, actions wrap if needed, and opening the panel does not add horizontal scrolling (`document.documentElement.scrollWidth === document.documentElement.clientWidth`).
+  Shared card grids must also fit inside their containers when the available width is below the usual minimum column width.
 - Fallback: in isolated Chrome DevTools, open the Command Menu, run **Disable JavaScript**, and reload while DevTools is open. All three headed panels and four links must be visible without the tab row. Restore JavaScript afterward.
 - The existing evals-pages tests in the repo gate cover hero/results ordering and separately cover the zero-run empty state. The chooser is mounted after the whole results section, outside the empty-state conditional.
 
