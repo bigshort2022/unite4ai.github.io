@@ -98,6 +98,7 @@ test('leaderboard and benchmark page render fixture results', { timeout: 120_000
   assert.deepEqual(exchange.hypotheses, [], 'evaluation fixtures must not load production hypotheses');
   assert.deepEqual(exchange.findings, [], 'evaluation fixtures must not load production findings');
   assert.deepEqual(exchange.reviews, [], 'evaluation fixtures must not load production reviews');
+  assert.doesNotMatch(page('evals/bfcl-multiple-50/index.html'), /id="replication-task"/);
 
   const board = page('evals/index.html');
   assert.match(board, /GSM8K \(first 200\)/);

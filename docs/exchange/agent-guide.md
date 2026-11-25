@@ -173,6 +173,61 @@ The local Exchange scaffolder (`bun run exchange`) never opens or merges PRs, st
 model, or makes a network call. The separate `unite4ai-axi` tool can open one add-only draft
 PR with the owner's explicit approval and does not merge it.
 
+## BFCL replication task
+
+Start with the [BFCL task card](https://unite4ai.com/evals/bfcl-multiple-50#replication-task).
+Replicate the specific published v1 result it names, not the leaderboard average or an
+official BFCL run. The reference owner cannot count a fresh run on another machine as
+independent replication. Do not borrow or create an account to satisfy the identity check.
+
+1. **Preflight.** Tell the owner the target result ID, idle Apple Silicon machine (64 GB unified
+   memory or more), currently loaded `mlx-community/Qwen3.8-27B-4bit` artifact, runtime, and
+   time budget. Confirm thinking is disabled. Ask for approval to use that specific local
+   endpoint; the cap for paid services is USD 0 and there is no payout. If anything is
+   unavailable, stop and report the blocker. Do not change the loaded model or use a paid API.
+2. **Run once, only after approval.** Use a fresh, clean checkout at an exact commit carrying the
+   [v1 method](https://unite4ai.com/evals/bfcl-multiple-50#method). Record `git rev-parse HEAD`
+   before running and install the frozen dependencies. From the root, set the variables below to approved and observed
+   values. `$SETUP_NOTES` must document thinking disabled plus any relevant template, artifact
+   revision or digest, and runtime or hardware differences; report an unknown revision as unknown.
+   The runner records the detected hardware on the host; specify the `--device`, `--accelerator`
+   and `--memory-gb` flags with actual values if detection would otherwise describe a different machine.
+
+   ```sh
+   bun run eval -- --benchmark bfcl-multiple-50 --model qwen3-8-27b \
+     --served-model mlx-community/Qwen3.8-27B-4bit \
+     --submitter "${GITHUB_HANDLE:?set the independent contributor's lowercase handle}" \
+     --runtime "${LOCAL_RUNTIME:?set the observed local MLX runtime}" \
+     --runtime-version "${RUNTIME_VERSION:?set the observed runtime version}" \
+     --format mlx --quantization 4bit --notes "${SETUP_NOTES:?record actual setup notes}" \
+     --base-url "${APPROVED_LOCAL_URL:?set the approved local endpoint}" \
+     --max-seconds 3300 --request-timeout 90
+   ```
+
+   Stop at 60 minutes on an external clock; `--max-seconds` is checked between replies
+   and resets on resume. Do not retry or resume without new approval. No model-proposed
+   tools run during this task. Keep partial evidence private and do not stage a partial
+   result.
+3. **Review the evidence.** Keep a private run note beside the `.agent/evals/` transcript with
+   the full checkout SHA, result ID, transcript SHA-256 and byte count, and actual setup.
+   The runner does not attest to the checkout SHA. Compare the note with the PR description,
+   the checkout's v1 method, the transcript and the result; treat the checkout and the loaded
+   artifact as reported unless independently observed. Check that 250 attempts cover all 50
+   items in each of the five passes, in order with the v1 settings and seeds.
+   `shasum -a 256` and `wc -c` on the transcript must match `evidence.sha256` and `evidence.bytes`.
+   The [benchmark method](https://unite4ai.com/evals/bfcl-multiple-50#how-the-port-is-checked-against-bfcl)
+   describes how to replay and compare scoring with the SHA-256-pinned upstream checker
+   without contacting a model.
+   Check all-five and pass@1 scores, both 95% intervals, and actual elapsed time.
+   Preserve substantive disagreements. Neither matching 76% nor interval overlap
+   is a condition for submission or proof of equivalent performance.
+4. **Submit only after separate approval.** Validate the new result and open one add-only
+   draft PR from the same GitHub account named in `run.submitter`. In the PR description,
+   link the exact reference run and disclose the runner commit, actual agent model and
+   harness, setup differences and checks actually performed. Keep the raw transcript
+   private and available to the reviewer. Do not update the reference record, publish a
+   transcript, open a Hub submission, or merge the PR yourself.
+
 ## Running experiments
 
 To run an experiment that produces a finding:
