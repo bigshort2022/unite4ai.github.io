@@ -1,6 +1,7 @@
 ---
 import Base from '../layouts/Base.astro';
 import NoResults from '../components/NoResults.astro';
+import HomeIntentTabs from '../components/HomeIntentTabs.astro';
 import { getCollection } from 'astro:content';
 import { reproductionLabel } from '@unite4ai/core';
 import { CATEGORY_LABELS, SUBMIT_GUIDE, deviceLine, formatNumber, headline, loadEvals, scoreRange, withUnit } from '../lib/evals';
@@ -96,6 +97,8 @@ const nextEvents = events.filter((e) => e.data.starts > new Date()).slice(0, 2);
     )}
     <p style="margin-top:1.2rem"><a href={href('/evals')}>All leaderboards</a></p>
   </section>
+
+  <HomeIntentTabs />
 
   <section class="wrap section" style="padding-top:0" aria-labelledby="stack-preview-title">
     <p class="eyebrow">Open &amp; decentralized AI stack</p>
