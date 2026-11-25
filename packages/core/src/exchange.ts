@@ -1,4 +1,6 @@
-import type { BenchmarkData, EvalResult, FindingData, HypothesisData, ReviewData } from '@unite4ai/schema';
+import type { BenchmarkData, EvalResult, FindingData, HypothesisData, RepeatResult, ReviewData } from '@unite4ai/schema';
+import { apiCostProblems } from './eval-cost.ts';
+import { repeatSecondsPerSuccess } from './repeat.ts';
 import { compareSwitch, sameSwitchSetup } from './switch-finding.ts';
 
 export { compareSwitch };
@@ -47,6 +49,23 @@ export interface ExchangeFeeds {
   };
 }
 
+function switchCostProblem(run: EvalResult, repeat: RepeatResult): string | undefined {
+  if (run.setup.runtime === 'api') return apiCostProblems(run).join('; ') || undefined;
+  const successes = repeat.run_correct.reduce((total, correct) => total + correct, 0);
+  const expected = repeatSecondsPerSuccess(repeat.seconds_total, successes);
+  if (repeat.seconds_per_success !== expected) {
+    return expected === undefined
+      ? 'repeat.seconds_per_success must be omitted without successful attempts'
+      : `repeat.seconds_per_success must be ${expected} from elapsed seconds and successful attempts`;
+  }
+}
+
+function hostedModelIdentity({ setup, api, repeat }: EvalResult): string | undefined {
+  if (setup.runtime === 'api' && setup.served_model?.trim() && api?.model_card !== undefined && repeat !== undefined) {
+    return JSON.stringify([api.provider, setup.served_model]);
+  }
+}
+
 function switchProblem(data: FindingData, hypothesis: HypothesisData | undefined, catalog: ExchangeCatalog): string | undefined {
   if (!data.switch) return;
   const { incumbent, candidate } = data.switch;
@@ -71,10 +90,14 @@ function switchProblem(data: FindingData, hypothesis: HypothesisData | undefined
     return 'switch runs must use the same repeat method (runs, temperature, top_p)';
   }
   if (sameSwitchSetup(incumbentRun, candidateRun)) return 'switch runs must compare distinct setups';
+  const incumbentCostProblem = switchCostProblem(incumbentRun, a);
+  if (incumbentCostProblem) return `switch incumbent ${incumbent}: ${incumbentCostProblem}`;
+  const candidateCostProblem = switchCostProblem(candidateRun, b);
+  if (candidateCostProblem) return `switch candidate ${candidate}: ${candidateCostProblem}`;
   if (data.verdict === 'inconclusive') return;
   if (comparison.candidateCheaper === null) return 'switch verdict must be inconclusive when per-success cost is missing or uses different evidence bases';
   if (data.verdict === 'supports' && !(comparison.passKOverlap && comparison.candidateCheaper)) {
-    return 'switch verdict "supports" requires pass@k interval overlap and strictly lower per-success cost for the candidate';
+    return 'switch verdict "supports" requires overlapping intervals for correctness on all runs and strictly lower per-success cost for the candidate';
   }
 }
 
@@ -92,18 +115,26 @@ export function validateExchange(records: ExchangeRecords, catalog: ExchangeCata
       if (data.date > latestDate) errors.push(`${kind}/${id}: date is in the future`);
     }
   }
-  // Off-registry IDs may be named only where a published hosted run identifies an upstream model.
-  const hostedEvidence = new Set<string>();
+  // An off-registry slug must resolve to one provider and exact served ID for this benchmark.
+  const hostedEvidence = new Map<string, string | null>();
   for (const result of catalog.results.values()) {
-    if (result.setup.runtime === 'api' && result.api?.model_card !== undefined && result.repeat !== undefined) {
-      hostedEvidence.add(`${result.benchmark}/${result.model}`);
-    }
+    if (catalog.models.has(result.model)) continue;
+    const identity = hostedModelIdentity(result);
+    if (identity === undefined) continue;
+    const key = `${result.benchmark}/${result.model}`;
+    const previous = hostedEvidence.get(key);
+    if (previous === undefined) hostedEvidence.set(key, identity);
+    else if (previous !== identity) hostedEvidence.set(key, null);
   }
   for (const { id, data } of records.hypotheses) {
     if (!catalog.benchmarks.has(data.benchmark)) errors.push(`hypotheses/${id}: unknown benchmark ${data.benchmark}`);
     for (const model of data.models) {
-      if (!catalog.models.has(model) && !hostedEvidence.has(`${data.benchmark}/${model}`)) {
+      if (catalog.models.has(model)) continue;
+      const identity = hostedEvidence.get(`${data.benchmark}/${model}`);
+      if (identity === undefined) {
         errors.push(`hypotheses/${id}: unknown model ${model}; an API-only model needs hosted evidence on ${data.benchmark}`);
+      } else if (identity === null) {
+        errors.push(`hypotheses/${id}: ambiguous hosted model ${model} on ${data.benchmark}; use distinct model IDs for different hosted targets`);
       }
     }
   }
@@ -115,6 +146,12 @@ export function validateExchange(records: ExchangeRecords, catalog: ExchangeCata
       if (!result) errors.push(`findings/${id}: unknown result ${resultId}`);
       else if (hypothesis) {
         if (!hypothesis.models.includes(result.model)) errors.push(`findings/${id}: result ${resultId} has an incompatible model`);
+        if (!catalog.models.has(result.model)) {
+          const identity = hostedEvidence.get(`${hypothesis.benchmark}/${result.model}`);
+          if (typeof identity === 'string' && identity !== hostedModelIdentity(result)) {
+            errors.push(`findings/${id}: result ${resultId} has an incompatible hosted model identity`);
+          }
+        }
         if (result.benchmark !== hypothesis.benchmark && catalog.benchmarks.get(result.benchmark)?.measured_on !== hypothesis.benchmark) {
           errors.push(`findings/${id}: result ${resultId} has an incompatible benchmark`);
         }

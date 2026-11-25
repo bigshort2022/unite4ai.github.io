@@ -165,15 +165,17 @@ after an unflattering result.
 
 ## Replication
 
-- **Matching setup:** same model card, benchmark version and repeat method, format and quantization.
-  Runtime and hardware may differ and are shown. Hosted comparators also match provider and
-  exact served model; include the upstream card in the identity if one was supplied.
-- **Replication:** a matching result by a **different identity**. It is labelled
-  **consistent** when both its `pass_1` and `pass_k` intervals overlap the
-  original's, **inconsistent** otherwise. Inconsistent replications are shown as
-  prominently as consistent ones.
-- **Label:** "replicated by N" counts consistent replications by distinct identities;
-  "contested" appears when any replication is inconsistent.
+- **Matching setup:** same model card, benchmark version, item count, repeat method, format,
+  quantization and nonblank reported served artifact ID. Runtime and hardware may differ.
+  Hosted results also match provider and any upstream model card. IDs do not verify weights.
+- **Consistency:** a matching result under a different recorded GitHub handle is **consistent**
+  when both its `pass_1` and all-runs `pass_k` intervals overlap the original's, and
+  **inconsistent** otherwise. Show both kinds equally, with exact links disambiguated by
+  their transcript hash prefix.
+- **Label:** count distinct recorded handles with consistent results, not independent people
+  or verified accounts. A single inconsistent peer marks the result **contested**. The v1 feed
+  exposes the handle count as `consistent_submitters` and reports zero `independent_replicators`
+  because it has no evidence of independent operators.
 
 ### BFCL replication task card
 
@@ -199,15 +201,17 @@ after an unflattering result.
 ## Switch findings
 
 A switch finding is an ordinary finding whose hypothesis states: on task family X, setup
-B's `pass_k` is not distinguishable from setup A's, and B's cost per success is lower.
+B's correctness on all runs is not distinguishable from setup A's, and B's cost per success is lower.
 
 - It cites an incumbent and candidate result on the same scoring benchmark version and method.
   Different contributor accounts, display notes or API client hardware alone do not make
   distinct inference setups.
+  An off-registry hypothesis model resolves to one exact provider and served model on its benchmark;
+  ambiguous model IDs cannot be used for hypotheses or their findings.
 - The page shows both setups' intervals and costs side by side. Compare local time to
   local time, estimates to estimates, and attributed invoices to attributed invoices.
-  Missing cost is not zero. Overlap is a screening rule, not proof of equivalence or
-  non-inferiority.
+  Validate per-success cost arithmetic in the standalone build as well as the content gate.
+  Missing cost is not zero. Overlap is a screening rule, not proof of equivalence or non-inferiority.
 - Its state comes from reviews, as for every finding.
 
 ## unite4ai-axi

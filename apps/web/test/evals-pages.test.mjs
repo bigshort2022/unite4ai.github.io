@@ -277,10 +277,6 @@ test('model page lists its evaluations and local setups; the feed publishes the 
   assert.deepEqual(feed.replications, []);
   assert.equal(feed.schema_version, 1);
   assert.equal(
-    feed.notice,
-    'Results are self-reported by contributors. Each benchmark page lists every run with its reproduce command and evidence hash.',
-  );
-  assert.equal(
     feed.note,
     'Groups include runs of previous benchmark versions; compare only groups whose benchmark_version equals the benchmark\'s version.',
   );
@@ -547,6 +543,9 @@ test('a repeat-run result shows its interval, pass@1 with its interval, and the 
   const steadyFile = result({ benchmark: 'canary-injection-v1', score: steady.pass_k, date: '2026-11-21', hash: 'd', submitter: 'fixture-bot-2' });
   steadyFile.content.n = 50;
   steadyFile.content.repeat = steady;
+  const sameDay = result({ benchmark: 'canary-injection-v1', score: steady.pass_k, date: '2026-11-21', hash: '7', submitter: 'fixture-bot-2' });
+  sameDay.content.n = 50;
+  sameDay.content.repeat = steady;
   const lower = repeatSummary({ runs: 5, temperature: 0.7, top_p: 1 }, {
     item_pass_histogram: [40, 0, 0, 0, 0, 10],
     run_correct: [10, 10, 10, 10, 10],
@@ -609,7 +608,10 @@ test('a repeat-run result shows its interval, pass@1 with its interval, and the 
     approved_usd: 1,
   };
   paid.content.cost = { kind: 'invoice', invoice_sha256: '1'.repeat(64), total_usd: 0.5, usd_per_success: 0.002 };
-  const site = buildScratch('repeat', [file, steadyFile, conflict, otherDevice, earlierCanary, otherFile, registered, paid]);
+  for (const comparable of [file, steadyFile, sameDay, conflict, otherDevice]) {
+    comparable.content.setup.served_model = 'fixture/canary-model';
+  }
+  const site = buildScratch('repeat', [file, steadyFile, sameDay, conflict, otherDevice, earlierCanary, otherFile, registered, paid]);
   const toolPage = site('evals/tool-selection-v1/index.html');
   assert.match(toolPage, /Registered baselines/);
   assert.match(toolPage, /href="#baseline-1-[^"]+"/);
@@ -653,7 +655,7 @@ test('a repeat-run result shows its interval, pass@1 with its interval, and the 
     assert.ok(second.includes(`/registry/models/${OTHER}"`));
     assert.match(second, /<td class="rank num">2<small[^>]*>not distinguishable from #1<\/small><\/td>/);
     // Each result of a repeat-run benchmark is five runs, so the Runs cell counts results.
-    assert.match(first, /<small>4 results/);
+    assert.match(first, /<small>5 results/);
     assert.match(second, /<small>1 result[ <]/);
   }
 
@@ -668,7 +670,7 @@ test('a repeat-run result shows its interval, pass@1 with its interval, and the 
     [model, resultPath],
   ]) {
     assert.match(summary, /Replication evidence/);
-    for (const candidate of [file, steadyFile, conflict, otherDevice]) {
+    for (const candidate of [file, steadyFile, sameDay, conflict, otherDevice]) {
       const { run, evidence } = candidate.content;
       const label = `${run.submitter} · ${run.date} · ${evidence.sha256.slice(0, 8)}`;
       assert.ok(summary.includes(`href="${linkFor(candidate)}">${label}</a>`), label);
@@ -678,15 +680,20 @@ test('a repeat-run result shows its interval, pass@1 with its interval, and the 
   }
 
   const row = detail.split(`id="run-${resultId(file)}"`)[1].split('</tr>')[0];
-  assert.match(row, /replicated by 1/);
+  assert.match(row, /1 submitting handle with a consistent result/);
   assert.match(row, /contested/);
-  assert.ok(row.includes(`href="${resultHash(steadyFile)}">consistent · fixture-bot-2`));
+  for (const peer of [steadyFile, sameDay]) {
+    assert.ok(row.includes(`href="${resultHash(peer)}">consistent · fixture-bot-2 · 2026-11-21 · ${peer.content.evidence.sha256.slice(0, 8)}</a>`));
+  }
   assert.ok(row.includes(`href="${resultHash(conflict)}">inconsistent · fixture-bot-2`));
   assert.ok(row.includes(`href="${resultHash(otherDevice)}">repeated on other hardware · fixture-bot`));
   assert.match(row, /mlx-lm-go 0\.0\.0.*Fixture &lt;b&gt;Rig&lt;\/b&gt; &amp; · apple-silicon · 64 GB/);
   assert.ok(!row.includes(resultHash(otherFile)), 'rank interval overlap for a different model is not replication');
+  assert.match(detail, /same model card, benchmark version, item count, repeat method, format and quantization/);
+  assert.match(detail, /reported artifact ID/);
+  assert.match(detail, /not verified independent people/);
   const solo = detail.split(`id="run-${resultId(otherFile)}"`)[1].split('</tr>')[0];
-  assert.match(solo, /not yet independently replicated/);
+  assert.match(solo, /No consistent result from another handle/);
   const earlier = detail.split('id="previous-versions"')[1];
   assert.ok(earlier.includes(`id="run-${resultId(earlierCanary)}"`));
   assert.doesNotMatch(earlier, /independently replicated|>Replication<\/th>/);
@@ -706,17 +713,20 @@ test('a repeat-run result shows its interval, pass@1 with its interval, and the 
     runtime_version: '0.0.0',
     format: 'mlx',
     quantization: 'FIXTURE_Q',
+    served_model: 'fixture/canary-model',
     hardware: { device: 'Fixture Laptop', memory_gb: 32, accelerator: 'apple-silicon' },
   });
   assert.equal(evidence.api, undefined);
-  assert.equal(evidence.independent_replicators, 1);
+  assert.equal(evidence.consistent_submitters, 1);
+  assert.equal(evidence.independent_replicators, 0, 'v1 does not claim any verified independent replications');
   assert.equal(evidence.contested, true);
   assert.deepEqual(evidence.peers, [
     { result: resultId(otherDevice), relationship: 'repeated_on_other_hardware' },
+    { result: resultId(sameDay), relationship: 'consistent' },
     { result: resultId(steadyFile), relationship: 'consistent' },
     { result: resultId(conflict), relationship: 'inconsistent' },
   ]);
-  for (const candidate of [otherDevice, steadyFile, conflict]) {
+  for (const candidate of [otherDevice, steadyFile, sameDay, conflict]) {
     assert.equal(feed.replications.find(({ result }) => result === resultId(candidate)).href, resultPath(candidate));
   }
   const hosted = feed.replications.find(({ result }) => result === resultId(paid));

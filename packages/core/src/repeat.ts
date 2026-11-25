@@ -16,6 +16,10 @@ const round = (value: number, digits: number) => Number(value.toFixed(digits));
 const percent = (share: number) => round(Math.min(Math.max(share, 0), 1) * 100, 2);
 const sum = (values: readonly number[]) => values.reduce((total, value) => total + value, 0);
 
+export function repeatSecondsPerSuccess(seconds: number, successes: number): number | undefined {
+  return successes === 0 ? undefined : round(seconds / successes, 3);
+}
+
 /** Wilson score interval for `successes` out of `n`, in percent. */
 export function wilsonPercent(successes: number, n: number): [number, number] {
   const p = successes / n;
@@ -127,7 +131,7 @@ export function repeatSummary(method: RepeatMethod, counts: RepeatCounts): Repea
   /** Total over correct answers; undefined when the total is unknown or nothing was correct. */
   const perSuccess = (total: number | undefined, digits: number) =>
     (total === undefined || successes === 0 ? undefined : round(total / successes, digits));
-  const secondsPerSuccess = perSuccess(counts.seconds_total, 3);
+  const secondsPerSuccess = repeatSecondsPerSuccess(counts.seconds_total, successes);
   const promptPerSuccess = perSuccess(counts.prompt_tokens_total, 1);
   const completionPerSuccess = perSuccess(counts.completion_tokens_total, 1);
   return {

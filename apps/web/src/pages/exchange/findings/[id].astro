@@ -65,7 +65,7 @@ const interval = (score: number, [low, high]: [number, number]) => `${score}% [$
               {data.setup.notes && <small>{data.setup.notes}</small>}
             </td>)}</tr>
             <tr><th scope="row">Pass@1 (95% interval)</th>{sides.map(({ repeat }) => <td>{interval(repeat.pass_1, repeat.pass_1_ci)}</td>)}</tr>
-            <tr><th scope="row">Pass@k (95% interval)</th>{sides.map(({ repeat }) => <td>{interval(repeat.pass_k, repeat.pass_k_ci)} · k = {repeat.runs}</td>)}</tr>
+            <tr><th scope="row">Correct on all k runs (95% interval)</th>{sides.map(({ repeat }) => <td>{interval(repeat.pass_k, repeat.pass_k_ci)} · k = {repeat.runs}</td>)}</tr>
             <tr><th scope="row">Cost per success</th>{sides.map(({ cost, costPerSuccess, hasSuccessfulAttempts, repeat }) => <td>
               {costPerSuccess === undefined
                 ? hasSuccessfulAttempts ? 'Cost per success not available' : 'No successful attempts'
@@ -84,7 +84,7 @@ const interval = (score: number, [low, high]: [number, number]) => `${score}% [$
         </table>
       </div>
       <ul>
-        <li>Pass@k intervals {comparison.passKOverlap ? 'overlap' : 'do not overlap'}.</li>
+        <li>Intervals for correctness on all runs {comparison.passKOverlap ? 'overlap' : 'do not overlap'}.</li>
         <li>{comparison.candidateCheaper === null
           ? `Cost comparison unavailable: ${sides.some(({ costPerSuccess }) => costPerSuccess === undefined) ? 'at least one run has no per-success cost' : 'the runs use different cost bases'}.`
           : comparison.candidateCheaper ? 'The candidate has strictly lower cost per success.' : 'The candidate does not have strictly lower cost per success.'}</li>
