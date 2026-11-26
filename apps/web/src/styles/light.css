@@ -58,8 +58,6 @@
 :root .card p { font-size: 1rem; line-height: 1.5; }
 :root .tag { font-size: .6875rem; font-weight: 500; }
 :root .stat b { font-size: 1.75rem; font-weight: 600; }
-:root .grid-3 { grid-template-columns: repeat(auto-fill, minmax(min(100%, 285px), 1fr)); }
-:root .grid-2.grid-pairs { grid-template-columns: repeat(auto-fill, minmax(min(100%, max(340px, 34%)), 1fr)); }
 :root article.wrap {
   max-width: 900px; margin-block: 2.25rem; padding: 2.5rem 3rem;
   background: var(--u-bg-elev); border: 1px solid var(--u-border);

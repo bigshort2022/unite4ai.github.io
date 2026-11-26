@@ -1,5 +1,6 @@
 ---
 import Base from '../layouts/Base.astro';
+import HomeIntentTabs from '../components/HomeIntentTabs.astro';
 import OpenWordmark from '../components/OpenWordmark.astro';
 import { getCollection } from 'astro:content';
 import { loadEvals } from '../lib/evals';
@@ -35,6 +36,8 @@ const nextEvents = events.filter((e) => e.data.starts > new Date()).slice(0, 2);
     </div>
     <p><a href={href('/school/sovereign-ai/#data-privacy')}>Try a private rehearsal-planning exercise</a> — fictional notes, no account or install.</p>
   </section>
+
+  <HomeIntentTabs />
 
   <section class="wrap section" style="padding-top:0" aria-labelledby="stack-preview-title">
     <p class="eyebrow">Open &amp; decentralized AI stack</p>

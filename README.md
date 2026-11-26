@@ -30,6 +30,8 @@ bun run exchange -- --help   # scaffold exchange records (docs/exchange/agent-gu
 
 To check site search locally, build first and then run `bun run preview`. Pagefind's index is generated during the build, not by `bun run dev`.
 
+The chooser below the homepage hero links to the hands-on open model lesson, the data center policy guide (`/policy/data-centers`), and ways to contribute or meet the community. The same links are available with JavaScript disabled.
+
 ## Coding agents
 
 `bun run agent:setup` prepares the host (Node 24, Bun, both sites' dependencies). `bun run agent:verify` is the acceptance gate: CI's validate/typecheck/build/test commands for the hub, plus the sustainability site's `npm test`, `astro check` and build, which CI does not run. `AGENTS.md` is the repo card models receive. For agents on a locally hosted LLM see [docs/agents/local-llm.md](docs/agents/local-llm.md).
