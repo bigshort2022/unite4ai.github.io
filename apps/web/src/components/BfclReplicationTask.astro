@@ -1,41 +1,44 @@
 ---
 import type { EvalResult, RepeatResult } from '@unite4ai/schema';
 import { formatNumber } from '../lib/evals';
-import { REPO } from '../lib/site';
+import type { BfclReplicationTask } from '../lib/replication-task';
 
 interface Props {
+  task: BfclReplicationTask;
   reference: EvalResult;
   repeat: RepeatResult;
   runHref: string;
-  evidenceHref: string;
+  feedHref: string;
 }
 
-const { reference, repeat, runHref, evidenceHref } = Astro.props;
-const attempts = reference.n * repeat.runs;
+const { task, reference, repeat, runHref, feedHref } = Astro.props;
+const { artifact, benchmark, budget, requirements } = task;
 ---
 <section id="replication-task" aria-labelledby="replication-task-title">
   <h2 id="replication-task-title">BFCL replication task</h2>
   <p>Submit one independent replication of the <a href={runHref}>published BFCL v1 run</a>.
     The reference scored <strong>{formatNumber(reference.score)}% on all five passes</strong> and {formatNumber(repeat.pass_1)}% pass@1
     in about {Math.round(repeat.seconds_total / 60)} minutes on {reference.setup.hardware.device} ({reference.setup.hardware.memory_gb} GB).
-    Those are observed values, not a target. <a href={evidenceHref}>Reference evidence receipt (JSON)</a>.</p>
+    Those are observed values, not a target. <a href={task.reference.evidence_url}>Reference evidence receipt (JSON)</a>.</p>
   <dl>
     <dt>Before starting</dt>
-    <dd>Get explicit approval for an idle, owner-named Apple Silicon host with at least 64 GB unified memory.
-      Confirm <code>{reference.setup.served_model}</code> (MLX 4-bit, thinking disabled) is already loaded. Use a genuinely independent
+    <dd>Get explicit approval for an idle, owner-named Apple Silicon host with at least {requirements.min_memory_gb} GB unified memory.
+      Confirm <code>{artifact.served_model}</code> (MLX 4-bit, thinking disabled) is already loaded. Use a genuinely independent
       contributor’s GitHub account, not the original submitter’s. Record the actual hardware, runtime, and artifact revision or digest if known;
       a published artifact name does not verify identical weights.</dd>
     <dt>Budget and run</dt>
-    <dd><strong>$0 paid spend; 60 minutes maximum</strong> for the run. Set the runner to 55 minutes and each reply to 90 seconds;
+    <dd><strong>${budget.max_paid_usd} paid spend; {budget.max_wall_seconds / 60} minutes maximum</strong> for the run.
+      Set the runner to {budget.runner_max_seconds / 60} minutes and each reply to {budget.request_timeout_seconds} seconds;
       enforce the overall limit separately because the runner checks its limit between replies. Use a fresh checkout with no prior transcript.
-      Follow the <a href="#method">v1 method</a>: {reference.n} items, {repeat.runs} passes, temperature {repeat.temperature}, top-p {repeat.top_p}.
+      Follow the <a href="#method">v1 method</a>: {benchmark.items} items, {benchmark.repeat.runs} passes, temperature {benchmark.repeat.temperature}, top-p {benchmark.repeat.top_p}.
       Never execute a tool named by a model. If blocked, report why; do not swap models, use a paid API, or rerun without approval.</dd>
     <dt>Deliverable and review</dt>
-    <dd>Keep one new complete result and its raw transcript. Review all {attempts} attempts, the recorded method and loaded artifact,
+    <dd>Keep one new complete result and its raw transcript. Review all {benchmark.expected_attempts} attempts, the recorded method and loaded artifact,
       actual setup and elapsed time, both scores and their 95% intervals, and the transcript’s SHA-256 and byte count. Keep raw evidence private
       and make it available to the reviewer. Report disagreement as evidence; overlapping intervals do not prove equivalence.</dd>
   </dl>
-  <p><a href={`${REPO}/blob/main/docs/exchange/agent-guide.md#bfcl-replication-task`}>Run and review checklist</a>.
+  <p><a href={task.guide_url}>Run and review checklist</a> · <a href={feedHref}>Replication task feed (JSON)</a>.</p>
+  <p>
     Open one add-only draft PR from the matching account only after separate submission approval. This card grants no approval and offers no payout.</p>
 </section>
 

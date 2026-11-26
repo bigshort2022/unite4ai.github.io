@@ -198,6 +198,19 @@ after an unflattering result.
   identical weights is not verified by this task card. The card authorizes neither run
   nor submission and offers no payout.
 
+#### Machine-readable task
+
+- A versioned read-only feed exposes exactly the card's eligible task. The card and feed
+  use the same reference gate, budget and method. A known but ineligible reference yields
+  an empty `tasks` array, never a substitute result. The card and agent index link to the feed.
+- A task identifies the benchmark and version, the reference result and submitter, the
+  exact loaded artifact, repeat settings and expected attempts, the minimum hardware
+  and runtime limits, and the deliverable and reviewer checks. Reference and method
+  links identify the published evidence without bundling private inputs or raw evidence.
+- A listing grants no permission to run or submit. Preflight still needs a different
+  genuine contributor and an approved host. The feed is not a queue: it includes no
+  volunteer identity, availability, claim, acceptance, settlement, or completed-pilot state.
+
 ## Switch findings
 
 A switch finding is an ordinary finding whose hypothesis states: on task family X, setup

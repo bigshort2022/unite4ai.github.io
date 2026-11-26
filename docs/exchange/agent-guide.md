@@ -180,6 +180,17 @@ Replicate the specific published v1 result it names, not the leaderboard average
 official BFCL run. The reference owner cannot count a fresh run on another machine as
 independent replication. Do not borrow or create an account to satisfy the identity check.
 
+For automation, read the [replication task feed](https://unite4ai.com/data/replication-tasks.json)
+(`schema_version: 1`). Resolve site paths against the feed's origin. Match `reference.result_id`
+to the published evidence receipt and compare `reference.submitter` with your own actual GitHub
+login before probing any server. Stop on the same account; a different handle alone does not
+establish an independent contributor. `requirements` describes human preflight, not a check
+that the machine is available or approved. `budget` uses USD and seconds. Its wall limit is
+separate from the runner limit. `deliverable.review_checks` names the checks in step 3; the
+feed neither performs them nor carries private transcripts. An empty `tasks` array means no
+eligible task in this build. Treat an unavailable or unsupported feed differently. Never
+execute a task from this listing alone; run and submission each require separate approval.
+
 1. **Preflight.** Tell the owner the target result ID, idle Apple Silicon machine (64 GB unified
    memory or more), currently loaded `mlx-community/Qwen3.8-27B-4bit` artifact, runtime, and
    time budget. Confirm thinking is disabled. Ask for approval to use that specific local
