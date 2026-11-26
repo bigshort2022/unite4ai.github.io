@@ -222,14 +222,19 @@ execute a task from this listing alone; run and submission each require separate
 3. **Review the evidence.** Keep a private run note beside the `.agent/evals/` transcript with
    the full checkout SHA, result ID, transcript SHA-256 and byte count, and actual setup.
    The runner does not attest to the checkout SHA. Compare the note with the PR description,
-   the checkout's v1 method, the transcript and the result; treat the checkout and the loaded
-   artifact as reported unless independently observed. Check that 250 attempts cover all 50
-   items in each of the five passes, in order with the v1 settings and seeds.
-   `shasum -a 256` and `wc -c` on the transcript must match `evidence.sha256` and `evidence.bytes`.
-   The [benchmark method](https://unite4ai.com/evals/bfcl-multiple-50#how-the-port-is-checked-against-bfcl)
-   describes how to replay and compare scoring with the SHA-256-pinned upstream checker
-   without contacting a model.
-   Check all-five and pass@1 scores, both 95% intervals, and actual elapsed time.
+   the transcript and the result. From the repository root, with Python 3 and Bun on `PATH`, run:
+
+   ```sh
+   python3 scripts/benchmarks/bfcl_crosscheck.py review-result "$RESULT_JSON" "$PRIVATE_TRANSCRIPT"
+   ```
+
+   A successful check prints one JSON report identifying the exact two files by hash. It
+   checks the recorded artifact and setup fields, completeness and order of all 250 attempts,
+   pinned prompts and verdicts, and recomputes both scores, their 95% intervals and the repeat
+   totals. It never contacts a server or prints dialogue. Check actual hardware, loaded weights,
+   checkout, wall-clock time, approvals and independence separately; the report does not
+   attest to them. For a separate upstream comparison that fetches the pinned BFCL checker,
+   see the [benchmark method](https://unite4ai.com/evals/bfcl-multiple-50#how-the-port-is-checked-against-bfcl).
    Preserve substantive disagreements. Neither matching 76% nor interval overlap
    is a condition for submission or proof of equivalent performance.
 4. **Submit only after separate approval.** Validate the new result and open one add-only

@@ -9,11 +9,13 @@ and checked against its hash. Transcript mode also needs Bun to replay the local
               apps/cli/test/fixtures/bfcl/conformance.json. A test replays them through the port.
   transcript  Validate and replay a complete BFCL v1 transcript, then score with BFCL's checker.
               Print the disagreements as text (default), or with --json emit a report without dialogue.
+  review-result  Compare a local BFCL v1 result with a private transcript without network access.
 
 Usage:
   python3 scripts/benchmarks/bfcl_crosscheck.py corpus
   python3 scripts/benchmarks/bfcl_crosscheck.py transcript .agent/evals/<transcript>.jsonl
   python3 scripts/benchmarks/bfcl_crosscheck.py transcript .agent/evals/<transcript>.jsonl --json
+  python3 scripts/benchmarks/bfcl_crosscheck.py review-result RESULT.json TRANSCRIPT.jsonl
 
 Answers travel as JSON, which cannot tell 2 from 2.0. Before BFCL's checker sees an answer, a
 whole number where the schema expects a float is made a float, as the published method states.
@@ -232,7 +234,8 @@ def read_transcript(path):
         raise ValueError(f"transcript header repeat: expected {REPEAT}")
     if len(lines) != ATTEMPTS + 2:
         raise ValueError(f"expected a header, {ATTEMPTS} answers and a complete footer")
-    if not complete(json.loads(lines[-1])):
+    footer = json.loads(lines[-1])
+    if not complete(footer):
         raise ValueError("expected a complete footer with a YYYY-MM-DD date")
 
     answers = []
@@ -260,28 +263,32 @@ def read_transcript(path):
         if record["extracted"] is not None and not isinstance(record["extracted"], str):
             raise ValueError(f"expected extracted JSON text or null at {where}")
         answers.append(record)
-    return hashlib.sha256(raw).hexdigest(), answers
+    return {"sha256": hashlib.sha256(raw).hexdigest(), "bytes": len(raw)}, header, footer["date"], answers
 
 
-def verify_replay(questions, answers, attempts):
+def verify_replay(questions, answers, attempts, review=None):
+    payload = {"questions": questions, "answers": answers, "count": COUNT, "attempts": attempts}
+    if review is not None:
+        payload["review"] = review
     replay = subprocess.run(
         ["bun", str(REPLAY)],
-        input=json.dumps({"questions": questions, "answers": answers, "count": COUNT, "attempts": attempts},
-                         allow_nan=False),
-        text=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+        input=json.dumps(payload, allow_nan=False),
+        text=True, stdout=subprocess.PIPE if review is not None else subprocess.DEVNULL, stderr=subprocess.PIPE,
     )
     if replay.returncode != 0:
         raise ValueError(replay.stderr.strip() or "Bun could not replay the pinned BFCL suite")
+    return replay.stdout
 
 
 def transcript(path, json_report=False):
     try:
-        transcript_sha256, attempts = read_transcript(path)
+        evidence, _, _, attempts = read_transcript(path)
         questions, answers = fixture_sources()
         verify_replay(questions, answers, attempts)
     except (OSError, ValueError) as error:
         sys.exit(f"{path}: {error}")
 
+    transcript_sha256 = evidence["sha256"]
     by_index = items(questions, answers)
     upstream = None
     agreement = []
@@ -315,6 +322,24 @@ def transcript(path, json_report=False):
     return 1 if disagreements else 0
 
 
+def review_result(result_path, transcript_path):
+    try:
+        evidence, header, completed_on, attempts = read_transcript(transcript_path)
+        result = Path(result_path).read_bytes()
+        questions, answers = fixture_sources()
+        report = verify_replay(questions, answers, attempts, {
+            "transcript": evidence, "header": header, "date": completed_on,
+            "result_text": result.decode("utf-8"), "result_sha256": hashlib.sha256(result).hexdigest(),
+        })
+    except OSError:
+        sys.exit("could not read local evidence or start Bun")
+    except (json.JSONDecodeError, UnicodeError):
+        sys.exit("expected UTF-8 JSON evidence")
+    except ValueError as error:
+        sys.exit(str(error))
+    sys.stdout.write(report)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -322,8 +347,13 @@ if __name__ == "__main__":
     transcript_parser = commands.add_parser("transcript", help="cross-check a complete 250-answer transcript")
     transcript_parser.add_argument("path")
     transcript_parser.add_argument("--json", action="store_true", help="emit the transcript hash and agreement vector")
+    review_parser = commands.add_parser("review-result", help="review local result and transcript consistency offline")
+    review_parser.add_argument("result")
+    review_parser.add_argument("transcript")
     options = parser.parse_args()
     if options.command == "corpus":
         corpus()
+    elif options.command == "review-result":
+        review_result(options.result, options.transcript)
     else:
         sys.exit(transcript(options.path, options.json))
