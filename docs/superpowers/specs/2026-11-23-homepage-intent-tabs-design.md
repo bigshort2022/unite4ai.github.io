@@ -6,7 +6,7 @@ Give visitors three ways into Unite4AI: build and run open AI, learn how to part
 
 ## Placement and scope
 
-On `/`, add **What do you want to do?** immediately after **Leading results** and before the open stack preview. The hero, its existing links, and the Leading results section stay unchanged; results still follow the hero when there are no current results. All other homepage sections, site navigation, and existing routes remain unchanged.
+On `/`, add **What do you want to do?** immediately after the hero and before the open stack preview. The hero, its links, all other homepage sections, site navigation, and existing routes remain unchanged. Evaluation results stay on `/evals`, not on the homepage.
 
 ## Panel content
 
@@ -40,6 +40,6 @@ Use the approved prototype’s single panel, with text and actions on the left a
 
 ## Acceptance
 
-- On the rendered homepage, the hero is still followed by Leading results, then the new section. All four actions land on their specified destinations, including the new Voice guide.
+- On the rendered homepage, the new section follows the hero and precedes the open stack preview. All four actions land on their specified destinations, including the new Voice guide.
 - In a desktop browser and at a narrow mobile viewport, switching tabs reveals exactly one panel; keyboard focus, arrow navigation, and action order behave as described. With scripts disabled, all four links remain reachable.
 - No benchmark data, result selection rules, or existing routes change.

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans (inline, recommended for this one dependent slice) or superpowers:subagent-driven-development. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add Learn AI, Learn AI Policy, and Join directly after Leading results, with real next steps for building, checking local data center proposals, and joining the community.
+**Goal:** Add Learn AI, Learn AI Policy, and Join directly after the homepage hero, with real next steps for building, checking local data center proposals, and joining the community.
 
 **Architecture:** A homepage-only Astro component renders all actions in static HTML. A small bundled script exposes accessible tabs over the same panels. The new Voice guide is a standalone static page.
 
@@ -16,9 +16,9 @@
 
 **Files:**
 - Create `apps/web/src/components/HomeIntentTabs.astro` — panel content, static fallback, tab semantics, and scoped styles.
-- Modify `apps/web/src/pages/index.astro` — mount the component between Leading results and the open stack preview.
+- Modify `apps/web/src/pages/index.astro` — mount the component between the hero and the open stack preview.
 - Create `apps/web/src/pages/policy/data-centers.astro` — explain how to find local proposals, check claims, and comment through official channels.
-- Existing coverage: `apps/web/test/deployment.test.mjs` and `apps/web/test/evals-pages.test.mjs` guard the hero and results ordering. Leave both unchanged.
+- Existing coverage: `apps/web/test/deployment.test.mjs` and `apps/web/test/evals-pages.test.mjs` guard the hero and verify evaluation results stay off the homepage. Leave both unchanged.
 
 - [ ] **Step 1: Start the dev server**
 
@@ -26,14 +26,14 @@ Run from the repo root in a supervised terminal:
 
 ```sh
 source scripts/agent/activate-node.sh
-bun --cwd apps/web run dev --host 127.0.0.1 --port 4321
+bun run dev --host 127.0.0.1 --port 4321
 ```
 
 Use the local URL reported by Astro; examples below use `http://127.0.0.1:4321/`.
 
 - [ ] **Step 2: Run the static smoke assertion before implementing**
 
-This one-shot check exercises output, not source text. It should currently fail with `the three paths must appear between results and the stack preview`. Run the same command after Step 4:
+This one-shot check exercises output, not source text. Before implementation it fails with `the three paths must appear between the hero and the stack preview`. Run the same command after Step 4:
 
 ```sh
 node --input-type=module <<'JS'
@@ -41,11 +41,12 @@ import assert from 'node:assert/strict';
 const page = await fetch('http://127.0.0.1:4321/');
 assert.equal(page.status, 200);
 const html = await page.text();
-const results = html.indexOf('id="leading-results-title"');
-const chooser = html.indexOf('What do you want to do?', results);
+const hero = html.indexOf('<section class="hero');
+const chooser = html.indexOf('What do you want to do?');
 const stack = html.indexOf('id="stack-preview-title"');
-assert.ok(results >= 0 && results < chooser && chooser < stack,
-  'the three paths must appear between results and the stack preview');
+assert.ok(hero >= 0 && hero < chooser && chooser < stack,
+  'the three paths must appear between the hero and the stack preview');
+assert.doesNotMatch(html, /id="leading-results-title"/);
 const section = html.slice(chooser, html.indexOf('</section>', chooser));
 const links = Array.from(section.matchAll(/<a\b[^>]+href="([^"]+)"[^>]*>([^<]+)<\/a>/g),
   ([, href, text]) => [href, text.trim()]);
@@ -62,7 +63,7 @@ for (const [path, label] of links) {
     assert.match(await destination.text(), /Local data centers: learn and speak up/);
   }
 }
-console.log('Homepage: all four actions follow Leading results and resolve');
+console.log('Homepage: all four actions follow the hero and resolve');
 JS
 ```
 
@@ -208,15 +209,15 @@ const paths = [
 </script>
 ```
 
-- [ ] **Step 4: Mount the component immediately after Leading results**
+- [ ] **Step 4: Mount the component immediately after the hero**
 
-Add this import alongside `NoResults` in `apps/web/src/pages/index.astro`:
+Add this import alongside `OpenWordmark` in `apps/web/src/pages/index.astro`:
 
 ```astro
 import HomeIntentTabs from '../components/HomeIntentTabs.astro';
 ```
 
-Add this line between the section ending after the Leading results empty-state branch and the section with `aria-labelledby="stack-preview-title"`:
+Add this line between the hero section and the section with `aria-labelledby="stack-preview-title"`:
 
 ```astro
   <HomeIntentTabs />
@@ -278,7 +279,7 @@ chrome-devtools-axi newpage http://127.0.0.1:4321/
 - Mobile: `chrome-devtools-axi emulate --viewport '320x740x3,mobile,touch'`. Scroll to the chooser and activate Join. Confirm labels fit, actions wrap if needed, and opening the panel does not add horizontal scrolling (`document.documentElement.scrollWidth === document.documentElement.clientWidth`).
   Shared card grids must also fit inside their containers when the available width is below the usual minimum column width.
 - Fallback: in isolated Chrome DevTools, open the Command Menu, run **Disable JavaScript**, and reload while DevTools is open. All three headed panels and four links must be visible without the tab row. Restore JavaScript afterward.
-- The existing evals-pages tests in the repo gate cover hero/results ordering and separately cover the zero-run empty state. The chooser is mounted after the whole results section, outside the empty-state conditional.
+- Evaluation fixture builds in the repo gate verify that the homepage keeps the evaluation count without moving results out of `/evals`.
 
 - [ ] **Step 6: Run the repository gate**
 
@@ -296,5 +297,5 @@ Use the selective commit tool; do not take unrelated paths or local mockups:
 ```python
 d = await commit.draft()
 await d.only('apps/web/src/components/HomeIntentTabs.astro', 'apps/web/src/pages/index.astro', 'apps/web/src/pages/policy/data-centers.astro')
-await d.commit('feat: add homepage intent tabs', ['- Add Learn AI, Learn AI Policy, and Join after Leading results, plus a guide to local data center proposals.'])
+await d.commit('feat: add homepage intent tabs', ['- Add Learn AI, Learn AI Policy, and Join after the hero, plus a guide to local data center proposals.'])
 ```
