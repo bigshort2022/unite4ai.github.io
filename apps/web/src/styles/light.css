@@ -1,0 +1,126 @@
+/* Media-qualified in Base, including with scripts disabled. The theme controller changes the media query. */
+:root:not([data-theme="dark"]) {
+  color-scheme: light;
+  --u-bg: #f8f4ee;
+  --u-bg-elev: #fff;
+  --u-bg-elev-2: #f1eee7;
+  --u-border: #e3e0d8;
+  --u-border-bright: #8b8e82;
+  --u-text: #252820;
+  --u-text-dim: #62645c;
+  --u-text-faint: #62645c;
+  --u-blue: #327e09;
+  --u-violet: #327e09;
+  --u-magenta: #327e09;
+  --u-cyan: #285f0b;
+  --u-grad: linear-gradient(#327e09, #327e09);
+  --u-ok: #327e09;
+  --u-warn: #825510;
+  --u-bad: #ad3030;
+  --u-radius: 2px;
+  --u-radius-sm: 2px;
+  --u-font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --u-serif: Palatino, "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  --u-line: var(--u-border);
+  --u-bg-soft: var(--u-bg-elev-2);
+  --u-accent: var(--u-blue);
+  --u-verify-warn: var(--u-warn);
+  --u-verify-fail: var(--u-bad);
+}
+:root body { font-family: var(--u-serif); }
+:root h1, :root h2, :root h3, :root h4 { font-family: var(--u-serif); font-weight: 600; }
+:root h1 { font-size: clamp(2.05rem, 4vw, 3.0625rem); line-height: 1.1; letter-spacing: -.035em; }
+:root h2 { font-size: clamp(1.3rem, 2.5vw, 1.65rem); font-weight: 500; }
+:root h3 { font-size: 1.15rem; }
+:root a { text-decoration: none; }
+:root a:hover { text-decoration: underline; }
+:root .section { padding-block: clamp(2rem, 5vw, 3.5rem); }
+:root .hero { padding-block: clamp(2.5rem, 6vw, 4rem); }
+:root .hero::before { display: none; }
+:root .lede { font-size: 1.125rem; line-height: 1.5; color: var(--u-text); }
+:root .eyebrow, :root .tag, :root .card-meta, :root .byline,
+:root .site-header, :root .site-footer, :root .btn, :root .stats,
+:root .registry-controls, :root .eval-table, :root .openness,
+:root .exchange-identity, :root .exchange-latency, :root .exchange-reading-notes,
+:root .nyt-comment__meta, :root .nyt-comment__actions, :root .nyt-comments__controls,
+:root input, :root select, :root textarea, :root button {
+  font-family: var(--u-font);
+}
+:root .site-header { background: var(--u-bg); backdrop-filter: none; }
+:root .site-nav a { font-size: .8125rem; }
+:root .brand { font-family: var(--u-serif); font-size: 1.5rem; }
+:root .brand span { background: none; color: inherit; }
+:root .btn { border-radius: 2px; font-size: .8125rem; padding: .55rem .9rem; }
+:root .btn-primary, :root .btn-primary:hover { background: var(--u-blue); color: #fff; box-shadow: none; transform: none; }
+:root .card { padding: 1.15rem 1.3rem; gap: .5rem; }
+:root .card:hover { transform: none; background: var(--u-bg-elev); }
+:root .card h3 { font-size: 1.15rem; line-height: 1.35; }
+:root .card p { font-size: 1rem; line-height: 1.5; }
+:root .tag { font-size: .6875rem; font-weight: 500; }
+:root .stat b { font-size: 1.75rem; font-weight: 600; }
+:root article.wrap {
+  max-width: 900px; margin-block: 2.25rem; padding: 2.5rem 3rem;
+  background: var(--u-bg-elev); border: 1px solid var(--u-border);
+}
+:root .prose { max-width: 68ch; font-size: 1.125rem; line-height: 1.7; }
+:root .prose pre { background: var(--u-bg-elev-2) !important; }
+/* Astro's dual Shiki palette keeps the original github-dark rendering unchanged. */
+:root .astro-code, :root .astro-code span { color: var(--shiki-light) !important; }
+:root .prose table { font-family: var(--u-font); }
+:root .empty { font-family: var(--u-font); font-size: .875rem; }
+:root .open-wordmark-text { font-family: var(--u-serif); }
+:root .open-wordmark [data-open-word] { color: var(--u-blue); }
+:root .exchange-home {
+  background: var(--u-bg-elev); border: 1px solid var(--u-border); padding: clamp(1.4rem, 3.5vw, 2.8rem);
+}
+:root .exchange-title-line { display: block; }
+:root .exchange-hypothesis { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 14px; align-items: baseline; }
+:root .exchange-hypothesis > p { grid-column: 1 / -1; }
+:root .exchange-home > .eyebrow { font-size: .6875rem; font-weight: 400; margin-bottom: 19px; }
+:root .exchange-home > h1 { margin-bottom: 22px; }
+:root .exchange-home > .lede { margin-bottom: 21px; }
+:root .exchange-home > .hero-actions { margin-top: 0; }
+:root .exchange-home .hero-actions .btn { background: none; border: 0; color: var(--u-blue); padding: 0; }
+:root .exchange-principle { border-left: 2px solid var(--u-border); padding-left: 14px; }
+:root .exchange-trust, :root .exchange-principle, :root .exchange-feeds {
+  font: .8125rem/1.65 var(--u-font); color: var(--u-text-dim);
+}
+:root .exchange-home > .exchange-section:not(.exchange-latency) { margin-top: 28px; }
+:root .exchange-home > .exchange-section:not(.exchange-latency) > h2 {
+  border-bottom: 1px solid var(--u-text); padding-bottom: 12px; margin-bottom: .75rem; font-size: 23px;
+}
+:root .exchange-home > .exchange-section:not(.exchange-latency) > p, :root .exchange-group > p {
+  font: .75rem/1.7 var(--u-font); color: var(--u-text-dim);
+}
+:root .exchange-group { margin-top: 15px; }
+:root .exchange-group > h3 { font: .6875rem/1.7 var(--u-font); color: var(--u-text-dim); margin: 0; }
+:root .exchange-records { margin: 0; }
+:root .exchange-records > li, :root .exchange-review { padding: 20px 0 17px; margin: 0; border: 0; border-bottom: 1px solid var(--u-border); background: none; border-radius: 0; }
+:root .exchange-records > li > a:first-child { font-size: 17px; line-height: 22px; font-weight: 600; color: var(--u-text); }
+:root .exchange-records .tag { padding: 0; border: 0; background: none; color: var(--u-blue); font-weight: 400; }
+:root .exchange-records p { font: .6875rem/18px var(--u-font); margin-top: 9px; }
+:root .exchange-records .exchange-summary { font: 1rem/1.5 var(--u-serif); color: var(--u-text); margin: 11px 0; }
+:root .exchange-reading-notes { font-size: .75rem; }
+:root .exchange-reading-notes p { font: inherit; }
+:root .exchange-latency { font-size: .75rem; }
+:root .exchange-latency h2 { font-size: 1.15rem; }
+:root .exchange-latency .stat { padding: .8rem; }
+:root .exchange-latency .stat b { font-size: 1.25rem; }
+@media (max-width: 760px) {
+  :root .exchange-home > h1 { font-size: 33px; line-height: 36px; letter-spacing: -.9px; margin-bottom: 19px; }
+  :root .exchange-home > .exchange-section:not(.exchange-latency) > h2 { font-size: 21px; line-height: 27px; }
+  :root .exchange-records > li > .tag { display: inline-block; margin: 7px 8px 0 0; }
+  :root .exchange-records > li > a:first-child { display: block; }
+  :root .exchange-records > li { padding: 18px 0; }
+  :root .exchange-records .exchange-summary { font-size: 17px; line-height: 25px; }
+  :root article.wrap { margin-block: 0; padding: 2rem 1.4rem; border-inline: 0; }
+  :root .exchange-hypothesis { display: block; }
+}
+@media (max-width: 620px) {
+  :root .brand { font-size: 1.375rem; }
+}
+
+/* The registry is a compact reading list; tools and numeric boards keep their grids. */
+:root [data-registry-grid] { display: block; background: var(--u-bg-elev); border-top: 1px solid var(--u-border); }
+:root .registry-card { border: 0; border-bottom: 1px solid var(--u-border); padding: 1.1rem 1.3rem; }
+:root .registry-card .meter { max-width: 10rem; }

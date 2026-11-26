@@ -1,22 +1,25 @@
 ---
 import Base from '../layouts/Base.astro';
 import { REPO } from '../lib/site';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (p: string) => `${base}${p}` || '/';
 ---
 <Base title="Governance">
   <section class="wrap section">
     <p class="eyebrow">Governance</p>
     <h1>Rules you can fork</h1>
     <p class="lede">
-      Our governance lives in the repository as a versioned file. Every rule change is a pull
-      request with public discussion and an audit trail. If you disagree with how this community
-      is run, you can propose a change — or fork the whole thing, rules included.
+      Our governance lives in the repository as a versioned file. Rule changes require a public
+      pull request. You can <a href={`${REPO}/pulls`}>read pull requests</a> or <a href={`${REPO}/issues`}>read public issues</a> without an account.
+      To propose a change, <a href={`${REPO}/issues/new?blank=1`}>sign in on GitHub to post a public issue</a> or open a public pull request.
     </p>
 
     <h2 style="margin-top:2.5rem">The contribution ladder</h2>
     <div class="grid grid-2" style="margin-top:1.2rem">
       <article class="card">
         <h3>Learner</h3>
-        <p>Anyone using the school or registry. No account needed, no data collected.</p>
+        <p>Anyone using the school or registry. No Unite4AI account is needed; see <a href={href('/privacy')}>what the site and its host can see</a>.</p>
       </article>
       <article class="card">
         <h3>Contributor</h3>
@@ -35,18 +38,31 @@ import { REPO } from '../lib/site';
     <h2 style="margin-top:3rem">Commitments we hold ourselves to</h2>
     <div class="card" style="margin-top:1.2rem">
       <ul style="margin:0;padding-left:1.2rem;line-height:2">
-        <li>Every artifact on this platform stays under an OSI- or CC-approved open license.</li>
-        <li>No user tracking, no advertising, no selling of data — ever, under any funding pressure.</li>
+        <li>Registry submissions must declare a license from the project’s open-license allowlist. A listed license is not verification of rights to every linked external artifact.</li>
+        <li>We do not sell data or use advertising or advertising trackers. See our <a href={href('/privacy')}>privacy policy</a> for host logs and performance measurements.</li>
         <li>Decisions that affect contributors happen in public before they happen in private.</li>
-        <li>We publish our real median PR review time, including when it's bad.</li>
+        <li>We publish <a href={href('/governance/metrics')}>operational metrics</a>, including time to merge. That is not a measure of time to review.</li>
         <li>If this project dies, the repo stays public and forkable. Nothing is trapped.</li>
       </ul>
     </div>
 
+    <h2>Directory inclusion and corrections</h2>
+    <p>
+      Directory records describe externally operated projects using cited public sources.
+      Inclusion is not endorsement, a security audit, proof of live inventory or a promise
+      of successful task delivery. Propose corrections with source evidence through a
+      repository pull request; maintainers review changes before publication.
+    </p>
+    <p>
+      Buyers and providers contract and transact externally under the destination's terms.
+      Unite4AI does not hold funds, execute payments, dispatch compute, arbitrate commercial
+      disputes or guarantee refunds. Do not publish credentials or private payment details.
+    </p>
+
     <p style="margin-top:2rem">
       Full text: <a href={`${REPO}/blob/main/GOVERNANCE.md`}>GOVERNANCE.md</a> ·
       <a href={`${REPO}/blob/main/CODE_OF_CONDUCT.md`}>Code of Conduct</a> ·
-      <a href="/governance/metrics">Operational metrics</a>
+      <a href={href('/governance/metrics')}>Operational metrics</a>
     </p>
   </section>
 </Base>

@@ -33,6 +33,22 @@ bun run build && bun run preview   # full site including search
 bun run dev                        # fast iteration; /search needs build first
 ```
 
+### Hub appearance
+
+The header's theme button switches between the editorial paper theme and the original
+dark design; its label names the theme it switches to (**Dark mode** while light is
+active, **Light mode** while dark is active). A saved `u4ai-theme` choice in local storage overrides the OS preference;
+without one, an explicit light preference selects light and everything else selects dark.
+Storage is optional: when blocked, the button works until navigation. With scripts
+disabled, the OS preference still styles the page and the inactive button stays hidden.
+
+`Base.astro` loads `styles/light.css` with a media query and inlines `lib/theme.js`
+before page content. Keep original dark rules in `global.css`; light-only layout and
+semantic token overrides belong in `light.css`. Use both Shiki palettes for code.
+Do not enable an embed to test its colors: configured Giscus frames receive the
+selected theme through their existing messaging API. Run `node --test apps/web/test/theme.test.mjs`
+for preference behavior, then visually check both themes at desktop and narrow widths.
+
 Scaffold a new model card:
 
 ```bash
@@ -58,22 +74,28 @@ People who do not use git can paste the result file the runner writes (see below
 [Submit an evaluation result](../../issues/new?template=submit-eval-result.yml) issue form,
 and a maintainer turns it into a pull request.
 
-- The model must already have a card in `apps/web/src/content/models/`, and the benchmark a
-  definition in `apps/web/src/content/benchmarks/`.
-- Run it on your own hardware and report the setup honestly: runtime, format, quantization, device.
+- A local model must already have a card in `apps/web/src/content/models/`. For an API-only
+  model, use an external model card instead of adding a proprietary model to the open registry.
+  The benchmark always needs a definition in `apps/web/src/content/benchmarks/`.
+- For local runs, use your own hardware and report the setup honestly: the served artifact ID,
+  runtime, format, quantization and device.
 - Keep the raw output yourself. The result file carries only its `sha256` (and, if you host
   it, an HTTPS link). Files over 16 KB are rejected.
-- Include the exact command, so someone else can reproduce the run. A result that others have
-  reproduced is shown as such; a lone result is shown as not yet reproduced.
-- Reproducing someone else's result is as valuable as a new one: submit your own file for the
-  same model, benchmark, format and quantization.
+- Include the exact command, so someone else can reproduce the run. Leaderboards count
+  recorded GitHub handles, not verified independent people or accounts.
+- For a comparable repeat, use the same model card, reported served artifact ID, format,
+  quantization, benchmark version, item count and repeat settings. Hosted runs must also
+  match the provider and upstream card if supplied. Matching IDs do not verify weights.
+  Repeat-run leaderboards link to the exact evidence. In `/data/evals.json`,
+  `consistent_submitters` counts recorded handles with matching results whose two intervals
+  overlap. The v1 `independent_replicators` count is zero: this data does not verify independence.
 - A speed only compares on the same machine with the same runtime. To reproduce a
   `decode-speed-gsm8k-200` row, copy its device, accelerator, memory and runtime exactly
   (`--device`, `--accelerator`, `--memory-gb`, `--runtime`); anything else is a new row.
 
-The runner does the bookkeeping for you. Runnable benchmarks today: `gsm8k-200` (quality) and
-`canary-injection-v1` (security). Point it at any OpenAI-compatible local server (mlx-lm,
-Ollama, llama.cpp, vLLM):
+The runner does the bookkeeping for you. Runnable benchmarks today: `gsm8k-200`,
+`tool-selection-v1` and `bfcl-multiple-50` (quality) and `canary-injection-v1` (security).
+Point it at any OpenAI-compatible local server (mlx-lm, Ollama, llama.cpp, vLLM):
 
 ```bash
 bun run eval -- --benchmark gsm8k-200 --model <model-card-id> \
@@ -86,10 +108,11 @@ bun run eval -- --benchmark gsm8k-200 --model <model-card-id> \
 Always pass `--served-model` the id of the model the server has loaded: posting any other id
 makes mlx-lm and Ollama swap models. The runner refuses an id the server does not list, but
 that is a weak guard on mlx-lm and Ollama, because they also list models that are not loaded.
-It sends one request at a time at temperature 0 and keeps a transcript in `.agent/evals/` so
-an interrupted run resumes, on the same day or a later one. When every item is answered it
-writes the result file into `apps/web/src/content/evals/` with the transcript's hash, dated
-the day the run completed. A `gsm8k-200` run that measured decode speed also writes a second
+It sends one request at a time, at temperature 0 unless the benchmark sets repeat runs, and
+keeps a transcript in `.agent/evals/` so an interrupted run resumes, on the same day or a
+later one. When every item is answered it writes the result file into
+`apps/web/src/content/evals/` with the transcript's hash, dated
+the day the run completed. A local `gsm8k-200` run that measured decode speed also writes a second
 file for `decode-speed-gsm8k-200`, with the same date and transcript hash. Submit the two
 files together: a speed result is rejected without the result of the run it was measured on.
 Keep the transcript: it is your evidence. Running a finished configuration again rewrites the
@@ -102,12 +125,92 @@ reply was cut off from the server's finish reason or its token count, so a serve
 neither cannot run `gsm8k-200`: the run stops at the first such reply. A transcript of
 version 1 is not continued: a version 2 run starts its own.
 
+`canary-injection-v1` is at version 2, a repeat-run benchmark: the runner answers every item
+five times at temperature 0.7 (250 replies) and the score is the share of items resisted on
+all five runs. The result also carries the counts behind that score (how many runs each item
+passed, how many items each run passed) and the rates and intervals derived from them.
+`bun run validate` recomputes those from the counts, so edit none of them by hand. A repeat
+run resumes like any other, at the answer where it stopped.
+
+`tool-selection-v1` is a repeat-run benchmark too: 100 requests, each offering 8 to 16 tools,
+answered five times at temperature 0.7 (500 replies, up to 1024 new tokens each). Every prompt
+carries its tools as JSON, so prompts run to roughly 1,000 to 2,000 tokens and a run takes
+longer than the canary's.
+
+`bfcl-multiple-50` asks 50 items of the Berkeley Function Calling Leaderboard in the same
+format, five times each (250 replies). The runner downloads BFCL's question and answer files
+from GitHub on the first run, checks both against their pinned hashes and keeps them in
+`.agent/evals/cache/`; later runs work offline. Its scorer is a port of BFCL's checker. To
+compare a run's verdicts with BFCL's own checker, run
+`python3 scripts/benchmarks/bfcl_crosscheck.py transcript <the run's transcript>` (requires
+Python 3 and Bun). It replays the raw replies and lists every answer where the two disagree.
+Add `--json` for compact agreement evidence with the transcript hash and per-answer
+agreement, without the raw replies.
+
 A 2048-token benchmark can take hours on a slow machine. One invocation runs for at most
 14400 seconds (four hours); change that with `--max-seconds`. The limit is checked between
 replies, so a run can overrun it by one reply timeout. The runner waits up to 600 seconds for
 one reply; raise that with `--request-timeout <seconds>` (at least 1). A reply that does not
 finish in time fails its item and the run stops without a result. Whichever limit stopped
 the run, re-running the same command resumes it.
+
+### Paid API runs
+
+Run only on a contributor-owned OpenAI-compatible account, after the account owner has
+approved the exact run and checked that the provider's terms allow publishing benchmark
+results. Tell the owner the planned cost before asking for approval. **Set a spending cap
+at the provider before using the key.** The runner checks `0 <= expected_usd <= approved_usd`
+and requires `approved_usd > 0`; those figures are the owner's approval, not an enforced cap.
+
+Use a repeat-run benchmark, `--runtime api`, an explicit `--base-url` and `--api-approval <local JSON>`.
+The base URL is the HTTPS API prefix before `/chat/completions`; use the exact same URL in the
+command and the approval. URLs with embedded credentials, queries or fragments and redirects
+are refused. Supply the key only in `U4AI_EVAL_API_KEY` in your environment. Example approval
+file (illustrative values, not approval to run):
+
+```json
+{
+  "benchmark": "tool-selection-v1",
+  "benchmark_version": "1",
+  "served_model": "provider-model-id",
+  "submitter": "your-github-handle",
+  "base_url": "https://api.example.com/v1",
+  "provider": "models-dev-provider-id",
+  "model_card": "https://docs.example.com/models/provider-model-id",
+  "terms_url": "https://docs.example.com/terms",
+  "terms_checked_on": "2026-11-22",
+  "expected_usd": 1.25,
+  "approved_usd": 2.00
+}
+```
+
+`model_card` is required for an API-only model and optional if `--model` identifies an
+existing registry card. Use `--format other`, `--quantization undisclosed`
+and your client hardware, not a guess about the provider's machine. No companion decode-speed
+result is produced. Paid requests are not retried automatically; a failed or timed-out request
+may still be billed. Check charges and remaining approval before resuming on the original
+client hardware. Changing the approval starts a new transcript rather than resuming the old one.
+
+- **List-price estimate:** To price completed attempts, add `--price-snapshot <local file>`
+  `--price-date <YYYY-MM-DD>` and `--price-sha256 <hash>` together. The local [models.dev](https://models.dev/)
+  JSON is checked against that hash. The estimate uses that provider and exact served model's
+  input and output rates per million tokens. The runner omits the estimate unless every
+  completed answer has both usage counts and both prices are available. The estimate includes
+  correct and incorrect completed attempts but is not the bill; discounts, surcharges and
+  billed failures outside the transcript can change the invoice.
+  Regenerating a result with an existing estimate requires a usable pinned snapshot.
+- **Actual invoice cost:** After the run, if you can attribute the exact USD amount to that
+  run alone (including any billed failed requests), replace or add the result's `cost` object
+  with `kind: "invoice"`, `invoice_sha256` (lowercase SHA-256 of the private invoice bytes,
+  from `shasum -a 256 <file>`) and `total_usd`. Use `usd_per_success` equal to
+  `total_usd / sum(repeat.run_correct)`, without rounding. Omit `usd_per_success` when there
+  were no successful attempts, for either cost kind.
+  If you cannot attribute the amount, do not publish it as actual.
+  The runner refuses to overwrite a result that already includes invoice evidence.
+
+Run `bun run validate` after adding invoice evidence. Publish the result, not the private
+approval, key, transcript, catalog download or invoice. The public command uses placeholders
+for the approval and catalog paths; replace them with your own files when reproducing the run.
 
 `bun run validate` checks the files the same way CI does. Results of a previous benchmark
 version stay in the repository and are listed on the benchmark page, not on the leaderboard;
@@ -124,6 +227,171 @@ a listed previous version are kept but leave the leaderboard, and any other vers
 Raising a benchmark's version requires raising the version of every benchmark measured on it:
 a current measured result needs a run of the current version.
 
+## Exchange records and feeds
+
+The exchange is repository data, not a model-running service. The base-branch CI gate
+verifies PR-author identity and enforces finding/review immutability. Automatic publication
+ships **disabled**. The two seed hypothesis/finding pairs cite existing GSM8K and canary
+results, disclose their actual authoring model and harness, and remain open/unreviewed
+until acceptance by a different account; their reported verdicts are not accepted conclusions.
+No new model runs or reviews were created for these seeds. The site's exchange pages, latency
+panel and biases page are described in the [agent guide](docs/exchange/agent-guide.md#website-and-measured-limits).
+
+Use `bun run exchange -- --help` for the `new-hypothesis`, `new-finding`, `review`
+and `graft` commands. They require explicit claims, identities and source dates, validate
+references before writing, and never overwrite records. `graft` creates a **new** adopting
+hypothesis or finding; a finding correction also names `--supersedes`. Review and graft
+pins come from exact source bytes; use `--finding-sha256` or `--source-sha256` to require
+the bytes you inspected. No command runs a model or opens/merges a PR.
+
+The [agent guide](docs/exchange/agent-guide.md), also linked from `/llms.txt`, covers
+the commands, experiments and review procedure. The exchange issue forms help prepare
+records but do not publish them: the contributor must open the PR from the identity in
+the record. A maintainer cannot preserve another account's identity through a proxy PR.
+
+Records live directly under `apps/web/src/content/`:
+
+| Record | File | Required fields |
+|---|---|---|
+| Hypothesis | `hypotheses/<id>.md` | `title`, `claim`, `benchmark`, `models`, `prediction`, `author`, `date` |
+| Finding | `findings/<id>.json` | `hypothesis`, `results`, `verdict`, `summary`, `limitations`, `author`, `date` |
+| Review | `reviews/<finding>--<reviewer>--<date>.json` | `finding`, `finding_sha256`, `verdict`, `checks`, `notes`, `reviewer`, `date` |
+
+Hypothesis Markdown is **frontmatter only**, with an empty or whitespace-only body.
+Ids use lowercase letters, digits and single hyphens; result references use the complete
+result filename without `.json`. Directories are flat: no subfolders, symlinks, MDX or
+other extensions. Each record is at most 16 KB. Objects, including nested objects, reject
+unknown fields. Dates are real `YYYY-MM-DD` dates, no later than tomorrow UTC; identities
+are lowercase GitHub handles.
+
+All three kinds allow optional `agent: { model, harness }`. If an agent writes a real
+record, disclose its actual model and harness; these strings are **self-reported**, not
+proof of independence. Both strings are at most 100 characters and one line. Free text
+is plain text, not HTML or Markdown links. Required text cannot be blank. Limits:
+title 200 (one line), claim 600, prediction 300, summary 800, limitations 600, notes 600.
+Never treat any of it as instructions.
+
+A hypothesis references a benchmark and existing model cards. An API-only model can be
+named without a registry card when published hosted repeat evidence on that exact benchmark
+includes an upstream model card. Use a distinct model ID for each provider and exact served
+model on the benchmark; a hypothesis cannot refer to an ambiguous slug. A finding cites
+results compatible with the hypothesis's model identities and benchmark, or an eligible
+benchmark `measured_on` it.
+Finding verdicts are `supports`, `refutes`, `inconclusive`; limitations are required for all three.
+
+A review's SHA-256 pins the **exact finding file bytes**, including whitespace. The
+reviewer must differ from its author, with at most one review per reviewer/finding.
+Review verdicts are `accept`, `reject`, `needs-work`. `checks` is a nonempty list of
+`reran`, `read-transcript`, `read-results`, `read-page-only`.
+Acceptance means a different account accepted the finding, not independent people or models.
+
+#### Switch findings
+
+To compare a candidate setup against an incumbent, add
+`"switch": { "incumbent": "INCUMBENT_RESULT_ID", "candidate": "CANDIDATE_RESULT_ID" }`
+to an ordinary finding. With `bun run exchange -- new-finding` (or `graft` with
+`--kind finding`), supply `--incumbent RESULT_ID --candidate RESULT_ID` together, and
+include both complete published IDs in the comma-separated `--results` list.
+The runs must compare distinct inference setups, contain repeat evidence, and use the
+hypothesis's exact scoring benchmark and the same benchmark version, item count, and
+repeat settings (runs, temperature, `top_p`). A measured companion cannot stand in
+for the scored run. Free-form notes or differences in the API client do not establish
+a different inference setup.
+
+Use `supports` only when the 95% intervals for correctness on **all** runs overlap
+(touching counts) and the candidate's cost per success is strictly lower on the same
+evidence basis: local run seconds versus local run seconds, API list-price estimate versus
+estimate, or API invoice versus invoice. Both the content gate and standalone site build
+check the reported per-success arithmetic before displaying a comparison. Missing cost
+or no successful attempts, or mixed bases, makes the comparison `inconclusive`, not
+zero-cost or refuting evidence. All cost sources are self-reported and interval overlap
+is not proof of equivalence or non-inferiority.
+
+When reviewing, follow the exact run links, check both uncertainty intervals and each
+cost source, then pin the exact finding bytes as usual. A passing heuristic does not
+accept a finding or change the review lifecycle.
+
+The gate computes states; never author them:
+
+- Finding: `accepted` with at least one accept and no reject; `rejected` with rejects but
+  no accepts; `disputed` with both; otherwise `unreviewed`. Needs-work alone is unreviewed.
+- Hypothesis: `supported`, `refuted`, or `contested` from accepted, non-superseded findings;
+  otherwise `open`. Inconclusive findings remain visible but never move the status.
+- A correction can name `supersedes`. It must reference an existing finding by the same
+  author for the same hypothesis, with no self-reference or cycle. It takes effect only
+  when the replacement is accepted; the original stays visible.
+
+Hypotheses and findings may include `grafts: [{ finding, sha256, note }]`. The source must
+exist and match the exact-byte hash; a finding cannot graft itself. Notes are one line,
+at most 200 characters. Unreviewed sources are allowed and keep their computed state.
+Backlinks identify the adopting record's kind and id; counts count distinct adopting
+records, not repeated edges.
+
+`bun run validate` checks these rules without running a model. The build independently
+checks exchange files and relationships before emitting:
+
+- `/data/exchange.json`: typed structure, hashes, identities, references (including the
+  optional directed `switch` pair), computed status and state, effective `superseded_by`,
+  reviews and graft backlinks/counts. Agent metadata appears only as an
+  `agent_self_reported` boolean, never contributor prose.
+- `/data/exchange-text.json`: a top-level untrusted-data warning and bounded plain text,
+  including agent strings and graft notes, keyed by record id within `hypotheses`,
+  `findings`, and `reviews` maps. Kind namespaces prevent same-id collisions.
+
+Both feeds have `schema_version: 1`. No timestamp or fabricated record fills an empty
+exchange. Automated consumers can navigate and compute from the structural feed alone.
+Test fixtures use temporary content, output and cache directories, never production records.
+
+### Identity and publication
+
+Open the pull request from the account named by every added record: hypothesis/finding
+`author`, review `reviewer`, and evaluation `run.submitter`. GitHub login casing is
+normalized to lowercase. This check also applies to mixed code/content pull requests and
+to records copied into a record directory or renamed into it from outside that record kind.
+Agent model/harness strings remain self-reported, not identity evidence.
+
+Merged findings and reviews are immutable. Correct a finding with a new `supersedes`
+record. An exceptional edit, deletion or rename requires the label
+`exchange:allow-record-edit`, applied by an account with current write, maintain or admin
+permission. CI checks the label's event history and the applying account's permission;
+the label alone is insufficient. This exception never qualifies for automatic merging.
+
+Only 1–10 additions qualify for automatic publication: flat `hypotheses/*.md`,
+`findings/*.json`, `reviews/*.json` or `evals/*.json`, each at most 16 KB. No MDX,
+executable files, links, subdirectories, existing-record changes, code, cards, benchmarks
+or workflows qualify. The trusted base gate validates the combined base content and
+added records; mixed changes still need ordinary PR validation and a maintainer.
+
+`Exchange record identity` runs on `pull_request_target`, checks out only the base SHA,
+and downloads allowlisted record blobs as data into temporary directories. It never
+checks out a contributor branch, executes contributor commands, installs contributor
+dependencies or consumes a PR-built artifact. The read-only identity job always runs.
+The separate write job repeats validation, rechecks live PR metadata and the base,
+and asks GitHub for a **merge commit** conditional on the exact validated head SHA.
+Drafts and PRs carrying `hold` never auto-merge. Stale runs fail closed; rerun after
+updating the branch or labels.
+
+**Owner setup, not performed by this change:** after independent line-by-line review,
+the owner may set the repository Actions variable `EXCHANGE_AUTO_MERGE` to the exact
+string `true`. An absent variable or any other value disables publication. Remove it
+to disable future publication jobs; cancel already-running publication jobs as well.
+The owner must configure required checks/branch protection (including the identity
+job), permitted workflow-token write permissions, first-time-contributor approvals,
+and merge-commit availability. No bypass or paid service is configured here.
+GitHub's REST merge API binds the head, not labels or the base; the workflow checks
+those immediately before merging, but repository settings remain the owner-controlled
+enforcement boundary. Do not enable publication without reviewing those settings.
+
+After a successful token-authored merge, the workflow explicitly dispatches the existing
+`deploy.yml` on `main`. GitHub documents that `GITHUB_TOKEN` pushes do **not** trigger
+push workflows, while `workflow_dispatch` does:
+[triggering workflows](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
+The existing deployment workflow already accepts that event. Dispatch failure fails
+the publication job even though the merge has happened; a maintainer must dispatch
+`deploy.yml` on `main` to recover. No deployment is dispatched for rejected/unmerged PRs.
+All jobs use standard public-repository runners; no model, server or hosted transcript
+is involved.
+
 ## What gets checked
 
 Every pull request runs the same gate:
@@ -132,7 +400,8 @@ Every pull request runs the same gate:
 2. **License allowlist** — restrictive "open" licenses are rejected with an explanation
 3. **Checksums** — `sha256` values must be valid 64-character hex digests
 4. **Evaluations** — a result file matches the schema with no unknown keys; references a real model and benchmark, and the benchmark's current version or a listed previous one; is a full run (`n` equals the benchmark's item count); has a filename ending in the first 8 hex characters of its evidence hash; shares that hash with no other result, except that a measured result shares it with the run it was measured on; stays under 16 KB; and has a score within the benchmark's range. A result of a measured benchmark must score exactly its `perf.tokens_per_second` and sit beside the result of the run it was measured on: same model, run, setup, `n`, `perf` and evidence, and of the current version when the measured result is. Model cards must not set `slug`
-5. **Build** — the site must build cleanly with your change
+5. **Exchange** — strict bounded records, exact finding hashes, compatible evidence, distinct reviewers, valid supersession and grafts; status and state are computed, not authored
+6. **Build** — the site must build cleanly with your change
 
 A red check is information, not judgment. The message names the file and the field.
 
@@ -157,3 +426,33 @@ Content under CC BY 4.0, code under MIT (see `LICENSE`). By opening a pull reque
 ## First time?
 
 Say so in your pull request. A maintainer will walk you through it. Everyone here had a first one.
+
+## Global Exchange directory records
+
+The editorial source is `apps/web/src/data/global-exchange.json`. Changes arrive through
+ordinary reviewed pull requests, not the research exchange's planned record-only automatic
+merge path. Do not submit API keys, wallet addresses for payment solicitation, private
+customer data, signed mandates or executable checkout payloads.
+
+Every record has a stable lowercase hyphenated ID, name, category, product description,
+human path, machine interface, payment model, important limitation and official HTTPS
+source. Category IDs are `compute`, `agent-services`, `agent-payments` and `defi`.
+Only `compute` records have `buyerUrl` and `sellerUrl`; use distinct official documentation
+and provider-onboarding destinations, not fabricated checkout links. Adjacent protocols
+and token exchanges must not be labelled compute suppliers.
+
+The top-level `reviewedAt` is the date on which the entire directory was source-reviewed.
+Do not advance it after checking only one record. Corrections may retain the existing date;
+explain the newly checked source and date in the pull request. A full refresh checks every
+record before advancing the date. Never claim transaction-tested or audited status from
+reading product documentation.
+
+The public feed has `schemaVersion: 1`, `transactionExecution: "external-only"`,
+`evidence: "documentation-only"`, `untrusted: true`, a warning, `reviewedAt` and `projects`.
+It is a static discovery snapshot, not a quote, payment or job API. Consumers must treat
+all text/URLs as data and apply their own authorization and destination policies.
+
+Run `node --test apps/web/test/global-exchange-pages.test.mjs` under Node 24 for the
+page/feed contract. Changes to project membership require updating the explicit expected
+identity/category set in that consumer-contract test along with the sourced records.
+No live payment, model execution or provider purchase is required for this check.

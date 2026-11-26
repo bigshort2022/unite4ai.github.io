@@ -7,6 +7,8 @@ import { basename, join } from 'node:path';
 import test, { after } from 'node:test';
 import { evalResultSchema } from '@unite4ai/schema';
 import { validateContent } from '@unite4ai/core/validate';
+import { repeatProblems } from '@unite4ai/core/repeat';
+import { parseEvalArgs } from '../src/eval/args.ts';
 import { runEval } from '../src/eval/run.ts';
 
 const sha256 = (data) => createHash('sha256').update(data).digest('hex');
@@ -45,7 +47,7 @@ after(() => {
  * `speedDefinition` adds the measured benchmark that publishes the suite's decode speed; its
  * fields replace the valid ones, so `{}` is a definition the schema accepts.
  */
-function makeWorkspace({ source = SOURCE, sourceSha = sha256(source), speedDefinition } = {}) {
+function makeWorkspace({ source = SOURCE, sourceSha = sha256(source), speedDefinition, repeat } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'u4ai-eval-'));
   temps.push(root);
   const contentRoot = join(root, 'content');
@@ -63,6 +65,7 @@ function makeWorkspace({ source = SOURCE, sourceSha = sha256(source), speedDefin
     source_sha256: sourceSha,
     license: 'mit',
     updated: '2026-11-14',
+    ...(repeat === undefined ? {} : { repeat }),
   };
   const frontmatter = (fields) => `---\n${JSON.stringify(fields, null, 2)}\n---\n\n## Method\n\nFixture.\n`;
   writeFileSync(join(contentRoot, 'benchmarks/gsm8k-200.md'), frontmatter(definition));
@@ -90,8 +93,14 @@ function makeWorkspace({ source = SOURCE, sourceSha = sha256(source), speedDefin
 const INSTRUCTION = 'Solve this step by step. Finish with the final answer as a number on its own line.';
 
 /** What a completion request gets wrong against the benchmark page's method; null when nothing. */
-function requestProblem(body, question) {
-  const fixed = { model: 'stub-model', temperature: 0, max_tokens: 2048, stream: true };
+function requestProblem(body, question, sampling) {
+  const fixed = {
+    model: 'stub-model',
+    temperature: sampling?.temperature ?? 0,
+    max_tokens: 2048,
+    stream: true,
+    ...(sampling === undefined ? {} : { top_p: sampling.top_p }),
+  };
   for (const [key, value] of Object.entries(fixed)) {
     if (body[key] !== value) return `${key} must be ${JSON.stringify(value)}, got ${JSON.stringify(body[key])}`;
   }
@@ -110,9 +119,10 @@ function requestProblem(body, question) {
  * that says how. `delayMs` is how long a reply takes after its first chunk. `status` is what
  * /_omp/status answers, as an omp-managed server does (a string is sent as it is); without
  * it the route is a 404, as on plain mlx-lm and Ollama. With `usage: false` the server never
- * says how many tokens it generated.
+ * says how many tokens it generated. `sampling` is the repeat method the requests must follow.
+ * A reply may also be a function of the request body, returning any of the reply forms.
  */
-function stubServer(replies, { models = ['stub-model'], delayMs = 15, status, usage = true } = {}) {
+function stubServer(replies, { models = ['stub-model'], delayMs = 15, status, usage = true, sampling } = {}) {
   const requests = [];
   const bodies = [];
   let active = 0;
@@ -134,8 +144,9 @@ function stubServer(replies, { models = ['stub-model'], delayMs = 15, status, us
         const parsed = JSON.parse(body);
         bodies.push(parsed);
         const question = String(parsed.messages?.[0]?.content).split('\n')[0];
-        const reply = replies[question];
-        const problem = reply === undefined ? `no reply for ${JSON.stringify(question)}` : requestProblem(parsed, question);
+        const entry = replies[question];
+        const reply = typeof entry === 'function' ? entry(parsed) : entry;
+        const problem = reply === undefined ? `no reply for ${JSON.stringify(question)}` : requestProblem(parsed, question, sampling);
         if (problem) return json(500, { error: { message: `stub: ${problem}` } });
         if (typeof reply === 'number') return json(reply, { error: { message: 'stub failure' } });
         if (reply.hang) return undefined;
@@ -225,8 +236,9 @@ test('a complete run writes a result the content gate accepts, with evidence for
   assert.equal(evalResultSchema.safeParse(result).success, true);
   assert.equal(result.score, 66.67);
   assert.equal(result.run.command, 'bun run eval -- --benchmark gsm8k-200 --model model-a');
-  // 0.2.0 is the runner with per-suite token limits and the cut-off rule; 0.1.0 ran version 1.
-  assert.deepEqual(result.run.harness, { name: 'unite4ai-eval', version: '0.2.0' });
+  assert.equal(result.setup.served_model, 'stub-model');
+  // 0.3.0 adds repeat runs; 0.2.0 had per-suite token limits and the cut-off rule; 0.1.0 ran version 1.
+  assert.deepEqual(result.run.harness, { name: 'unite4ai-eval', version: '0.3.0' });
   assert.deepEqual(result.setup.hardware, { device: 'Test Box', accelerator: 'cpu', memory_gb: 16 });
   const transcript = readFileSync(outcome.transcriptPath);
   assert.equal(result.evidence.sha256, sha256(transcript));
@@ -240,6 +252,8 @@ test('a complete run writes a result the content gate accepts, with evidence for
     [header.type, header.benchmark_version, header.prompt_version, header.max_tokens],
     ['header', '2', 'gsm8k-2', 2048],
   );
+  // Only a suite with a second pinned file names it, so single-source transcripts keep their names.
+  assert.equal('answers_sha256' in header, false);
 
   // The published speed, recomputed from the transcript with the runner's rounding: tokens
   // per second after the first token, and the median time to the first token.
@@ -847,4 +861,272 @@ test('credentials in the base URL reach the server but not the transcript', asyn
   assert.equal(outcome.n, 3);
   assert.doesNotMatch(readFileSync(outcome.transcriptPath, 'utf8'), /carol|hunter2/);
   assert.equal(transcriptLines(workspace)[0].base_url, stub.baseUrl);
+});
+
+const REPEAT = { runs: 3, temperature: 0.7, top_p: 1 };
+
+function paidOptions(workspace, overrides = {}) {
+  const baseUrl = 'https://fixture-provider.example.test/v1';
+  const apiKey = 'test-fixture-not-a-credential';
+  const approvalFile = join(workspace.root, 'owner-receipt.json');
+  const priceFile = join(workspace.root, 'private-prices.json');
+  const approval = {
+    benchmark: 'gsm8k-200', benchmark_version: '2', served_model: 'stub-model', submitter: 'alice',
+    base_url: baseUrl, provider: 'fixture-provider', model_card: 'https://fixture-provider.example.test/model-card',
+    terms_url: 'https://fixture-provider.example.test/terms', terms_checked_on: '2026-11-09',
+    expected_usd: 0, approved_usd: 0.01,
+    ...overrides,
+  };
+  writeFileSync(approvalFile, JSON.stringify(approval));
+  const catalog = JSON.stringify({ 'fixture-provider': { models: { 'stub-model': { cost: { input: 2, output: 4 } } } } });
+  writeFileSync(priceFile, catalog);
+  const parsed = parseEvalArgs([
+    '--benchmark', 'gsm8k-200', '--model', 'api-model', '--served-model', 'stub-model', '--submitter', 'alice',
+    '--runtime', 'api', '--runtime-version', 'v1', '--format', 'other', '--quantization', 'undisclosed',
+    '--device', 'Test Box', '--accelerator', 'cpu', '--memory-gb', '16',
+    '--base-url', baseUrl, '--api-approval', approvalFile,
+    '--price-snapshot', priceFile, '--price-date', '2026-11-09', '--price-sha256', sha256(catalog),
+  ], { root: workspace.root, env: { U4AI_EVAL_API_KEY: apiKey } });
+  return {
+    approval, apiKey, baseUrl, snapshotSha: sha256(catalog),
+    options: { ...options(workspace, { baseUrl }), ...parsed, ...workspace },
+  };
+}
+
+test('paid runs fail before any HTTP call when approval mismatches or the benchmark is not repeated', async () => {
+  const repeated = makeWorkspace({ repeat: REPEAT });
+  const single = makeWorkspace();
+  const realFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    throw new Error('no requests allowed');
+  };
+  try {
+    await assert.rejects(runEval(paidOptions(repeated, { base_url: 'https://different.example.test/v1' }).options), /base_url/);
+    await assert.rejects(runEval(paidOptions(repeated, { model_card: undefined }).options), /model_card/);
+    await assert.rejects(runEval(paidOptions(single).options), /repeat/);
+    const { options: approved } = paidOptions(repeated);
+    await assert.rejects(runEval({ ...approved, format: 'mlx' }), /format.*other/);
+    await assert.rejects(runEval({ ...approved, quantization: '4bit' }), /quantization.*undisclosed/);
+    const blank = paidOptions(repeated, { served_model: '  ' });
+    await assert.rejects(runEval({ ...blank.options, servedModel: '  ' }), /served-model/);
+    for (const overrides of [{ notes: approved.apiRequest.key }, { hardware: { ...approved.hardware, device: approved.apiRequest.key } }]) {
+      await assert.rejects(runEval({ ...approved, ...overrides }), (error) => {
+        assert.match(error.message, /API key/);
+        assert.doesNotMatch(error.message, /test-fixture-not-a-credential/);
+        return true;
+      });
+    }
+    assert.equal(calls, 0);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test('paid responses containing the API key are never scored or recorded', async () => {
+  const workspace = makeWorkspace({ repeat: REPEAT });
+  const paid = paidOptions(workspace);
+  const realFetch = globalThis.fetch;
+  try {
+    for (const fields of [
+      [{ delta: { content: paid.apiKey.slice(0, 8) } }, { delta: { content: paid.apiKey.slice(8) }, finish_reason: 'stop' }],
+      [{ delta: { content: GOOD['Q1?'] }, finish_reason: paid.apiKey }],
+    ]) {
+      let calls = 0;
+      globalThis.fetch = async () => {
+        calls += 1;
+        return new Response(fields.map((choice) => `data: ${JSON.stringify({ choices: [choice] })}\n\n`).join('') + 'data: [DONE]\n\n');
+      };
+      await assert.rejects(runEval(paid.options), (error) => {
+        assert.match(error.message, /API key/);
+        assert.doesNotMatch(error.message, /test-fixture-not-a-credential/);
+        return true;
+      });
+      assert.equal(calls, 1);
+      assert.deepEqual(itemLines(workspace), []);
+      assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), []);
+    }
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+for (const missingUsage of [false, true]) {
+  test(`a completed API run ${missingUsage ? 'omits cost when one response lacks usage' : 'publishes a pinned estimate for all responses'}`, async () => {
+    const workspace = makeWorkspace({ speedDefinition: {}, repeat: REPEAT });
+    const paid = paidOptions(workspace);
+    const realFetch = globalThis.fetch;
+    const requests = [];
+    globalThis.fetch = async (url, init) => {
+      const body = JSON.parse(init.body);
+      requests.push({ url, headers: init.headers, redirect: init.redirect, body });
+      const question = body.messages[0].content.split('\n')[0];
+      const event = (payload) => `data: ${JSON.stringify(payload)}\n\n`;
+      return new Response(
+        event({ choices: [{ delta: { content: GOOD[question] }, finish_reason: 'stop' }] })
+        + (missingUsage && body.seed === 5 ? '' : event({ choices: [], usage: { prompt_tokens: 30, completion_tokens: 10 } }))
+        + 'data: [DONE]\n\n',
+      );
+    };
+    try {
+      const outcome = await runEval(paid.options);
+      assert.equal(requests.length, 9);
+      for (const [seed, { url, headers, redirect, body }] of requests.entries()) {
+        assert.equal(url, `${paid.baseUrl}/chat/completions`);
+        assert.equal(new Headers(headers).get('authorization'), `Bearer ${paid.apiKey}`);
+        assert.equal(redirect, 'error');
+        assert.equal(body.model, 'stub-model');
+        assert.equal(body.seed, seed);
+      }
+      const contents = readFileSync(outcome.resultPath, 'utf8');
+      const result = JSON.parse(contents);
+      assert.deepEqual(result.repeat.run_correct, [2, 2, 2]);
+      assert.equal(result.api.provider, 'fixture-provider');
+      assert.equal(result.api.model_card, paid.approval.model_card);
+      assert.equal(result.setup.served_model, 'stub-model');
+      assert.equal(result.cost?.total_usd, missingUsage ? undefined : 0.0009);
+      assert.equal(result.cost?.usd_per_success, missingUsage ? undefined : 0.0009 / 6);
+      assert.equal(result.cost?.snapshot_sha256, missingUsage ? undefined : paid.snapshotSha);
+      assert.equal(outcome.speedResultPath, undefined);
+      assert.deepEqual(readdirSync(join(workspace.contentRoot, 'evals')), [basename(outcome.resultPath)]);
+      const evidence = readFileSync(outcome.transcriptPath, 'utf8');
+      assert.deepEqual(JSON.parse(evidence.split('\n')[0]).hardware, result.setup.hardware);
+      assert.doesNotMatch(`${contents}\n${evidence}`, /test-fixture-not-a-credential|owner-receipt|private-prices/);
+      assert.deepEqual((await validateContent(workspace.contentRoot)).errors, []);
+      assert.equal((await runEval(paid.options)).resultPath, outcome.resultPath);
+      await assert.rejects(runEval({
+        ...paid.options, sourceFile: undefined, hardware: { ...paid.options.hardware, memory_gb: 32 },
+      }), /client hardware/);
+      assert.deepEqual(readdirSync(workspace.workDir), [basename(outcome.transcriptPath)]);
+      if (!missingUsage) {
+        const { priceSnapshot: _snapshot, ...withoutSnapshot } = paid.options.apiRequest;
+        await assert.rejects(runEval({ ...paid.options, apiRequest: withoutSnapshot }), /refusing to overwrite.*estimate/i);
+        const noRatesFile = join(workspace.root, 'no-rates.json');
+        writeFileSync(noRatesFile, '{}');
+        await assert.rejects(runEval({
+          ...paid.options,
+          apiRequest: { ...withoutSnapshot, priceSnapshot: { file: noRatesFile, date: '2026-11-09', sha256: sha256('{}') } },
+        }), /refusing to overwrite.*estimate/i);
+        assert.equal(readFileSync(outcome.resultPath, 'utf8'), contents);
+        const invoice = { kind: 'invoice', invoice_sha256: 'a'.repeat(64), total_usd: 0.003, usd_per_success: 0.003 / 6 };
+        const withInvoice = `${JSON.stringify({ ...result, cost: invoice }, null, 2)}\n`;
+        writeFileSync(outcome.resultPath, withInvoice);
+        assert.deepEqual((await validateContent(workspace.contentRoot)).errors, []);
+        await assert.rejects(runEval(paid.options), /refusing to overwrite.*invoice/i);
+        assert.equal(readFileSync(outcome.resultPath, 'utf8'), withInvoice);
+      }
+      assert.equal(requests.length, 9, 'a completed run does not make any more paid requests');
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+}
+
+test('a repeat-run benchmark answers every item once per run with its own seed, and publishes counts the gate recomputes', async () => {
+  const workspace = makeWorkspace({ repeat: REPEAT });
+  // Q3 is right only at seed 5: the second run's third item.
+  const stub = await stubServer({ ...GOOD, 'Q3?': (body) => (body.seed === 5 ? 'It is 7' : 'I think 9') }, { sampling: REPEAT });
+  const outcome = await runEval(options(workspace, stub));
+
+  assert.deepEqual([outcome.n, outcome.runs, outcome.correct, outcome.score], [3, 3, 2, 66.67]);
+  assert.equal(stub.maxActive(), 1, 'requests must be sequential');
+  assert.deepEqual(stub.bodies.map((body) => [body.seed, body.temperature, body.top_p]), [0, 1, 2, 3, 4, 5, 6, 7, 8].map((seed) => [seed, 0.7, 1]));
+  assert.deepEqual(itemLines(workspace).map((line) => [line.run, line.index, line.seed, line.correct, line.prompt_tokens]), [
+    [0, 0, 0, true, 20], [0, 1, 1, true, 20], [0, 2, 2, false, 20],
+    [1, 0, 3, true, 20], [1, 1, 4, true, 20], [1, 2, 5, true, 20],
+    [2, 0, 6, true, 20], [2, 1, 7, true, 20], [2, 2, 8, false, 20],
+  ]);
+  assert.deepEqual(transcriptLines(workspace)[0].repeat, REPEAT);
+
+  const result = JSON.parse(readFileSync(outcome.resultPath, 'utf8'));
+  assert.equal(result.score, 66.67);
+  assert.equal(result.n, 3);
+  assert.deepEqual(result.repeat.item_pass_histogram, [0, 1, 0, 2]);
+  assert.deepEqual(result.repeat.run_correct, [2, 3, 2]);
+  assert.equal(result.repeat.pass_1, 77.78);
+  assert.deepEqual(result.repeat.pass_k_ci, [20.77, 93.85]);
+  assert.deepEqual([result.repeat.prompt_tokens_total, result.repeat.completion_tokens_total], [180, 90]);
+  assert.deepEqual(repeatProblems(result.repeat, result.n), []);
+  assert.deepEqual((await validateContent(workspace.contentRoot)).errors, []);
+});
+
+test('a repeat run stopped inside a later run resumes at the same answer with the same seed', async () => {
+  const workspace = makeWorkspace({ repeat: REPEAT });
+  let failed = false;
+  const flaky = (body) => {
+    if (body.seed === 4 && !failed) {
+      failed = true;
+      return 503;
+    }
+    return 'Total 2,125';
+  };
+  const stub = await stubServer({ ...GOOD, 'Q2?': flaky }, { sampling: REPEAT });
+  await assert.rejects(runEval(options(workspace, stub)), /run 2 item 2 failed: .*rerun to resume/);
+  assert.equal(itemLines(workspace).length, 4);
+
+  const outcome = await runEval(options(workspace, stub));
+  assert.equal(outcome.runs, 3);
+  assert.deepEqual(stub.bodies.map((body) => body.seed), [0, 1, 2, 3, 4, 4, 5, 6, 7, 8]);
+  assert.deepEqual(itemLines(workspace).map((line) => line.seed), [0, 1, 2, 3, 4, 5, 6, 7, 8]);
+});
+
+/** Rewrites a transcript through `edit`, which takes and returns its parsed lines. */
+function rewriteTranscript(path, edit) {
+  const lines = readFileSync(path, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
+  writeFileSync(path, edit(lines).map((line) => `${JSON.stringify(line)}\n`).join(''));
+}
+
+const REPEAT_ORDER = /its answer lines are not run 0 items 0 to 2, then run 1, and so on, in order/;
+
+test('a repeat transcript with an answer line that lost its run is refused, naming runs', async () => {
+  const workspace = makeWorkspace({ repeat: REPEAT });
+  const stub = await stubServer({ ...GOOD }, { sampling: REPEAT });
+  const { transcriptPath } = await runEval(options(workspace, stub));
+  rewriteTranscript(transcriptPath, (lines) => {
+    delete lines[2].run;
+    return lines;
+  });
+  await assert.rejects(runEval(options(workspace, stub)), REPEAT_ORDER);
+});
+
+test('a repeat transcript with an answer line sent with another seed is refused', async () => {
+  const workspace = makeWorkspace({ repeat: REPEAT });
+  const stub = await stubServer({ ...GOOD }, { sampling: REPEAT });
+  const { transcriptPath } = await runEval(options(workspace, stub));
+  rewriteTranscript(transcriptPath, (lines) => {
+    lines[4].seed = 99;
+    return lines;
+  });
+  await assert.rejects(runEval(options(workspace, stub)), REPEAT_ORDER);
+});
+
+test('a finished repeat run run again asks nothing and rewrites the same result', async () => {
+  const workspace = makeWorkspace({ repeat: REPEAT });
+  const stub = await stubServer({ ...GOOD }, { sampling: REPEAT });
+  const first = await runEval(options(workspace, stub));
+  const bytes = readFileSync(first.resultPath);
+  const second = await runEval(options(workspace, stub));
+  assert.equal(stub.bodies.length, 9);
+  assert.equal(second.resultPath, first.resultPath);
+  assert.deepEqual(readFileSync(second.resultPath), bytes);
+});
+
+test('a repeat transcript marked complete before its last answer is refused, counting answers', async () => {
+  const workspace = makeWorkspace({ repeat: REPEAT });
+  const stub = await stubServer({ ...GOOD }, { sampling: REPEAT });
+  const { transcriptPath } = await runEval(options(workspace, stub));
+  rewriteTranscript(transcriptPath, (lines) => [...lines.slice(0, 7), { type: 'complete', date: '2026-11-10' }]);
+  await assert.rejects(runEval(options(workspace, stub)), /marked complete with 6 of 9 answers/);
+});
+
+test('a single-run benchmark sends no sampling and writes no repeat fields', async () => {
+  const workspace = makeWorkspace();
+  const stub = await stubServer({ ...GOOD });
+  const outcome = await runEval(options(workspace, stub));
+  assert.equal(outcome.runs, 1);
+  assert.equal(stub.bodies.some((body) => 'seed' in body || 'top_p' in body), false);
+  assert.equal(itemLines(workspace).some((line) => 'run' in line || 'seed' in line || 'prompt_tokens' in line), false);
+  assert.equal('repeat' in transcriptLines(workspace)[0], false);
+  assert.equal('repeat' in JSON.parse(readFileSync(outcome.resultPath, 'utf8')), false);
 });

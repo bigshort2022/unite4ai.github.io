@@ -1,0 +1,22 @@
+---
+import type { CollectionEntry } from 'astro:content';
+
+interface Props {
+  compute: Pick<CollectionEntry<'compute'>['data'], 'protocol' | 'pricing_model' | 'coverage' | 'last_verified'>;
+  verificationLabel: 'verified' | 'last verified';
+}
+
+const { compute: { protocol, pricing_model, coverage, last_verified }, verificationLabel } = Astro.props;
+
+const protocolLabels = {
+  'self-hosted': 'Self-hosted',
+  'community-gpu': 'Community GPU',
+  federated: 'Federated learning',
+  'inference-server': 'Inference server',
+  'cloud-open': 'Open cloud',
+} satisfies Record<Props['compute']['protocol'], string>;
+---
+<span class="tag tag-open">{protocolLabels[protocol]}</span>
+<span class="tag">{pricing_model}</span>
+<span class="tag">{coverage}</span>
+{last_verified && <span class="tag">{verificationLabel} {last_verified.toISOString().slice(0, 10)}</span>}

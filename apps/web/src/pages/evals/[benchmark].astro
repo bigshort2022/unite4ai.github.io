@@ -1,8 +1,10 @@
 ---
 import Base from '../../layouts/Base.astro';
+import BfclReplicationTask from '../../components/BfclReplicationTask.astro';
 import { getCollection, render } from 'astro:content';
-import { reproductionLabel } from '@unite4ai/core';
-import { CATEGORY_LABELS, SUBMIT_GUIDE, deviceLine, formatNumber, loadEvals, runtimeLabel, scoreRange, withUnit, type Board } from '../../lib/evals';
+import { submitterLabel } from '@unite4ai/core';
+import { CATEGORY_LABELS, SUBMIT_GUIDE, deviceLine, evalRunAnchor, evalRunLabel, formatNumber, loadEvals, repeatLines, resourceLines, runsLabel, runtimeLabel, scoreRange, withUnit, type Board } from '../../lib/evals';
+import { EXPORT_FILES, exportPath } from '../../lib/eval-exports';
 
 export async function getStaticPaths() {
   const benchmarks = await getCollection('benchmarks');
@@ -15,16 +17,48 @@ const d = entry.data;
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const href = (p: string) => `${base}${p}` || '/';
 
-const { boards, modelNames } = await loadEvals();
+const { boards, bfclCalibration, modelReference, groupModelReference, replicationIndex, runsById } = await loadEvals();
 // There is one board for every benchmark in the collection, so this one's is among them.
-const { rows, runs, earlierRuns, measured } = boards.find((board) => board.benchmark.id === entry.id) as Board;
+const { rows, rankNotes, runs, earlierRuns, measured, registered, runBaselines } = boards.find((board) => board.benchmark.id === entry.id) as Board;
+const replications = replicationIndex(entry.id);
+const allRuns = [...runs, ...earlierRuns];
+const peerLabels = {
+  consistent: 'consistent',
+  inconsistent: 'inconsistent',
+  repeated_on_other_hardware: 'repeated on other hardware',
+};
 const runTables = [
   { id: 'every-run', title: 'Every run', caption: `Every run of ${d.name}, version ${d.version}`, list: runs },
   { id: 'previous-versions', title: 'Previous versions', caption: `Runs of previous versions of ${d.name}`, list: earlierRuns },
-];
-const modelName = (id: string) => modelNames.get(id) ?? id;
+].map((table) => ({
+  ...table,
+  showResources: table.list.some((run) => run.repeat || run.api),
+  showReplication: table.list.some((run) => replications.has(run.id)),
+}));
+const modelHref = (url: string) => url.startsWith('/') ? href(url) : url;
+const runHref = (id: string) => `#${evalRunAnchor(id)}`;
+const baselineHref = (anchor: string) => `#${encodeURIComponent(anchor)}`;
+const usd = (value: number) => `$${formatNumber(value)}`;
+const calibration = entry.id === 'bfcl-multiple-50' ? bfclCalibration : undefined;
+const calibratedRun = calibration && allRuns.find((run) =>
+  run.benchmark_version === '1' && run.evidence.sha256 === calibration.transcript_sha256);
+const replicationReference = entry.id === 'bfcl-multiple-50' && d.version === '1'
+  && d.source_sha256 === 'aef168155ebd74b7ac2401198b201343bc7d16d7a3d7e0d4e6d8ee82c6969b2a'
+  && d.items === 50 && d.repeat?.runs === 5 && d.repeat.temperature === 0.7 && d.repeat.top_p === 1
+  ? runs.find((run) =>
+      run.id === 'qwen3-8-27b--bfcl-multiple-50--bigshort2022--2026-11-23--5e58a1a8'
+      && run.n === 50 && run.repeat?.runs === 5 && run.repeat.temperature === 0.7 && run.repeat.top_p === 1
+      && run.setup.served_model === 'mlx-community/Qwen3.8-27B-4bit'
+      && run.setup.format === 'mlx' && run.setup.quantization === '4bit' && run.setup.runtime !== 'api')
+  : undefined;
+const disagreementNotes = calibration?.disagreement_notes;
+const disagreements = calibration?.agreement.flatMap((agreed, position) => agreed ? [] : [{
+  pass: Math.floor(position / 50) + 1,
+  item: `multiple_${position % 50}`,
+  note: disagreementNotes?.[position],
+}]) ?? [];
 ---
-<Base title={d.name} description={d.summary}>
+<Base title={d.name} description={d.summary} measuredOn={d.measured_on}>
   <article class="wrap section" data-pagefind-body>
     <p class="eyebrow"><a href={href('/evals')}>Evaluations</a> · {CATEGORY_LABELS[d.category]} · Benchmark</p>
     <h1>{d.name}</h1>
@@ -35,10 +69,19 @@ const modelName = (id: string) => modelNames.get(id) ?? id;
       <span class="tag">version {d.version}</span>
       <span class="tag">{d.scoring}</span>
       {d.items > 0 && <span class="tag">{d.items} items</span>}
+      {d.repeat && <span class="tag">{`${d.repeat.runs} runs per item at temperature ${d.repeat.temperature}`}</span>}
       <span class="tag">{d.metric.name}{d.metric.unit && ` (${d.metric.unit})`}, {d.metric.higher_is_better ? 'higher' : 'lower'} is better</span>
     </div>
 
+    {replicationReference?.repeat && <BfclReplicationTask
+      reference={replicationReference}
+      repeat={replicationReference.repeat}
+      runHref={runHref(replicationReference.id)}
+      evidenceHref={exportPath(replicationReference.id, EXPORT_FILES.evidence)}
+    />}
+
     <h2>Leaderboard</h2>
+    <p class="muted">Results are self-reported. The number of submitting accounts does not establish independent reproduction.</p>
     {rows.length === 0 ? (
       <div class="empty" style="margin-top:1rem">
         No results for version {d.version} yet.{' '}
@@ -52,6 +95,9 @@ const modelName = (id: string) => modelNames.get(id) ?? id;
       {measured && (
         <p style="margin-top:1rem;color:var(--u-text-dim)">Grouped per machine and runtime. Compare rows on the same machine only.</p>
       )}
+      {d.repeat && (
+        <p style="margin-top:1rem;color:var(--u-text-dim)">The score is the share of items answered correctly on all {d.repeat.runs} runs. Its interval, pass@1 and the spread between runs are under <a href="#every-run">Every run</a>. A row marked "not distinguishable from #N" has a 95% score interval that overlaps row N's.</p>
+      )}
       <div class="eval-scroll" tabindex="0" role="region" aria-label={`Leaderboard for ${d.name}`}>
         <table class="eval-table">
           <caption class="sr-only">Leaderboard for {d.name}</caption>
@@ -59,70 +105,195 @@ const modelName = (id: string) => modelNames.get(id) ?? id;
             <tr>{!measured && <th scope="col"><span class="sr-only">Rank</span><span aria-hidden="true">#</span></th>}<th scope="col">Model</th><th scope="col">{d.metric.name}</th><th scope="col">Setup</th>{!measured && <th scope="col">Speed</th>}<th scope="col">Runs</th></tr>
           </thead>
           <tbody>
-            {rows.map((row, index) => (
-              <tr>
-                {!measured && <td class="rank num">{index + 1}</td>}
-                <td><a href={href(`/registry/models/${row.model}`)}>{modelName(row.model)}</a></td>
+            {rows.map((row, index) => {
+              const model = groupModelReference(row);
+              return <tr>
+                {!measured && <td class="rank num">{index + 1}{rankNotes[index] && <small>{rankNotes[index]}</small>}</td>}
+                <td>{model.url ? <a href={modelHref(model.url)}>{model.name}</a> : model.name}{model.upstream && <small><a href={model.upstream} rel="nofollow ugc noopener">Upstream model card</a></small>}</td>
                 <td class="num">
                   <span class="score">{withUnit(formatNumber(row.score), d.metric.unit)}</span>
                   {scoreRange(row) && <small>range {scoreRange(row)}</small>}
                 </td>
                 <td>
                   {row.format} · {row.quantization}
-                  <small>{runtimeLabel(row)} · {row.accelerators.join(', ')}</small>
+                  <small>{runtimeLabel(row)}{row.accelerators.length > 0 && ` · ${row.accelerators.join(', ')}`}</small>
                   {deviceLine(row) && <small>{deviceLine(row)}</small>}
                 </td>
                 {!measured && (
                   <td class="num">{row.tokens_per_second === null ? '—' : `${formatNumber(row.tokens_per_second)} tok/s`}</td>
                 )}
-                <td><span class={`tag${row.submitters.length > 1 ? ' tag-open' : ''}`}>{reproductionLabel(row)}</span><small>{row.runs} {row.runs === 1 ? 'run' : 'runs'}</small></td>
-              </tr>
-            ))}
+                <td>
+                  {d.repeat ? (
+                    <>
+                      <small>Replication evidence</small>
+                      {row.run_ids.map((id) => <small><a href={runHref(id)}>{evalRunLabel(runsById.get(id)!)}</a></small>)}
+                    </>
+                  ) : <span class="tag">{submitterLabel(row)}</span>}
+                  <small>{runsLabel(row.runs, d.repeat !== undefined)}</small>
+                </td>
+              </tr>;
+            })}
           </tbody>
         </table>
       </div>
       </>
     )}
 
+    {registered.length > 0 && (
+      <section id="registered-baselines" style="margin-top:2.5rem">
+        <h2>Registered baselines</h2>
+        <p>Registration applies to an exact setup on one benchmark version. Other runs are welcome and do not change a registry entry’s status.</p>
+        {registered.map(({ version, entries }) => (
+          <section style="margin-top:1.5rem">
+            <h3>Version {version}</h3>
+            {entries.every(({ runs }) => runs.length === 0) && <p>No registered results for version {version} yet.</p>}
+            {!entries.some(({ entry }) => entry.runtime === 'api') && <p>The paid API comparator is not registered. The account owner must select and approve it first.</p>}
+            <div class="eval-scroll" tabindex="0" role="region" aria-label={`Registered baselines for version ${version}`}>
+              <table class="eval-table">
+                <caption class="sr-only">Registered baselines for {d.name}, version {version}</caption>
+                <thead>
+                  <tr><th scope="col">Model</th><th scope="col">Registered setup</th><th scope="col">Submitter</th><th scope="col">Status and evidence</th></tr>
+                </thead>
+                <tbody>
+                  {entries.map(({ entry, anchor, runs }) => {
+                    const model = modelReference(entry.model, entry.model_card);
+                    return <tr id={anchor}>
+                      <td>{model.url ? <a href={modelHref(model.url)}>{model.name}</a> : model.name}{model.upstream && <small><a href={model.upstream} rel="nofollow ugc noopener">Upstream model card</a></small>}<small><a href={baselineHref(anchor)}>Baseline link</a></small></td>
+                      <td>
+                        {entry.provider === undefined ? entry.runtime : `API · ${entry.provider}`} · {entry.format} · {entry.quantization}
+                        <small>{entry.runtime === 'api' && 'Client: '}{entry.hardware.device} · {entry.hardware.accelerator} · {entry.hardware.memory_gb} GB</small>
+                        <small>Served as <code>{entry.served_model}</code></small>
+                      </td>
+                      <td><a href={`https://github.com/${entry.submitter}`} rel="nofollow ugc noopener">{entry.submitter}</a><small>Registered {entry.registered_on}</small></td>
+                      <td>
+                        {entry.withdrawal ? (
+                          <><span class="tag">Withdrawn</span><small>{entry.withdrawal.date} · {entry.withdrawal.reason}</small></>
+                        ) : runs.length > 0 ? <span class="tag tag-open">Registered result</span> : <span class="tag">Not yet run</span>}
+                        {runs.map((run) => <small><a href={runHref(run.id)}>{run.run.date} · {run.evidence.sha256.slice(0, 8)}</a></small>)}
+                      </td>
+                    </tr>;
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ))}
+      </section>
+    )}
+
     <div class="prose" style="margin-top:2.5rem"><Content /></div>
 
-    <p style="margin-top:1.5rem;font-size:.88rem;color:var(--u-text-faint)">
+    {calibration && calibratedRun && (
+      <section id="bfcl-calibration" style="margin-top:2.5rem">
+        <h2>BFCL checker agreement</h2>
+        <p>The Unite4AI port and BFCL's checker agreed on {calibration.agreement.length - disagreements.length} of {calibration.agreement.length} answers from <a href={runHref(calibratedRun.id)}>the registered calibration run</a>.</p>
+        {disagreements.length > 0 && (
+          <>
+            <h3>Documented disagreements</h3>
+            <ul>
+              {disagreements.map(({ pass, item, note }) => <li>Run {pass}, <code>{item}</code>: {note}</li>)}
+            </ul>
+          </>
+        )}
+      </section>
+    )}
+
+    <p class="eval-provenance" style="margin-top:1.5rem;font-size:.88rem;color:var(--u-text-faint)">
       Source: <a href={d.source_url}>{d.source_url}</a>
       {d.source_sha256 && <> · sha256 <code>{d.source_sha256}</code></>}
       · Updated {d.updated.toISOString().slice(0, 10)}
     </p>
 
-    {runTables.map(({ id, title, caption, list }) => list.length > 0 && (
+    {runTables.map(({ id, title, caption, list, showResources, showReplication }) => list.length > 0 && (
       <section id={id} style="margin-top:2.5rem" data-pagefind-ignore>
         <h2>{title}</h2>
         <p style="color:var(--u-text-dim)">Self-reported. Each row carries the command that produced it and the hash of its raw output.</p>
+        {showReplication && <p style="color:var(--u-text-dim)">
+          Peers must match the same model card, benchmark version, item count, repeat method, format and quantization, and reported artifact ID.
+          Hosted runs also match the provider and any upstream model card. Runtime and hardware may differ.
+          A result from another handle is consistent when both 95% intervals (pass@1 and the all-runs score) overlap.
+          One inconsistent peer marks the result contested. These are recorded GitHub handles, not verified independent people.
+          Matching IDs and overlapping intervals do not prove identical weights or equivalent performance.
+        </p>}
         <div class="eval-scroll" tabindex="0" role="region" aria-label={caption}>
           <table class="eval-table">
             <caption class="sr-only">{caption}</caption>
             <thead>
-              <tr><th scope="col">Date</th><th scope="col">Model</th><th scope="col">Score</th><th scope="col">Setup</th><th scope="col">Submitter</th><th scope="col">Reproduce and verify</th></tr>
+              <tr><th scope="col">Date</th><th scope="col">Model</th><th scope="col">Score</th><th scope="col">Setup</th><th scope="col">Submitter</th>{showReplication && <th scope="col">Replication</th>}{showResources && <th scope="col">Time, tokens and cost</th>}<th scope="col">Reproduce and verify</th></tr>
             </thead>
             <tbody>
-              {list.map((run) => (
-                <tr>
+              {list.map((run) => {
+                const model = modelReference(run.model, run.api?.model_card);
+                const baseline = runBaselines.get(run.id);
+                const replication = replications.get(run.id);
+                return <tr id={evalRunAnchor(run.id)}>
                   <td class="num">{run.run.date}<small>v{run.benchmark_version}</small></td>
-                  <td><a href={href(`/registry/models/${run.model}`)}>{modelName(run.model)}</a></td>
-                  <td class="num"><span class="score">{withUnit(formatNumber(run.score), d.metric.unit)}</span>{d.items > 0 && <small>n = {run.n}</small>}</td>
+                  <td>{model.url ? <a href={modelHref(model.url)}>{model.name}</a> : model.name}{model.upstream && <small><a href={model.upstream} rel="nofollow ugc noopener">Upstream model card</a></small>}</td>
+                  <td class="num"><span class="score">{withUnit(formatNumber(run.score), d.metric.unit)}</span>{d.items > 0 && <small>n = {run.n}</small>}{run.repeat && repeatLines(run.repeat, run.n).map((text) => <small>{text}</small>)}</td>
                   <td>
                     {run.setup.format} · {run.setup.quantization}
                     <small>{run.setup.runtime} {run.setup.runtime_version}</small>
-                    <small>{run.setup.hardware.device} · {run.setup.hardware.accelerator} · {run.setup.hardware.memory_gb} GB</small>
+                    <small>{run.setup.runtime === 'api' && 'Client: '}{run.setup.hardware.device} · {run.setup.hardware.accelerator} · {run.setup.hardware.memory_gb} GB</small>
+                    {run.setup.served_model && <small>Served as <code>{run.setup.served_model}</code></small>}
+                    {typeof baseline === 'string' && <small><a href={baselineHref(baseline)}>Registered baseline</a></small>}
+                    {baseline === null && <small>Unregistered setup</small>}
                     {run.setup.notes && <small>{run.setup.notes}</small>}
                     {!measured && run.perf?.tokens_per_second && <small>{formatNumber(run.perf.tokens_per_second)} tok/s</small>}
                   </td>
                   <td><a href={`https://github.com/${run.run.submitter}`} rel="nofollow ugc noopener">{run.run.submitter}</a><small>{run.run.harness.name} {run.run.harness.version}</small></td>
+                  {showReplication && (
+                    <td>
+                      {replication === undefined ? '—' : (
+                        <>
+                          <span class="tag">{replication.consistent_submitters === 0
+                            ? 'No consistent result from another handle'
+                            : replication.consistent_submitters === 1 ? '1 submitting handle with a consistent result'
+                              : `${replication.consistent_submitters} submitting handles with consistent results`}</span>
+                          {replication.contested && <span class="tag">contested</span>}
+                          {replication.peers.map(({ result, relationship }) => {
+                            const peer = runsById.get(result)!;
+                            const { setup } = peer;
+                            return (
+                              <small>
+                                <a href={runHref(result)}>{peerLabels[relationship]} · {evalRunLabel(peer)}</a><br />
+                                {setup.format} · {setup.quantization} · {setup.runtime} {setup.runtime_version}
+                                {peer.api && ` · ${peer.api.provider}`}
+                                {setup.served_model && <> · <code>{setup.served_model}</code></>}<br />
+                                {peer.api && 'Client: '}{setup.hardware.device} · {setup.hardware.accelerator} · {setup.hardware.memory_gb} GB
+                              </small>
+                            );
+                          })}
+                        </>
+                      )}
+                    </td>
+                  )}
+                  {showResources && (
+                    <td>
+                      {run.repeat && resourceLines(run.repeat).map((text) => <small>{text}</small>)}
+                      {run.api && <small>{run.api.provider} · <a href={run.api.terms_url} rel="nofollow ugc noopener">Terms</a> checked {run.api.terms_checked_on}</small>}
+                      {run.api && <small>Expected {usd(run.api.expected_usd)} USD · Approved {usd(run.api.approved_usd)} USD</small>}
+                      {run.api && !run.cost && <small>API cost not available</small>}
+                      {run.cost && (
+                        <>
+                          <small>{run.cost.kind === 'models-dev' ? 'List-price estimate' : 'Contributor-reported invoice'}: {usd(run.cost.total_usd)} USD total{run.cost.usd_per_success !== undefined && ` · ${usd(run.cost.usd_per_success)} USD per success`}</small>
+                          {run.cost.kind === 'models-dev' ? (
+                            <>
+                              <small>Pricing: <a href="https://models.dev/">models.dev</a> snapshot, {run.cost.snapshot_date}</small>
+                              <small>{usd(run.cost.input_usd_per_million)} input / {usd(run.cost.output_usd_per_million)} output per million tokens</small>
+                              <small>Snapshot SHA-256 <code>{run.cost.snapshot_sha256}</code></small>
+                            </>
+                          ) : <small>Invoice SHA-256 <code>{run.cost.invoice_sha256}</code></small>}
+                        </>
+                      )}
+                    </td>
+                  )}
                   <td>
                     <code>{run.run.command}</code>
                     <small>sha256 <code>{run.evidence.sha256}</code></small>
                     {run.evidence.url && <small><a href={run.evidence.url} rel="nofollow ugc noopener">raw output</a></small>}
                   </td>
-                </tr>
-              ))}
+                </tr>;
+              })}
             </tbody>
           </table>
         </div>

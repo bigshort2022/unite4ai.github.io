@@ -5,10 +5,16 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./eval-cost": "./src/eval-cost.ts",
     "./evals": "./src/evals.ts",
+    "./exchange": "./src/exchange.ts",
+    "./read-exchange": "./src/read-exchange.ts",
+    "./repeat": "./src/repeat.ts",
+    "./validate-evals": "./src/validate-evals.ts",
     "./validate": "./src/validate.ts"
   },
   "dependencies": {
-    "@unite4ai/schema": "workspace:*"
+    "@unite4ai/schema": "workspace:*",
+    "yaml": "^2.9.0"
   }
 }

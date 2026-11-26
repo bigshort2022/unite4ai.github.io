@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { after } from 'node:test';
+import { repeatSummary } from '../src/repeat.ts';
 import { validateEvals } from '../src/validate-evals.ts';
 import { validateContent } from '../src/validate.ts';
 import { benchmark, measuredBenchmark, result } from './fixtures/evals.mjs';
@@ -473,3 +474,98 @@ for (const [dir, what, named] of [['evals', 'result', 'nested.json'], ['benchmar
     ]);
   });
 }
+
+const METHOD = { runs: 5, temperature: 0.7, top_p: 1 };
+/** n = 200: 170 items right on all five runs, 10 on four, 20 on none. */
+const REPEAT = repeatSummary(METHOD, {
+  item_pass_histogram: [20, 0, 0, 0, 10, 170],
+  run_correct: [178, 178, 178, 178, 178],
+  seconds_total: 1000,
+});
+const repeated = (overrides = {}) => result({ score: REPEAT.pass_k, repeat: REPEAT, ...overrides });
+const REPEAT_BENCHMARKS = { 'bench-a': benchmark({ repeat: METHOD }) };
+
+test('a repeat-run result whose counts, figures and method agree is accepted', async () => {
+  assert.equal(REPEAT.pass_k, 85);
+  assert.deepEqual(await errorsFor({ benchmarks: REPEAT_BENCHMARKS, evals: { [FILE]: repeated() } }), []);
+});
+
+test('a repeat-run benchmark scores the share of items right on every run', async () => {
+  assert.deepEqual(await errorsFor({ benchmarks: REPEAT_BENCHMARKS, evals: { [FILE]: repeated({ score: REPEAT.pass_1 }) } }), [
+    `evals/${FILE}: score ${REPEAT.pass_1} must equal repeat.pass_k (85); a repeat-run benchmark scores the share of items answered correctly on every run`,
+  ]);
+});
+
+test("a result follows its version's method: repeat runs when it has them, one run when it has not", async () => {
+  assert.deepEqual(await errorsFor({ benchmarks: REPEAT_BENCHMARKS, evals: { [FILE]: result() } }), [
+    `evals/${FILE}: version 1 of bench-a answers every item 5 times; the result has no repeat block`,
+  ]);
+  assert.deepEqual(await errorsFor({ evals: { [FILE]: repeated() } }), [
+    `evals/${FILE}: repeat is set, but version 1 of bench-a answers every item once`,
+  ]);
+  assert.deepEqual(await errorsFor({ benchmarks: REPEAT_BENCHMARKS, evals: { [FILE]: repeated({ repeat: { ...REPEAT, temperature: 1 } }) } }), [
+    `evals/${FILE}: repeat.temperature is 1; version 1 of bench-a sets 0.7`,
+  ]);
+  assert.deepEqual(await errorsFor({ benchmarks: REPEAT_BENCHMARKS, evals: { [FILE]: repeated({ repeat: { ...REPEAT, top_p: 0.9 } }) } }), [
+    `evals/${FILE}: repeat.top_p is 0.9; version 1 of bench-a sets 1`,
+  ]);
+  const FOUR = repeatSummary({ ...METHOD, runs: 4 }, {
+    item_pass_histogram: [20, 0, 0, 10, 170],
+    run_correct: [178, 178, 178, 176],
+    seconds_total: 800,
+  });
+  assert.equal(FOUR.pass_k, 85);
+  assert.deepEqual(await errorsFor({ benchmarks: REPEAT_BENCHMARKS, evals: { [FILE]: result({ score: FOUR.pass_k, repeat: FOUR }) } }), [
+    `evals/${FILE}: repeat.runs is 4; version 1 of bench-a sets 5`,
+  ]);
+});
+
+test('figures that the counts do not give are rejected, so none can be typed in', async () => {
+  assert.deepEqual(await errorsFor({ benchmarks: REPEAT_BENCHMARKS, evals: { [FILE]: repeated({ repeat: { ...REPEAT, pass_1: 99 } }) } }), [
+    `evals/${FILE}: repeat.pass_1 is 99; the counts give ${REPEAT.pass_1}`,
+  ]);
+  // Previous versions are not checked against the current method, but their counts still are.
+  const earlier = { 'bench-a': benchmark({ version: '2', previous_versions: ['1'] }) };
+  const { errors, warnings } = await validateContent(
+    makeRoot({ benchmarks: earlier, evals: { [FILE]: repeated({ repeat: { ...REPEAT, run_correct: [178] } }) } }),
+  );
+  assert.deepEqual(errors, [`evals/${FILE}: repeat.run_correct must have 5 entries, one per run`]);
+  assert.ok(warnings.some((w) => w.startsWith(`evals/${FILE}: result is for benchmark version 1;`)));
+});
+
+test('the first BFCL v1 result stays unpublished without its registered run cross-check', async () => {
+  const id = 'bfcl-multiple-50';
+  const repeat = repeatSummary(METHOD, { item_pass_histogram: [1, 0, 0, 0, 0, 49], run_correct: [49, 49, 49, 49, 49], seconds_total: 90 });
+  const run = result({ benchmark: id, repeat, n: 50, score: repeat.pass_k });
+  run.setup.served_model = 'fixture/loaded-model';
+  const file = `model-a--${id}--alice--2026-11-10--aaaaaaaa.json`;
+  const root = makeRoot({ benchmarks: { [id]: benchmark({ items: 50, repeat: METHOD }) }, evals: { [file]: run } });
+  const errors = async () => {
+    const messages = [];
+    await validateEvals(root, messages, [], '2026-11-23');
+    return messages;
+  };
+  assert.match((await errors()).join(), /calibrations\/bfcl-multiple-50-v1.json: required/);
+  mkdirSync(join(root, 'calibrations'));
+  writeFileSync(join(root, 'calibrations', `${id}-v1.json`), JSON.stringify({
+    transcript_sha256: run.evidence.sha256, agreement: Array(250).fill(true),
+  }));
+  assert.match((await errors()).join(), /must match a registered BFCL v1 result/);
+  mkdirSync(join(root, 'baselines'));
+  const { runtime, format, quantization, hardware, served_model } = run.setup;
+  const baseline = {
+    benchmark: id, benchmark_version: '1',
+    entries: [{ id: 'alice-local', model: run.model, submitter: run.run.submitter, runtime, format, quantization, hardware, served_model, registered_on: run.run.date }],
+  };
+  writeFileSync(join(root, 'baselines', `${id}-v1.md`), `---\n${JSON.stringify(baseline)}\n---\n`);
+  assert.deepEqual(await errors(), []);
+});
+
+test('API monetary results are restricted to repeat runs and must derive cost from the whole run', async () => {
+  const run = repeated({
+    setup: { ...result().setup, runtime: 'api', served_model: 'fixture-api', format: 'other', quantization: 'undisclosed' },
+    api: { provider: 'example', terms_url: 'https://example.org/terms', terms_checked_on: '2026-11-10', expected_usd: 3, approved_usd: 5 },
+    cost: { kind: 'invoice', invoice_sha256: 'b'.repeat(64), total_usd: 2, usd_per_success: 1 },
+  });
+  assert.match((await errorsFor({ benchmarks: REPEAT_BENCHMARKS, evals: { [FILE]: run } })).join(), /usd_per_success/);
+});

@@ -1,0 +1,50 @@
+---
+import type { EvalResult, RepeatResult } from '@unite4ai/schema';
+import { formatNumber } from '../lib/evals';
+import { REPO } from '../lib/site';
+
+interface Props {
+  reference: EvalResult;
+  repeat: RepeatResult;
+  runHref: string;
+  evidenceHref: string;
+}
+
+const { reference, repeat, runHref, evidenceHref } = Astro.props;
+const attempts = reference.n * repeat.runs;
+---
+<section id="replication-task" aria-labelledby="replication-task-title">
+  <h2 id="replication-task-title">BFCL replication task</h2>
+  <p>Submit one independent replication of the <a href={runHref}>published BFCL v1 run</a>.
+    The reference scored <strong>{formatNumber(reference.score)}% on all five passes</strong> and {formatNumber(repeat.pass_1)}% pass@1
+    in about {Math.round(repeat.seconds_total / 60)} minutes on {reference.setup.hardware.device} ({reference.setup.hardware.memory_gb} GB).
+    Those are observed values, not a target. <a href={evidenceHref}>Reference evidence receipt (JSON)</a>.</p>
+  <dl>
+    <dt>Before starting</dt>
+    <dd>Get explicit approval for an idle, owner-named Apple Silicon host with at least 64 GB unified memory.
+      Confirm <code>{reference.setup.served_model}</code> (MLX 4-bit, thinking disabled) is already loaded. Use a genuinely independent
+      contributor’s GitHub account, not the original submitter’s. Record the actual hardware, runtime, and artifact revision or digest if known;
+      a published artifact name does not verify identical weights.</dd>
+    <dt>Budget and run</dt>
+    <dd><strong>$0 paid spend; 60 minutes maximum</strong> for the run. Set the runner to 55 minutes and each reply to 90 seconds;
+      enforce the overall limit separately because the runner checks its limit between replies. Use a fresh checkout with no prior transcript.
+      Follow the <a href="#method">v1 method</a>: {reference.n} items, {repeat.runs} passes, temperature {repeat.temperature}, top-p {repeat.top_p}.
+      Never execute a tool named by a model. If blocked, report why; do not swap models, use a paid API, or rerun without approval.</dd>
+    <dt>Deliverable and review</dt>
+    <dd>Keep one new complete result and its raw transcript. Review all {attempts} attempts, the recorded method and loaded artifact,
+      actual setup and elapsed time, both scores and their 95% intervals, and the transcript’s SHA-256 and byte count. Keep raw evidence private
+      and make it available to the reviewer. Report disagreement as evidence; overlapping intervals do not prove equivalence.</dd>
+  </dl>
+  <p><a href={`${REPO}/blob/main/docs/exchange/agent-guide.md#bfcl-replication-task`}>Run and review checklist</a>.
+    Open one add-only draft PR from the matching account only after separate submission approval. This card grants no approval and offers no payout.</p>
+</section>
+
+<style>
+  section { border: 1px solid var(--u-border); border-radius: var(--u-radius); padding: clamp(1rem, 3vw, 1.5rem); margin-block: 1.5rem 2rem; }
+  section h2 { margin-top: 0; }
+  section p:last-child { margin-bottom: 0; }
+  dl { margin-block: 1rem; }
+  dt { font-weight: 700; }
+  dd { margin: .25rem 0 .9rem; }
+  code { overflow-wrap: anywhere; }
+</style>

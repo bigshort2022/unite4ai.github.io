@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Sync registry content from markdown → JSON snapshot + optional D1 upsert.
+ * Sync registry content from markdown → bundled Worker snapshot + optional D1 upsert.
  * Usage: bun run sync:d1 [--remote]
  */
 import { readdir, readFile, writeFile, mkdir } from 'node:fs/promises';
@@ -13,7 +13,6 @@ import { spawnSync } from 'node:child_process';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 const CONTENT = join(ROOT, 'apps/web/src/content');
-const PUBLIC_JSON = join(ROOT, 'apps/web/public/data/registry-index.json');
 const SNAPSHOT = join(ROOT, 'apps/api/src/generated/registry-snapshot.json');
 const remote = process.argv.includes('--remote');
 
@@ -82,12 +81,10 @@ const payload = {
   datasets,
 };
 
-await mkdir(dirname(PUBLIC_JSON), { recursive: true });
 await mkdir(dirname(SNAPSHOT), { recursive: true });
-await writeFile(PUBLIC_JSON, `${JSON.stringify(payload, null, 2)}\n`);
 await writeFile(SNAPSHOT, `${JSON.stringify(payload, null, 2)}\n`);
 
-console.log(`Wrote ${models.length} models, ${datasets.length} datasets → registry-index.json + registry-snapshot.json`);
+console.log(`Wrote ${models.length} models, ${datasets.length} datasets → registry-snapshot.json`);
 
 if (remote) {
   const apiDir = join(ROOT, 'apps/api');

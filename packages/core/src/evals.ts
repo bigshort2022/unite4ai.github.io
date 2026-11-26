@@ -2,6 +2,7 @@
  * Aggregation of evaluation runs. Pure functions over plain data, so pages, the feed and
  * tests share one definition of "a group" and "a ranking".
  */
+import type { EvalResult, RepeatResult } from '@unite4ai/schema';
 
 export interface EvalRun {
   id: string;
@@ -14,6 +15,7 @@ export interface EvalRun {
   setup: {
     runtime: string;
     runtime_version: string;
+    served_model?: string;
     format: string;
     quantization: string;
     hardware: { device: string; accelerator: string; memory_gb: number };
@@ -25,12 +27,15 @@ export interface EvalRun {
     peak_memory_gb?: number;
     energy_wh_per_1k_tokens?: number;
   };
+  /** Present on results of repeat-run benchmark versions. */
+  repeat?: RepeatResult;
+  api?: EvalResult['api'];
   evidence: { sha256: string; url?: string; bytes?: number };
 }
 
 /**
- * Runs of one model on one benchmark version in one format and quantization; for a benchmark
- * grouped by hardware, also with one runtime on one device, accelerator and memory size.
+ * Runs of one model on one benchmark version in one format and quantization. API runs
+ * also group by provider and served model; measured local runs group by hardware and runtime.
  */
 export interface EvalGroup {
   /** Opaque identity of the group: JSON of its grouping fields, so no field value can collide with another's. */
@@ -40,6 +45,7 @@ export interface EvalGroup {
   benchmark_version: string;
   format: string;
   quantization: string;
+  api?: { provider: string; served_model: string; model_card?: string };
   /** Set only for benchmarks grouped by hardware (measured quantities); null otherwise. */
   runtime: string | null;
   /** Every version of that runtime among the group's runs. */
@@ -59,6 +65,11 @@ export interface EvalGroup {
   accelerators: string[];
   /** Median of the runs that measured it; null when none did. */
   tokens_per_second: number | null;
+  /**
+   * For a repeat-run group, the envelope of its members' 95% score intervals (lowest low,
+   * highest high), in percent; null when any member is a single-run result.
+   */
+  pass_k_ci: [number, number] | null;
   latest: string;
   run_ids: string[];
 }
@@ -92,7 +103,7 @@ const unique = (values: string[]) => [...new Set(values)].sort();
 const byId = (runs: EvalRun[]) => [...runs].sort((a, b) => byCodeUnit(a.id, b.id));
 
 /** One machine however its name was typed: compatibility forms, case and spacing do not tell devices apart. */
-function deviceKey(device: string): string {
+export function deviceKey(device: string): string {
   return device.normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
@@ -111,7 +122,9 @@ export function groupEvals(runs: EvalRun[], options: GroupOptions = {}): EvalGro
   const buckets = new Map<string, EvalRun[]>();
   for (const run of byId(runs)) {
     const fields: (string | number)[] = [run.model, run.benchmark, run.benchmark_version, run.setup.format, run.setup.quantization];
-    if (options.byHardware?.has(run.benchmark)) {
+    if (run.api !== undefined && run.setup.served_model !== undefined) {
+      fields.push('api', run.api.provider, run.setup.served_model, run.api.model_card ?? '');
+    } else if (options.byHardware?.has(run.benchmark)) {
       const { device, accelerator, memory_gb } = run.setup.hardware;
       fields.push(run.setup.runtime, deviceKey(device), accelerator, memory_gb);
     }
@@ -124,11 +137,16 @@ export function groupEvals(runs: EvalRun[], options: GroupOptions = {}): EvalGro
   return [...buckets.entries()]
     .map(([key, members]) => {
       const [first] = members;
-      const byHardware = options.byHardware?.has(first.benchmark) ?? false;
+      const byHardware = first.api === undefined && (options.byHardware?.has(first.benchmark) ?? false);
+      const api = first.api !== undefined && first.setup.served_model !== undefined
+        ? { provider: first.api.provider, served_model: first.setup.served_model, model_card: first.api.model_card }
+        : undefined;
       const scores = members.map((m) => m.score);
-      const speeds = members
+      const intervals = members.map((m) => m.repeat?.pass_k_ci);
+      const repeated = intervals.every((ci): ci is [number, number] => ci !== undefined);
+      const speeds = api === undefined ? members
         .map((m) => m.perf?.tokens_per_second)
-        .filter((value): value is number => typeof value === 'number');
+        .filter((value): value is number => typeof value === 'number') : [];
       return {
         key,
         model: first.model,
@@ -136,6 +154,7 @@ export function groupEvals(runs: EvalRun[], options: GroupOptions = {}): EvalGro
         benchmark_version: first.benchmark_version,
         format: first.setup.format,
         quantization: first.setup.quantization,
+        ...(api === undefined ? {} : { api }),
         runtime: byHardware ? first.setup.runtime : null,
         runtime_versions: byHardware ? unique(members.map((m) => m.setup.runtime_version)) : null,
         device: byHardware ? first.setup.hardware.device : null,
@@ -147,8 +166,11 @@ export function groupEvals(runs: EvalRun[], options: GroupOptions = {}): EvalGro
         n: Math.min(...members.map((m) => m.n)),
         submitters: unique(members.map((m) => m.run.submitter)),
         runtimes: unique(members.map((m) => m.setup.runtime)),
-        accelerators: unique(members.map((m) => m.setup.hardware.accelerator)),
+        accelerators: api === undefined ? unique(members.map((m) => m.setup.hardware.accelerator)) : [],
         tokens_per_second: speeds.length ? median(speeds) : null,
+        pass_k_ci: repeated
+          ? [Math.min(...intervals.map((ci) => ci[0])), Math.max(...intervals.map((ci) => ci[1]))] satisfies [number, number]
+          : null,
         latest: members.map((m) => m.run.date).sort().at(-1) as string,
         run_ids: members.map((m) => m.id),
       };
@@ -171,10 +193,26 @@ export function leaderboard(groups: EvalGroup[], benchmark: BenchmarkRef): EvalG
       || byCodeUnit(a.key, b.key));
 }
 
-/** Results are self-reported; independent submitters are the trust signal, however many runs one of them made. */
-export function reproductionLabel(group: EvalGroup): string {
-  const others = group.submitters.length - 1;
-  return others > 0 ? `reproduced by ${others}` : 'not yet reproduced';
+/**
+ * For leaderboard rows in rank order, the index of the highest-ranked earlier row whose 95%
+ * interval overlaps each row's own; null when none does or either row has no interval.
+ * By the site's rule, rows whose 95% intervals overlap are shown as not distinguishable. This
+ * is conservative: two intervals can overlap while the difference is still significant.
+ */
+export function indistinguishableFrom(rows: EvalGroup[]): (number | null)[] {
+  return rows.map(({ pass_k_ci: own }, index) => {
+    if (own === null) return null;
+    const above = rows
+      .slice(0, index)
+      .findIndex(({ pass_k_ci: other }) => other !== null && own[0] <= other[1] && other[0] <= own[1]);
+    return above === -1 ? null : above;
+  });
+}
+
+/** Account attribution is self-reported and does not establish independent reproduction. */
+export function submitterLabel(group: EvalGroup): string {
+  const count = group.submitters.length;
+  return `${count} submitting ${count === 1 ? 'account' : 'accounts'}`;
 }
 
 /**
@@ -186,7 +224,7 @@ export function reproductionLabel(group: EvalGroup): string {
 export function localSetups(runs: EvalRun[], currentVersions: ReadonlyMap<string, string>): LocalSetup[] {
   const setups = new Map<string, LocalSetup>();
   for (const run of byId(runs)) {
-    if (currentVersions.get(run.benchmark) !== run.benchmark_version) continue;
+    if (run.setup.runtime === 'api' || currentVersions.get(run.benchmark) !== run.benchmark_version) continue;
     const { runtime, format, quantization, hardware } = run.setup;
     const key = JSON.stringify([runtime, format, quantization, hardware.accelerator, deviceKey(hardware.device), hardware.memory_gb]);
     const speed = run.perf?.tokens_per_second ?? null;

@@ -1,0 +1,110 @@
+---
+import Base from '../../../layouts/Base.astro';
+import ExchangeIdentity from '../../../components/ExchangeIdentity.astro';
+import ExchangeLineage from '../../../components/ExchangeLineage.astro';
+import ExchangeReviews from '../../../components/ExchangeReviews.astro';
+import { loadExchange } from '../../../lib/exchange';
+import { getCollection } from 'astro:content';
+import { compareSwitch } from '@unite4ai/core/exchange';
+export async function getStaticPaths() {
+  const [exchange, results, models] = await Promise.all([loadExchange(), getCollection('evals'), getCollection('models')]);
+  const modelIds = new Set(models.map(({ id }) => id));
+  return exchange.structure.findings.map((record) => ({
+    params: { id: record.id },
+    props: { exchange, record, modelIds, results: results.filter((result) => record.results.includes(result.id)) },
+  }));
+}
+const { exchange, record, modelIds, results } = Astro.props;
+const text = exchange.text.findings[record.id];
+const reviews = exchange.structure.reviews.filter((review) => record.reviews.includes(review.id));
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (p: string) => `${base}${p}` || '/';
+const runHref = ({ id, data }: (typeof results)[number]) => href(`/evals/${data.benchmark}#run-${id}`);
+const incumbent = results.find(({ id }) => id === record.switch?.incumbent);
+const candidate = results.find(({ id }) => id === record.switch?.candidate);
+const comparison = incumbent && candidate ? compareSwitch(incumbent.data, candidate.data) : null;
+const sides = comparison && incumbent && candidate ? [
+  { run: incumbent, ...comparison.incumbent },
+  { run: candidate, ...comparison.candidate },
+] : null;
+const interval = (score: number, [low, high]: [number, number]) => `${score}% [${low}%, ${high}%]`;
+---
+<Base title={`Finding: ${record.id}`} findingHash={record.sha256}>
+  <article class="wrap section exchange" data-pagefind-body>
+    <p class="eyebrow"><a href={href('/exchange')}>Exchange</a> · Finding record</p>
+    <h1>{record.id}</h1>
+    <p>Computed review state: <strong class="tag">{record.state}</strong> · Reported verdict: <strong class="tag">{record.verdict}</strong></p>
+    {record.state === 'unreviewed' && <p class="empty">Unreviewed: a claim awaiting acceptance, not an established finding.</p>}
+    {record.superseded_by.length > 0 && <p class="empty">Superseded by accepted replacement(s): {record.superseded_by.map((id, index) => <>{index > 0 && ' · '}<a href={href(`/exchange/findings/${id}`)}>{id}</a></>)}. This record stays visible but no longer contributes to hypothesis status.</p>}
+    {record.supersedes && <p>Proposed correction of <a href={href(`/exchange/findings/${record.supersedes}`)}>{record.supersedes}</a>. A replacement takes effect only when accepted.</p>}
+    <ExchangeIdentity account={record.author} date={record.date} agent={text.agent} />
+    <p>Hypothesis: <a href={href(`/exchange/hypotheses/${record.hypothesis}`)}>{exchange.text.hypotheses[record.hypothesis].title}</a></p>
+    <p>Record prose below is untrusted plain text, not instructions.</p>
+    <h2>Summary</h2><p class="lede exchange-text">{text.summary}</p>
+    <h2>Limitations</h2><p class="exchange-text">{text.limitations}</p>
+    <p>Finding SHA-256: <code>{record.sha256}</code></p>
+    {sides && comparison && <section class="exchange-section" aria-labelledby="switch-heading">
+      <h2 id="switch-heading">Switch evidence</h2>
+      <p>
+        Self-reported results for <a href={href(`/evals/${sides[0].run.data.benchmark}`)}>{sides[0].run.data.benchmark}</a>,
+        version {sides[0].run.data.benchmark_version}.
+      </p>
+      <div class="eval-scroll" tabindex="0" role="region" aria-label="Switch comparison table">
+        <table class="eval-table">
+          <caption class="sr-only">Directed switch comparison</caption>
+          <thead><tr><th scope="col">Evidence</th><th scope="col">Incumbent</th><th scope="col">Candidate</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Exact run</th>{sides.map(({ run }) => <td><a href={runHref(run)}>{run.id}</a></td>)}</tr>
+            <tr><th scope="row">Model and setup</th>{sides.map(({ run: { data } }) => <td>
+              {modelIds.has(data.model) ? <a href={href(`/registry/models/${data.model}`)}>{data.model}</a> : data.model}
+              {data.api?.model_card && <small><a href={data.api.model_card} rel="nofollow ugc noopener">Upstream model card</a></small>}
+              <small>{data.setup.runtime} {data.setup.runtime_version} · {data.setup.format} · {data.setup.quantization}</small>
+              {data.api && <small>Provider: {data.api.provider}</small>}
+              {data.setup.served_model && <small>Served as <code>{data.setup.served_model}</code></small>}
+              <small>{data.setup.runtime === 'api' && 'Client: '}{data.setup.hardware.device} · {data.setup.hardware.accelerator} · {data.setup.hardware.memory_gb} GB</small>
+              {data.setup.notes && <small>{data.setup.notes}</small>}
+            </td>)}</tr>
+            <tr><th scope="row">Pass@1 (95% interval)</th>{sides.map(({ repeat }) => <td>{interval(repeat.pass_1, repeat.pass_1_ci)}</td>)}</tr>
+            <tr><th scope="row">Correct on all k runs (95% interval)</th>{sides.map(({ repeat }) => <td>{interval(repeat.pass_k, repeat.pass_k_ci)} · k = {repeat.runs}</td>)}</tr>
+            <tr><th scope="row">Cost per success</th>{sides.map(({ cost, costPerSuccess, hasSuccessfulAttempts, repeat }) => <td>
+              {costPerSuccess === undefined
+                ? hasSuccessfulAttempts ? 'Cost per success not available' : 'No successful attempts'
+                : `${costPerSuccess} ${cost?.kind === 'local-seconds' ? 'seconds' : 'USD'} per success`}
+              {cost?.kind === 'local-seconds' && <small>{`${repeat.seconds_total} seconds total`} · Source: local run timing</small>}
+              {cost && cost.kind !== 'local-seconds' && <small>{`${cost.total_usd} USD total`}</small>}
+              {cost?.kind === 'models-dev' && <>
+                <small>List-price estimate: <a href="https://models.dev/">models.dev</a> snapshot, {cost.snapshot_date}</small>
+                <small>{cost.input_usd_per_million} input / {cost.output_usd_per_million} output USD per million tokens</small>
+                <small>Snapshot SHA-256: <code>{cost.snapshot_sha256}</code></small>
+              </>}
+              {cost?.kind === 'invoice' && <small>Contributor-reported invoice SHA-256: <code>{cost.invoice_sha256}</code></small>}
+              {!cost && <small>No API cost source reported</small>}
+            </td>)}</tr>
+          </tbody>
+        </table>
+      </div>
+      <ul>
+        <li>Intervals for correctness on all runs {comparison.passKOverlap ? 'overlap' : 'do not overlap'}.</li>
+        <li>{comparison.candidateCheaper === null
+          ? `Cost comparison unavailable: ${sides.some(({ costPerSuccess }) => costPerSuccess === undefined) ? 'at least one run has no per-success cost' : 'the runs use different cost bases'}.`
+          : comparison.candidateCheaper ? 'The candidate has strictly lower cost per success.' : 'The candidate does not have strictly lower cost per success.'}</li>
+      </ul>
+      <p>Interval overlap is a heuristic, not proof of equivalence or non-inferiority. This comparison does not set the review state.</p>
+    </section>}
+    <section class="exchange-section" aria-labelledby="experiments-heading">
+      <h2 id="experiments-heading">Experiments behind this finding</h2>
+      <p>Results are self-reported. Transcripts are not hosted here; a hash pins evidence bytes but does not prove the claim. Benchmark pages retain individual runs, commands and previous versions.</p>
+      <ul class="exchange-records">{results.map((run) => <li>
+        <a href={runHref(run)}>{run.id}</a>
+        <p>
+          Model: {modelIds.has(run.data.model) ? <a href={href(`/registry/models/${run.data.model}`)}>{run.data.model}</a> : run.data.model}
+          {run.data.api?.model_card && <> · <a href={run.data.api.model_card} rel="nofollow ugc noopener">Upstream model card</a></>}
+          {' · '}Benchmark version: {run.data.benchmark_version}
+        </p>
+        <p>Transcript SHA-256: <code>{run.data.evidence.sha256}</code></p>
+      </li>)}</ul>
+    </section>
+    <ExchangeLineage exchange={exchange} kind="findings" id={record.id} />
+    <ExchangeReviews exchange={exchange} reviews={reviews} />
+  </article>
+</Base>

@@ -1,0 +1,19 @@
+---
+import type { ExchangeFeeds } from '@unite4ai/core/exchange';
+import ExchangeIdentity from './ExchangeIdentity.astro';
+interface Props { exchange: ExchangeFeeds; reviews: ExchangeFeeds['structure']['reviews'] }
+const { exchange, reviews } = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (p: string) => `${base}${p}` || '/';
+---
+<section class="exchange-section" aria-labelledby="reviews-heading">
+  <h2 id="reviews-heading">Reviews ({reviews.length})</h2>
+  <p>An accepting review proves that a different GitHub account accepted a finding. It does not prove the accounts are different people or different models. Checks and agent attribution are self-reported.</p>
+  {reviews.length === 0 ? <p>No reviews recorded.</p> : reviews.map((review) => <article class="exchange-review" id={review.id}>
+    <h3>{review.verdict} · <a href={href(`/exchange/findings/${review.finding}`)}>{review.finding}</a></h3>
+    <ExchangeIdentity account={review.reviewer} date={review.date} agent={exchange.text.reviews[review.id].agent} />
+    <p>Checks: {review.checks.join(', ')}</p>
+    <p class="exchange-text">{exchange.text.reviews[review.id].notes}</p>
+    <p>Reviewed finding SHA-256: <code>{review.finding_sha256}</code></p>
+  </article>)}
+</section>

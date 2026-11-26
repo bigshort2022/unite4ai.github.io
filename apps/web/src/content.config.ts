@@ -8,6 +8,11 @@ import {
   EVAL_RUNTIMES,
   EVAL_SCORING,
   OPEN_LICENSES,
+  REPEAT_MAX_RUNS,
+  FINDING_VERDICTS,
+  REVIEW_VERDICTS,
+  REVIEW_CHECKS,
+  RESULT_ID,
 } from '@unite4ai/schema';
 
 /**
@@ -191,14 +196,98 @@ const line = (max: number, wrongType?: string) => z.string(wrongType ? { error: 
 /** A contributor's link, printed as an href. */
 const evidenceUrl = line(500).url().refine((value) => value.startsWith('https://'), { message: 'must be an https URL' });
 
+// Mirrors the evaluation setup and public provenance schemas in @unite4ai/schema.
+const evalIdentity = z.string().regex(/^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,38}$/, 'must be a lowercase GitHub handle');
+const evalHardware = z.strictObject({
+  device: line(200),
+  accelerator: z.enum(EVAL_ACCELERATORS),
+  memory_gb: z.number().positive(),
+});
+const evalPublicUrl = evidenceUrl.refine((value) => {
+  if (!URL.canParse(value)) return false;
+  const url = new URL(value);
+  return !url.username && !url.password && !url.search && !url.hash;
+}, 'must not carry credentials, a query, or a fragment');
+const baselines = defineCollection({
+  loader: glob({ pattern: '*.md', base: './src/content/baselines', generateId: ({ entry }) => entry }),
+  schema: z.strictObject({
+    benchmark: contentId,
+    benchmark_version: line(50, 'must be a quoted version string'),
+    entries: z.array(z.strictObject({
+      id: contentId,
+      model: contentId,
+      model_card: evalPublicUrl.optional(),
+      served_model: line(300),
+      submitter: evalIdentity,
+      runtime: z.enum(EVAL_RUNTIMES),
+      provider: contentId.max(100).optional(),
+      format: z.enum(EVAL_FORMATS),
+      quantization: line(100),
+      hardware: evalHardware,
+      registered_on: z.iso.date(),
+      withdrawal: z.strictObject({ date: z.iso.date(), reason: line(500).refine((s) => s.trim().length > 0) }).optional(),
+    }).refine((entry) => (entry.runtime === 'api') === (entry.provider !== undefined), {
+      path: ['provider'], message: 'is required for API baselines and forbidden on local baselines',
+    }).refine((entry) => entry.runtime !== 'api' || (entry.format === 'other' && entry.quantization === 'undisclosed'), {
+      path: ['format'], message: 'API baselines require format other and quantization undisclosed',
+    })).min(1).max(100),
+  }),
+});
+const evalApi = z.strictObject({
+  provider: contentId.max(100),
+  model_card: evalPublicUrl.optional(),
+  terms_url: evalPublicUrl,
+  terms_checked_on: z.iso.date(),
+  expected_usd: z.number().nonnegative(),
+  approved_usd: z.number().positive(),
+}).refine(({ expected_usd, approved_usd }) => expected_usd <= approved_usd, {
+  path: ['expected_usd'],
+  message: 'must not exceed approved_usd',
+});
+const costTotals = { total_usd: z.number().nonnegative(), usd_per_success: z.number().nonnegative().optional() };
+const evalCost = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.literal('models-dev'),
+    snapshot_date: z.iso.date(),
+    snapshot_sha256: sha256Hex,
+    input_usd_per_million: z.number().nonnegative(),
+    output_usd_per_million: z.number().nonnegative(),
+    ...costTotals,
+  }),
+  z.strictObject({ kind: z.literal('invoice'), invoice_sha256: sha256Hex, ...costTotals }),
+]);
+
+/** Mirrors repeatMethodSchema and repeatResultSchema in @unite4ai/schema field for field. */
+const percentage = z.number().min(0).max(100);
+const repeatMethodShape = {
+  runs: z.number().int().min(2).max(REPEAT_MAX_RUNS),
+  temperature: z.number().min(0).max(2),
+  top_p: z.number().gt(0).max(1),
+};
+const repeatResult = z.strictObject({
+  ...repeatMethodShape,
+  item_pass_histogram: z.array(z.number().int().nonnegative()).max(REPEAT_MAX_RUNS + 1),
+  run_correct: z.array(z.number().int().nonnegative()).max(REPEAT_MAX_RUNS),
+  pass_1: percentage,
+  pass_1_ci: z.tuple([percentage, percentage]),
+  pass_k: percentage,
+  pass_k_ci: z.tuple([percentage, percentage]),
+  run_score_sd: z.number().nonnegative(),
+  seconds_total: z.number().nonnegative(),
+  seconds_per_success: z.number().nonnegative().optional(),
+  prompt_tokens_total: z.number().int().nonnegative().optional(),
+  completion_tokens_total: z.number().int().nonnegative().optional(),
+  prompt_tokens_per_success: z.number().nonnegative().optional(),
+  completion_tokens_per_success: z.number().nonnegative().optional(),
+  energy_wh_total: z.number().positive().optional(),
+});
+
 /**
  * A benchmark definition. Mirrors benchmarkSchema in @unite4ai/schema field for field.
  * The directory is flat: the validator rejects subfolders, so the loader does not read them.
- * U4AI_BENCHMARKS_DIR lets the page tests build against extra definitions, as U4AI_EVALS_DIR
- * does for results below; production sets neither.
  */
 const benchmarks = defineCollection({
-  loader: glob({ pattern: '*.md', base: process.env.U4AI_BENCHMARKS_DIR || './src/content/benchmarks' }),
+  loader: glob({ pattern: '*.md', base: './src/content/benchmarks' }),
   schema: z.strictObject({
     name: z.string().min(1),
     summary: z.string().max(300),
@@ -218,6 +307,7 @@ const benchmarks = defineCollection({
     scoring: z.enum(EVAL_SCORING),
     items: z.number().int().nonnegative(),
     measured_on: contentId.optional(),
+    repeat: z.strictObject(repeatMethodShape).optional(),
     source_url: httpsUrl,
     source_sha256: sha256Hex.optional(),
     license: openLicenseEnum,
@@ -234,6 +324,9 @@ const benchmarks = defineCollection({
   }).refine((benchmark) => benchmark.scoring === 'measured' || benchmark.measured_on === undefined, {
     path: ['measured_on'],
     message: 'is only for benchmarks whose scoring is "measured"',
+  }).refine((benchmark) => benchmark.scoring !== 'measured' || benchmark.repeat === undefined, {
+    path: ['repeat'],
+    message: 'is only for benchmarks that score items; a measured benchmark has none',
   }),
 });
 
@@ -253,20 +346,17 @@ const evals = defineCollection({
     n: z.number().int().positive(),
     run: z.strictObject({
       date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD'),
-      submitter: z.string().regex(/^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,38}$/, 'must be a lowercase GitHub handle'),
+      submitter: evalIdentity,
       harness: z.strictObject({ name: line(100), version: line(100) }),
       command: line(2000),
     }),
     setup: z.strictObject({
       runtime: z.enum(EVAL_RUNTIMES),
       runtime_version: line(100),
+      served_model: line(300).optional(),
       format: z.enum(EVAL_FORMATS),
       quantization: line(100),
-      hardware: z.strictObject({
-        device: line(200),
-        accelerator: z.enum(EVAL_ACCELERATORS),
-        memory_gb: z.number().positive(),
-      }),
+      hardware: evalHardware,
       /** What the other fields cannot say about the run, e.g. whether thinking was enabled. */
       notes: line(200).optional(),
     }),
@@ -276,6 +366,9 @@ const evals = defineCollection({
       peak_memory_gb: z.number().positive().optional(),
       energy_wh_per_1k_tokens: z.number().positive().optional(),
     }).optional(),
+    repeat: repeatResult.optional(),
+    api: evalApi.optional(),
+    cost: evalCost.optional(),
     evidence: z.strictObject({
       sha256: sha256Hex,
       url: evidenceUrl.optional(),
@@ -284,4 +377,71 @@ const evals = defineCollection({
   }),
 });
 
-export const collections = { models, datasets, compute, courses, events, posts, comments, benchmarks, evals };
+// Mirrors the exchange schemas in @unite4ai/schema with Astro's own Zod instance.
+const exchangeText = (max: number, oneLine = false) => z.string().min(1).max(max)
+  .refine((value) => value.trim().length > 0, 'must not be blank')
+  .refine((value) => !/[\p{Cf}\p{Zl}\p{Zp}\u0000-\u0009\u000b-\u001f\u007f-\u009f]/u.test(value)
+    && (!oneLine || !value.includes('\n')), 'must not contain control characters or forbidden line breaks')
+  .refine((value) => !/<[^>]*>|!?\[[\s\S]*?\]\s*(?:\(|\[|:)/u.test(value), 'must be plain text without HTML or Markdown links');
+const exchangeIdentity = z.string().regex(/^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,38}$/, 'must be a lowercase GitHub handle');
+const exchangeDate = z.preprocess(
+  (value) => value instanceof Date && value.valueOf() % 86_400_000 === 0 ? value.toISOString().slice(0, 10) : value,
+  z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD').refine((value) => {
+    const date = new Date(`${value}T00:00:00Z`);
+    return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
+  }, 'must be a real calendar date'),
+);
+const exchangeAgent = z.strictObject({ model: exchangeText(100, true), harness: exchangeText(100, true) });
+const resultId = z.string().regex(RESULT_ID, 'must be a result file id without .json');
+const graftSchema = z.strictObject({
+  finding: contentId,
+  sha256: sha256Hex,
+  note: exchangeText(200, true),
+});
+// Fixture roots and their cache are isolated from production; an empty override falls back.
+const exchangeRoot = process.env.U4AI_EXCHANGE_DIR || './src/content';
+const hypotheses = defineCollection({
+  loader: glob({ pattern: '*.md', base: `${exchangeRoot}/hypotheses` }),
+  schema: z.strictObject({
+    title: exchangeText(200, true),
+    claim: exchangeText(600),
+    benchmark: contentId,
+    models: z.array(contentId).min(1),
+    prediction: exchangeText(300),
+    author: exchangeIdentity,
+    agent: exchangeAgent.optional(),
+    date: exchangeDate,
+    grafts: z.array(graftSchema).optional(),
+  }),
+});
+const findings = defineCollection({
+  loader: glob({ pattern: '*.json', base: `${exchangeRoot}/findings` }),
+  schema: z.strictObject({
+    hypothesis: contentId,
+    results: z.array(resultId).min(1),
+    switch: z.strictObject({ incumbent: resultId, candidate: resultId }).optional(),
+    verdict: z.enum(FINDING_VERDICTS),
+    summary: exchangeText(800),
+    limitations: exchangeText(600),
+    author: exchangeIdentity,
+    agent: exchangeAgent.optional(),
+    date: exchangeDate,
+    supersedes: contentId.optional(),
+    grafts: z.array(graftSchema).optional(),
+  }),
+});
+const reviews = defineCollection({
+  loader: glob({ pattern: '*.json', base: `${exchangeRoot}/reviews` }),
+  schema: z.strictObject({
+    finding: contentId,
+    finding_sha256: sha256Hex,
+    verdict: z.enum(REVIEW_VERDICTS),
+    checks: z.array(z.enum(REVIEW_CHECKS)).min(1),
+    notes: exchangeText(600),
+    reviewer: exchangeIdentity,
+    agent: exchangeAgent.optional(),
+    date: exchangeDate,
+  }),
+});
+
+export const collections = { models, datasets, compute, courses, events, posts, comments, benchmarks, baselines, evals, hypotheses, findings, reviews };

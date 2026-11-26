@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { after } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { repeatSummary } from '@unite4ai/core';
 import { validateContent } from '@unite4ai/core/validate';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -12,14 +13,21 @@ const out = mkdtempSync(join(tmpdir(), 'u4ai-evals-site-'));
 const danglingOut = mkdtempSync(join(tmpdir(), 'u4ai-evals-dangling-'));
 const unknownKeyOut = mkdtempSync(join(tmpdir(), 'u4ai-evals-unknown-key-'));
 const gateRoot = mkdtempSync(join(tmpdir(), 'u4ai-evals-gate-'));
-// The fixture builds keep their content store in their own cacheDir (see astro.config.mjs), so
-// fixture rows cannot reach a normal build even if this run is killed; remove it when done.
+// Each fixture build needs empty exchange records and its own content cache, including
+// when the next build has no results. Production findings cannot cite fixture result ids.
+const exchangeRoots = [];
+function fixtureEnv(evalsDir) {
+  const root = mkdtempSync(join(tmpdir(), 'u4ai-evals-exchange-'));
+  exchangeRoots.push(root);
+  for (const kind of ['hypotheses', 'findings', 'reviews']) mkdirSync(join(root, kind));
+  return { ...process.env, U4AI_EVALS_DIR: evalsDir, U4AI_EXCHANGE_DIR: root };
+}
 after(() => {
   rmSync(out, { recursive: true, force: true });
   rmSync(danglingOut, { recursive: true, force: true });
   rmSync(unknownKeyOut, { recursive: true, force: true });
   rmSync(gateRoot, { recursive: true, force: true });
-  rmSync(join(ROOT, 'node_modules/.astro-fixtures'), { recursive: true, force: true });
+  for (const root of exchangeRoots) rmSync(root, { recursive: true, force: true });
 });
 
 const page = (path) => readFileSync(join(out, path), 'utf8');
@@ -29,7 +37,8 @@ function buildWith(evalsDir, outDir) {
   return spawnSync('bun', ['run', 'astro', 'build', '--outDir', outDir], {
     cwd: ROOT,
     encoding: 'utf8',
-    env: { ...process.env, U4AI_EVALS_DIR: evalsDir },
+    timeout: 120_000,
+    env: fixtureEnv(evalsDir),
   });
 }
 
@@ -42,6 +51,8 @@ const categorySection = (board, category) => board
   .split(/<section[^>]* data-category="/)
   .slice(1)
   .find((section) => section.startsWith(`${category}"`));
+/** One benchmark's board within a section of the evaluations page. */
+const boardOf = (section, id) => section.split('data-eval-board').find((board) => board.includes(`href="/evals/${id}"`));
 /** A benchmark page's leaderboard, without the method prose and run tables that follow it. */
 const leaderboardOf = (detail) => detail.slice(detail.indexOf('<h2>Leaderboard</h2>'), detail.indexOf('<div class="prose"'));
 
@@ -60,32 +71,34 @@ test('the fixture results pass the content gate, so the pages are tested with re
   ]);
 });
 
-test('the published results pass the content gate; the version 1 GSM8K run and its speed are kept as previous-version results', async () => {
+test('the published results pass the content gate; version 1 runs of GSM8K-200, its speed and the canary are kept as previous-version results', async () => {
   const contentRoot = join(ROOT, 'src/content');
   const run = 'bigshort2022--2026-11-15--eb8811e4.json';
-  const published = readdirSync(join(contentRoot, 'evals'));
-  for (const file of [
+  const files = [
+    'qwen3-4b-instruct-2507--canary-injection-v1--bigshort2022--2026-11-15--0f64fdf6.json',
     'qwen3-6-35b-a3b--canary-injection-v1--bigshort2022--2026-11-15--0182e626.json',
     `qwen3-6-35b-a3b--decode-speed-gsm8k-200--${run}`,
     `qwen3-6-35b-a3b--gsm8k-200--${run}`,
-  ]) {
-    assert.ok(published.includes(file), `${file} must stay in the repository`);
-  }
+  ];
+  const published = readdirSync(join(contentRoot, 'evals'));
+  for (const file of files) assert.ok(published.includes(file), `${file} must stay in the repository`);
 
   const { errors, warnings } = await validateContent(contentRoot);
   assert.deepEqual(errors, []);
-  // Exactly these two: the canary result is for its benchmark's current version.
-  assert.deepEqual(warnings.filter((warning) => warning.startsWith('evals/')), [
-    `evals/qwen3-6-35b-a3b--decode-speed-gsm8k-200--${run}: result is for benchmark version 1; `
-    + 'the current version is 2, so it will not appear on the leaderboard',
-    `evals/qwen3-6-35b-a3b--gsm8k-200--${run}: result is for benchmark version 1; `
-    + 'the current version is 2, so it will not appear on the leaderboard',
-  ]);
+  assert.deepEqual(
+    warnings.filter((warning) => warning.startsWith('evals/')),
+    files.map((file) => `evals/${file}: result is for benchmark version 1; the current version is 2, so it will not appear on the leaderboard`),
+  );
 });
 
 test('leaderboard and benchmark page render fixture results', { timeout: 120_000 }, () => {
   const build = buildWith('./test/fixtures/evals', out);
-  assert.equal(build.status, 0, `${build.stdout}${build.stderr}`);
+  assert.equal(build.status, 0, `${build.error ?? ''}${build.stdout}${build.stderr}`);
+  const exchange = JSON.parse(page('data/exchange.json'));
+  assert.deepEqual(exchange.hypotheses, [], 'evaluation fixtures must not load production hypotheses');
+  assert.deepEqual(exchange.findings, [], 'evaluation fixtures must not load production findings');
+  assert.deepEqual(exchange.reviews, [], 'evaluation fixtures must not load production reviews');
+  assert.doesNotMatch(page('evals/bfcl-multiple-50/index.html'), /id="replication-task"/);
 
   const board = page('evals/index.html');
   assert.match(board, /GSM8K \(first 200\)/);
@@ -100,8 +113,8 @@ test('leaderboard and benchmark page render fixture results', { timeout: 120_000
   assert.match(board, /<td class="rank num">2<\/td>/);
   assert.match(board, /<span class="score">62%<\/span>/);
   assert.match(board, /60–64/);
-  assert.match(board, /reproduced by 1/);
-  assert.match(board, /not yet reproduced/);
+  assert.match(board, /2 submitting accounts/);
+  assert.match(board, /1 submitting account</);
   assert.match(board, /self-reported/i);
   assert.match(
     board.replace(/\s+/g, ' '),
@@ -125,6 +138,7 @@ test('leaderboard and benchmark page render fixture results', { timeout: 120_000
   assert.match(detail, /--fixture-three/);
   assert.match(detail, /3{12}/);
   assert.match(detail, /<small>n = 200<\/small>/);
+  assert.doesNotMatch(page('evals/gsm8k-200/index.html'), /runs per item|answered correctly on all/);
   assert.match(detail, /<caption class="sr-only">Leaderboard for GSM8K \(first 200\)<\/caption>/);
   assert.match(detail, /<td class="rank num">1<\/td>/);
 
@@ -246,6 +260,13 @@ test('model page lists its evaluations and local setups; the feed publishes the 
     assert.match(row, /<td class="num">—<\/td>/);
     assert.doesNotMatch(row, /tok\/s<\/td>/);
   }
+  for (const id of [
+    'darsy-xray-analysis--decode-speed-gsm8k-200--fixture-bot--2026-11-03--33333333',
+    'darsy-xray-analysis--decode-speed-gsm8k-200--fixture-bot--2026-11-05--77777777',
+  ]) {
+    assert.match(evaluations, new RegExp(`href="/evals/decode-speed-gsm8k-200#run-${id}">1 reported run</a>\\s*<small>1 submitter</small>`));
+    assert.ok(page('evals/decode-speed-gsm8k-200/index.html').includes(`id="run-${id}"`));
+  }
   // A quality row pools its machines, so its speed is the median of what they measured (61.5 and 140.25).
   assert.match(evaluations, /<td class="num">100\.88 tok\/s<\/td>/);
   assert.match(model, /<caption class="sr-only">Evaluation results for Darsy X-Ray Analysis<\/caption>/);
@@ -253,21 +274,28 @@ test('model page lists its evaluations and local setups; the feed publishes the 
   assert.doesNotMatch(model, RAW_DEVICE);
 
   const feed = JSON.parse(page('data/evals.json'));
+  assert.deepEqual(feed.replications, []);
   assert.equal(feed.schema_version, 1);
-  assert.equal(
-    feed.notice,
-    'Results are self-reported by contributors. Each benchmark page lists every run with its reproduce command and evidence hash.',
-  );
   assert.equal(
     feed.note,
     'Groups include runs of previous benchmark versions; compare only groups whose benchmark_version equals the benchmark\'s version.',
   );
   assert.deepEqual(feed.benchmarks.map((b) => [b.id, b.version, b.previous_versions]), [
+    ['bfcl-multiple-50', '1', []],
     ['gsm8k-200', '2', ['1']],
-    ['canary-injection-v1', '1', []],
+    ['tool-selection-v1', '1', []],
+    ['canary-injection-v1', '2', ['1']],
     ['decode-speed-gsm8k-200', '2', ['1']],
   ]);
-  assert.equal(feed.benchmarks[0].higher_is_better, true);
+  const gsm8k = feed.benchmarks.find((b) => b.id === 'gsm8k-200');
+  assert.equal(gsm8k.higher_is_better, true);
+  assert.deepEqual(Object.fromEntries(feed.benchmarks.map((b) => [b.id, b.repeat])), {
+    'bfcl-multiple-50': { runs: 5, temperature: 0.7, top_p: 1 },
+    'gsm8k-200': null,
+    'tool-selection-v1': { runs: 5, temperature: 0.7, top_p: 1 },
+    'canary-injection-v1': { runs: 5, temperature: 0.7, top_p: 1 },
+    'decode-speed-gsm8k-200': null,
+  });
   // Groups of a measured benchmark carry their runtime and machine; quality groups do not.
   assert.equal(feed.groups.length, 7);
   const quality = feed.groups.filter((g) => g.benchmark === 'gsm8k-200');
@@ -282,7 +310,7 @@ test('model page lists its evaluations and local setups; the feed publishes the 
       ['1', 'mlx-lm', ['0.0.0'], 'Fixture Laptop', 32, 12.5],
     ],
   );
-  const current = quality.filter((g) => g.benchmark_version === feed.benchmarks[0].version);
+  const current = quality.filter((g) => g.benchmark_version === gsm8k.version);
   assert.equal(current.length, 2);
   const mlx = current.find((g) => g.format === 'mlx');
   assert.equal(mlx.score, 62);
@@ -340,19 +368,19 @@ test('a model page names the benchmarks it has results for only in an earlier ve
 
 test('a result that references a missing model fails the build and names it', { timeout: 120_000 }, () => {
   const build = buildWith('./test/fixtures/evals-dangling', danglingOut);
-  const output = `${build.stdout}${build.stderr}`;
+  const output = `${build.error ?? ''}${build.stdout}${build.stderr}`;
   assert.notEqual(build.status, 0, output);
   assert.match(output, /ghost-model--gsm8k-200--fixture-bot--2026-11-01--55555555: model "ghost-model"/);
 });
 
 test('the content collection rejects a result with an unknown key, like the validator does', { timeout: 120_000 }, () => {
   const build = buildWith('./test/fixtures/evals-unknown-key', unknownKeyOut);
-  const output = `${build.stdout}${build.stderr}`;
+  const output = `${build.error ?? ''}${build.stdout}${build.stderr}`;
   assert.notEqual(build.status, 0, output);
   assert.match(output, /Unrecognized key: "notes"/);
 });
 
-// ── The home page's Leading results, and what a board says when it has nothing current ──
+// ── Homepage run counts and benchmark empty states ──
 
 /** A field of a card's frontmatter, so these tests follow the content instead of repeating it. */
 const cardField = (collection, id, field) => {
@@ -366,7 +394,6 @@ const inHtml = (text) => text
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const MODEL = 'darsy-xray-analysis';
-const modelName = inHtml(cardField('models', MODEL, 'name'));
 const benchmarkName = (id) => inHtml(cardField('benchmarks', id, 'name'));
 const currentVersion = (id) => cardField('benchmarks', id, 'version');
 /** No benchmark has had a version "0", so a run of it is always a run of an earlier version. */
@@ -378,14 +405,6 @@ const noResultsYet = (subject) => new RegExp(
   `No results yet\\. Results arrive by pull request from people who ran ${subject} on their own hardware\\. ${GUIDE}`,
 );
 
-/** The home page's Leading results section, from its heading to the end of the section. */
-const leadingResultsOf = (home) => {
-  const start = home.indexOf('<h2 id="leading-results-title"');
-  return start === -1 ? '' : home.slice(start, home.indexOf('</section>', start));
-};
-/** The table rows of that section, one per benchmark. */
-const rowsOf = (section) => (section.split('<tbody>')[1] ?? '').split('<tr').slice(1);
-const benchmarksOf = (rows) => rows.map((row) => row.match(/href="\/evals\/([^"]+)"/)?.[1]);
 
 /** A result file the content collection accepts: a test names what it is about, this fills in the rest. */
 function result({ benchmark, version = currentVersion(benchmark), score, date, hash, submitter = 'fixture-bot', format = 'mlx', quantization = 'FIXTURE_Q', device = 'Fixture Laptop', memory = 32 }) {
@@ -420,143 +439,22 @@ const scratchDir = (name) => {
 };
 
 /**
- * Builds the site against result files written for one test, and against extra benchmark
- * definitions when given. Returns a reader of the built pages with their whitespace collapsed.
+ * Builds the site against result files written for one test.
+ * Returns a reader of the built pages with their whitespace collapsed.
  */
-function buildScratch(name, results, definitions = {}) {
+function buildScratch(name, results) {
   const evalsDir = scratchDir(name);
   for (const { name: file, content } of results) writeFileSync(join(evalsDir, file), JSON.stringify(content));
-  const env = { ...process.env, U4AI_EVALS_DIR: evalsDir };
-  if (Object.keys(definitions).length > 0) {
-    env.U4AI_BENCHMARKS_DIR = scratchDir(`${name}-benchmarks`);
-    cpSync(join(ROOT, 'src/content/benchmarks'), env.U4AI_BENCHMARKS_DIR, { recursive: true });
-    for (const [file, text] of Object.entries(definitions)) writeFileSync(join(env.U4AI_BENCHMARKS_DIR, file), text);
-  }
+  const env = fixtureEnv(evalsDir);
   const outDir = scratchDir(`${name}-site`);
-  const build = spawnSync('bun', ['run', 'astro', 'build', '--outDir', outDir], { cwd: ROOT, encoding: 'utf8', env });
-  assert.equal(build.status, 0, `${build.stdout}${build.stderr}`);
+  const build = spawnSync('bun', ['run', 'astro', 'build', '--outDir', outDir], { cwd: ROOT, encoding: 'utf8', timeout: 120_000, env });
+  assert.equal(build.status, 0, `${build.error ?? ''}${build.stdout}${build.stderr}`);
   return (path) => readFileSync(join(outDir, path), 'utf8').replace(/\s+/g, ' ');
 }
 
-test('the home page lists, under the hero, one leading result for each benchmark that has current results', () => {
-  const home = page('index.html');
-  const leading = leadingResultsOf(home);
-  assert.match(leading, /^<h2 id="leading-results-title"[^>]*>Leading results<\/h2>/);
-  // Nothing sits between the hero and the results.
-  const lead = home.slice(home.indexOf('<section class="hero'), home.indexOf('<h2 id="leading-results-title"'));
-  assert.equal(lead.split('<section').length - 1, 2, 'Leading results must be the section right after the hero');
-
-  // One row per benchmark with a current result, by category then name. The canary benchmark
-  // has no result, so it has no row.
-  const rows = rowsOf(leading);
-  assert.deepEqual(benchmarksOf(rows), ['gsm8k-200', 'decode-speed-gsm8k-200']);
-  assert.doesNotMatch(leading, /canary-injection-v1/);
-  assert.equal(leading.split('<th scope="col">').length - 1, 6);
-  assert.equal(leading.split('<th scope="row">').length - 1, rows.length);
-  // The region that scrolls the table is named after the table, not after the section's heading:
-  // two regions with one name cannot be told apart.
-  const caption = leading.match(/<caption class="sr-only">([^<]+)<\/caption>/)?.[1];
-  assert.ok(caption && caption !== 'Leading results');
-  assert.ok(leading.includes(`role="region" aria-label="${caption}"`));
-
-  // A ranked benchmark shows its best group: gguf at 70 leads mlx at 62, alone, and its two runs
-  // agree. Hardware does not change a score, so the row names no runtime and no machine.
-  const [quality, speed] = rows;
-  assert.match(quality, /<td>Quality<\/td>/);
-  assert.match(quality, new RegExp(`<a href="/evals/gsm8k-200">${benchmarkName('gsm8k-200')}</a>`));
-  assert.match(quality, new RegExp(`<a href="/registry/models/${MODEL}">${modelName}</a>`));
-  assert.match(quality, /<span class="score">70%<\/span>\s*<small>Best score<\/small>/);
-  assert.match(quality, /gguf · FIXTURE_Q/);
-  assert.match(quality, /<span class="tag">not yet reproduced<\/span>/);
-  assert.doesNotMatch(quality, /Most recent|tied with|range|Fixture|llama\.cpp|4bit/);
-  // Neither earlier-version run is a current result: this model's 99, or the other model's 41.
-  assert.doesNotMatch(leading, />99%<|>41%<|qwen3-6-35b-a3b/);
-
-  // A measured benchmark has no winner: the row is its most recent result, with the runtime and
-  // machine it ran on.
-  assert.match(speed, /<td>Efficiency<\/td>/);
-  assert.match(speed, new RegExp(`<a href="/evals/decode-speed-gsm8k-200">${benchmarkName('decode-speed-gsm8k-200')}</a>`));
-  assert.match(speed, /<span class="score">140\.25 tok\/s<\/span>\s*<small>Most recent<\/small>\s*<small>2026-11-05<\/small>/);
-  assert.match(speed, /gguf · FIXTURE_Q\s*<small>llama\.cpp 0\.0\.0<\/small>\s*<small>Fixture Tower · 24 GB<\/small>/);
-  assert.doesNotMatch(speed, /Fixture Laptop|Best score|tied with/);
-  assert.doesNotMatch(leading, /class="rank|>Rank<|Fastest/);
-
-  assert.match(leading, /<a href="\/evals">All leaderboards<\/a>/);
-  assert.doesNotMatch(leading, /No results/);
-});
-
-test('a home row shows a tie, a reproduced leader with its range, the lowest score where lower is better, and the most recent speed', { timeout: 120_000 }, () => {
-  const built = buildScratch('rows', [
-    // GSM8K: two submitters agree on mlx within 68–72 (median 70); one gguf run scores 70 too.
-    result({ benchmark: 'gsm8k-200', score: 68, date: '2026-11-01', hash: 'a' }),
-    result({ benchmark: 'gsm8k-200', score: 72, date: '2026-11-02', hash: 'b', submitter: 'fixture-bot-2' }),
-    result({ benchmark: 'gsm8k-200', score: 70, date: '2026-11-03', hash: 'c', format: 'gguf' }),
-    // An error rate: three groups share the lowest score, a fourth is worse.
-    result({ benchmark: 'fixture-error-rate', version: '1', score: 30, date: '2026-11-01', hash: 'd' }),
-    result({ benchmark: 'fixture-error-rate', version: '1', score: 12, date: '2026-11-02', hash: 'e', format: 'gguf' }),
-    result({ benchmark: 'fixture-error-rate', version: '1', score: 12, date: '2026-11-03', hash: 'f', format: 'gguf', quantization: 'FIXTURE_Q8' }),
-    result({ benchmark: 'fixture-error-rate', version: '1', score: 12, date: '2026-11-04', hash: '1', quantization: 'FIXTURE_Q8' }),
-    // Speed: the fastest run is the oldest; the two newest share a date, and the slower has the lower id.
-    result({ benchmark: 'decode-speed-gsm8k-200', score: 200, date: '2026-11-01', hash: '2', format: 'gguf', device: 'Fixture Tower', memory: 48 }),
-    // The laptop has two runs of different speeds, by two people: its group's median is 58.25.
-    result({ benchmark: 'decode-speed-gsm8k-200', score: 55, date: '2026-11-02', hash: '6', format: 'gguf', submitter: 'fixture-bot-2' }),
-    result({ benchmark: 'decode-speed-gsm8k-200', score: 61.5, date: '2026-11-06', hash: '3', format: 'gguf' }),
-    result({ benchmark: 'decode-speed-gsm8k-200', score: 140.25, date: '2026-11-06', hash: '5', format: 'gguf', device: 'Fixture Tower', memory: 24 }),
-  ], {
-    'fixture-error-rate.md': [
-      '---',
-      'name: Fixture error rate',
-      'summary: A lower-is-better benchmark that exists only in the page tests.',
-      'category: quality',
-      'version: "1"',
-      'metric:',
-      '  name: error rate',
-      '  unit: "%"',
-      '  higher_is_better: false',
-      '  min: 0',
-      '  max: 100',
-      'scoring: exact-match',
-      'items: 200',
-      'source_url: https://example.org/fixture-error-rate.jsonl',
-      'license: mit',
-      'updated: 2026-11-15',
-      '---',
-      '',
-      'Exists only in the page tests.',
-      '',
-    ].join('\n'),
-  });
-
-  const rows = rowsOf(leadingResultsOf(built('index.html')));
-  assert.deepEqual(benchmarksOf(rows), ['fixture-error-rate', 'gsm8k-200', 'decode-speed-gsm8k-200']);
-  const [errorRate, gsm8k, speed] = rows;
-
-  // Lower is better: 12 leads 30. Three groups score 12; the first by the leaderboard's order is shown.
-  assert.match(errorRate, /<span class="score">12%<\/span> ?<small>Best score<\/small> ?<small>tied with 2 others<\/small>/);
-  assert.match(errorRate, /gguf · FIXTURE_Q ?</);
-  assert.match(errorRate, /<span class="tag">not yet reproduced<\/span>/);
-  assert.doesNotMatch(errorRate, /30%|range/);
-
-  // Both GSM8K groups score 70; the one two people submitted comes first, with the range of its runs.
-  assert.match(
-    gsm8k,
-    /<span class="score">70%<\/span> ?<small>range 68–72<\/small> ?<small>Best score<\/small> ?<small>tied with 1 other<\/small>/,
-  );
-  assert.match(gsm8k, /mlx · FIXTURE_Q ?</);
-  assert.match(gsm8k, /<span class="tag tag-open">reproduced by 1<\/span>/);
-
-  // Neither the fastest run (200) nor the faster of the two newest (140.25): the most recent by
-  // date, then id. The number is that run's own, not the median of its group (58.25) or its
-  // range; the reproduction is the group's, which a second person also ran.
-  assert.match(speed, /<span class="score">61\.5 tok\/s<\/span> ?<small>Most recent<\/small> ?<small>2026-11-06<\/small> ?<\/td>/);
-  assert.match(speed, /gguf · FIXTURE_Q ?<small>llama\.cpp 0\.0\.0<\/small> ?<small>Fixture Laptop · 32 GB<\/small>/);
-  assert.match(speed, /<span class="tag tag-open">reproduced by 1<\/span>/);
-  assert.doesNotMatch(speed, /200 tok|140\.25|58\.25|55 tok|range|2026-11-02|Fixture Tower|tied with|Best score/);
-});
-
 let earlierOnly;
 
-test('when every run is of an earlier version, the home page lists no benchmark and points to the leaderboards', { timeout: 120_000 }, () => {
+test('the home page counts earlier-version runs without duplicating the leaderboards', { timeout: 120_000 }, () => {
   // Two earlier-version runs of GSM8K-200, one of the speed benchmark, none of the canary.
   for (const id of ['gsm8k-200', 'decode-speed-gsm8k-200']) assert.notEqual(currentVersion(id), EARLIER);
   earlierOnly = buildScratch('earlier-only', [
@@ -567,16 +465,8 @@ test('when every run is of an earlier version, the home page lists no benchmark 
 
   const home = earlierOnly('index.html');
   assert.match(home, /<b>3<\/b> ?<span>Evaluation runs<\/span>/);
-  const leading = leadingResultsOf(home);
-  assert.match(leading, /^<h2 id="leading-results-title"[^>]*>Leading results<\/h2>/);
-  assert.doesNotMatch(leading, /<table|\/evals\/gsm8k-200|>99%</);
-  // "No results yet" would be false: there are runs, of versions that are no longer current.
-  assert.match(leading, new RegExp(
-    "No results for the current benchmark versions yet\\. Earlier runs are listed on each benchmark's page, "
-    + `linked from the <a href="/evals">leaderboards</a>\\. ${GUIDE}`,
-  ));
-  assert.doesNotMatch(leading, /No results yet/);
-  assert.match(leading, /<a href="\/evals">All leaderboards<\/a>/);
+  assert.doesNotMatch(home, /<table|leading-results-title/);
+  assert.match(home, /href="\/evals"/);
 });
 
 test('a benchmark with runs of earlier versions only says which version has no result and where those runs are', () => {
@@ -587,7 +477,9 @@ test('a benchmark with runs of earlier versions only says which version has no r
     `${noneFor('gsm8k-200')} 2 results of earlier versions are listed on the `
     + `<a href="/evals/gsm8k-200"[^>]*>benchmark page</a>\\. ${GUIDE}`,
   ));
-  assert.doesNotMatch(quality, /No results yet/);
+  assert.doesNotMatch(boardOf(quality, 'gsm8k-200'), /No results yet/);
+  // Nobody has run tool selection in any version.
+  assert.match(boardOf(quality, 'tool-selection-v1'), noResultsYet('this benchmark'));
   const efficiency = categorySection(board, 'efficiency');
   assert.match(efficiency, new RegExp(
     `${noneFor('decode-speed-gsm8k-200')} 1 result of an earlier version is listed on the `
@@ -614,17 +506,11 @@ test('a benchmark with runs of earlier versions only says which version has no r
   assert.doesNotMatch(canary, /previous-versions|[Ee]arlier-version/);
 });
 
-test('with no runs at all, the home page says that results arrive by pull request', { timeout: 120_000 }, () => {
-  // A loader that finds no file leaves the content store as it was, and the fixture builds share
-  // one: start this build from an empty store, or it would show the previous build's runs.
-  rmSync(join(ROOT, 'node_modules/.astro-fixtures'), { recursive: true, force: true });
+test('with no runs the home counts zero and the leaderboard explains participation', { timeout: 120_000 }, () => {
   const built = buildScratch('no-runs', []);
   const home = built('index.html');
   assert.match(home, /<b>0<\/b> ?<span>Evaluation runs<\/span>/);
-  const leading = leadingResultsOf(home);
-  // The evaluations page's empty state with its link, but about "a benchmark": none is in view here.
-  assert.match(leading, noResultsYet('a benchmark'));
-  assert.doesNotMatch(leading, /this benchmark|<table|current benchmark versions/);
+  assert.doesNotMatch(home, /<table|leading-results-title/);
   assert.match(categorySection(built('evals/index.html'), 'quality'), noResultsYet('this benchmark'));
 });
 
@@ -633,4 +519,220 @@ test('a benchmark page with current results has no empty state, and its previous
   assert.doesNotMatch(leaderboardOf(detail), /No results/);
   assert.match(detail, /<section id="previous-versions"[^>]*>\s*<h2>Previous versions<\/h2>/);
   assert.doesNotMatch(page('evals/index.html'), /of (?:an )?earlier versions?/);
+  // Single-run scores carry no interval, so their ranking is not qualified.
+  assert.doesNotMatch(detail, /not distinguishable/);
+  assert.doesNotMatch(page('evals/index.html'), /not distinguishable/);
+});
+
+test('a repeat-run result shows its interval, pass@1 with its interval, and the spread between runs', { timeout: 120_000 }, () => {
+  const repeat = repeatSummary({ runs: 5, temperature: 0.7, top_p: 1 }, {
+    item_pass_histogram: [10, 0, 0, 0, 2, 38],
+    run_correct: [40, 39, 40, 40, 39],
+    seconds_total: 250,
+  });
+  const file = result({ benchmark: 'canary-injection-v1', score: repeat.pass_k, date: '2026-11-20', hash: 'c' });
+  file.content.n = 50;
+  file.content.repeat = repeat;
+  file.content.setup.notes = 'never in selectors';
+  // A second run whose five runs all scored the same, built into the same site.
+  const steady = repeatSummary({ runs: 5, temperature: 0.7, top_p: 1 }, {
+    item_pass_histogram: [10, 0, 0, 0, 0, 40],
+    run_correct: [40, 40, 40, 40, 40],
+    seconds_total: 250,
+  });
+  const steadyFile = result({ benchmark: 'canary-injection-v1', score: steady.pass_k, date: '2026-11-21', hash: 'd', submitter: 'fixture-bot-2' });
+  steadyFile.content.n = 50;
+  steadyFile.content.repeat = steady;
+  const sameDay = result({ benchmark: 'canary-injection-v1', score: steady.pass_k, date: '2026-11-21', hash: '7', submitter: 'fixture-bot-2' });
+  sameDay.content.n = 50;
+  sameDay.content.repeat = steady;
+  const lower = repeatSummary({ runs: 5, temperature: 0.7, top_p: 1 }, {
+    item_pass_histogram: [40, 0, 0, 0, 0, 10],
+    run_correct: [10, 10, 10, 10, 10],
+    seconds_total: 250,
+  });
+  const conflict = result({ benchmark: 'canary-injection-v1', score: lower.pass_k, date: '2026-11-22', hash: 'a', submitter: 'fixture-bot-2' });
+  conflict.content.n = 50;
+  conflict.content.repeat = lower;
+  const otherDevice = result({
+    benchmark: 'canary-injection-v1', score: repeat.pass_k, date: '2026-11-22',
+    hash: '9', device: 'Fixture <b>Rig</b> &', memory: 64,
+  });
+  otherDevice.content.n = 50;
+  otherDevice.content.repeat = repeat;
+  otherDevice.content.setup.runtime = 'mlx-lm-go';
+  const earlierCanary = result({
+    benchmark: 'canary-injection-v1', version: '1', score: steady.pass_k, date: '2026-11-19',
+    hash: '8', submitter: 'fixture-bot-2',
+  });
+  earlierCanary.content.n = 50;
+  // Another model, five runs of 35 of the 50 items: a lower score whose interval overlaps the first group's.
+  const other = repeatSummary({ runs: 5, temperature: 0.7, top_p: 1 }, {
+    item_pass_histogram: [15, 0, 0, 0, 0, 35],
+    run_correct: [35, 35, 35, 35, 35],
+    seconds_total: 250,
+  });
+  const OTHER = 'qwen3-4b-instruct-2507';
+  const otherFile = result({ benchmark: 'canary-injection-v1', score: other.pass_k, date: '2026-11-22', hash: 'e' });
+  otherFile.name = otherFile.name.replace(MODEL, OTHER);
+  otherFile.content.model = OTHER;
+  otherFile.content.n = 50;
+  otherFile.content.repeat = other;
+  const tools = repeatSummary({ runs: 5, temperature: 0.7, top_p: 1 }, {
+    item_pass_histogram: [50, 0, 0, 0, 0, 50],
+    run_correct: [50, 50, 50, 50, 50],
+    seconds_total: 750,
+  });
+  const registered = result({
+    benchmark: 'tool-selection-v1', score: tools.pass_k, date: '2026-11-23',
+    hash: 'f', submitter: 'bigshort2022', quantization: '4bit-DWQ', device: 'Apple M5 Mac17,2',
+  });
+  registered.content.model = 'qwen3-6-35b-a3b';
+  registered.name = registered.name.replace(MODEL, registered.content.model);
+  registered.content.n = 100;
+  registered.content.repeat = tools;
+  registered.content.setup.served_model = 'mlx-community/Qwen3.6-35B-A3B-4bit-DWQ';
+  const paid = result({ benchmark: 'tool-selection-v1', score: tools.pass_k, date: '2026-11-23', hash: 'b', format: 'other', quantization: 'undisclosed' });
+  paid.content.n = 100;
+  paid.content.repeat = tools;
+  paid.content.model = 'example-frontier';
+  paid.name = paid.name.replace(MODEL, paid.content.model);
+  paid.content.setup.runtime = 'api';
+  paid.content.setup.served_model = 'example-frontier-2026';
+  paid.content.api = {
+    provider: 'example',
+    model_card: 'https://example.org/model-card',
+    terms_url: 'https://example.org/terms',
+    terms_checked_on: '2026-11-23',
+    expected_usd: 0.5,
+    approved_usd: 1,
+  };
+  paid.content.cost = { kind: 'invoice', invoice_sha256: '1'.repeat(64), total_usd: 0.5, usd_per_success: 0.002 };
+  for (const comparable of [file, steadyFile, sameDay, conflict, otherDevice]) {
+    comparable.content.setup.served_model = 'fixture/canary-model';
+  }
+  const site = buildScratch('repeat', [file, steadyFile, sameDay, conflict, otherDevice, earlierCanary, otherFile, registered, paid]);
+  const toolPage = site('evals/tool-selection-v1/index.html');
+  assert.match(toolPage, /Registered baselines/);
+  assert.match(toolPage, /href="#baseline-1-[^"]+"/);
+  assert.ok(toolPage.includes(`href="#run-${registered.name.slice(0, -5)}"`), 'registered setup links back to the result');
+  assert.match(toolPage, /Not yet run/i);
+  assert.match(toolPage, /Unregistered setup/i);
+  assert.match(toolPage, /href="https:\/\/example\.org\/model-card"/);
+  assert.match(toolPage, /invoice/i);
+  assert.match(toolPage, /Expected \$0\.5 USD · Approved \$1 USD/);
+  assert.match(toolPage, /0\.002/);
+  const detail = site('evals/canary-injection-v1/index.html');
+
+  assert.match(detail, /<span class="tag">5 runs per item at temperature 0\.7<\/span>/);
+  const note = leaderboardOf(detail);
+  assert.match(note, /The score is the share of items answered correctly on all 5 runs\./);
+  assert.ok(note.includes('<a href="#every-run">Every run</a>'));
+  // The label is defined where it appears.
+  assert.match(note, /A row marked (?:"|&quot;)not distinguishable from #N(?:"|&quot;) has a 95% score interval that overlaps row N(?:'|&#39;)s\./);
+  assert.ok(detail.includes(`<span class="score">${repeat.pass_k}%</span>`));
+  const range = ([low, high]) => `${low}–${high}%`;
+  for (const text of [
+    `score 95% CI ${range(repeat.pass_k_ci)}`,
+    `pass@1 ${repeat.pass_1}% (95% CI ${range(repeat.pass_1_ci)})`,
+    `per run 78–80%, sd ${repeat.run_score_sd} pts`,
+    `per run 80%, sd ${steady.run_score_sd} pts`,
+  ]) {
+    assert.ok(detail.includes(`<small>${text}</small>`), text);
+  }
+  assert.ok(!detail.includes('per run 80–80'));
+
+  // Both groups' 95% intervals overlap, so the ranking between them is not supported.
+  assert.ok(Math.max(repeat.pass_k_ci[1], steady.pass_k_ci[1]) >= other.pass_k_ci[0]);
+  const board = site('evals/index.html');
+  const canaryBoard = board.slice(board.indexOf('Leaderboard for Prompt-injection canary'));
+  const canaryRows = canaryBoard.slice(0, canaryBoard.indexOf('</table>'));
+  assert.match(canaryRows, /<small title="Its 95% score interval overlaps that row(?:'|&#39;)s">not distinguishable from #1<\/small>/);
+  for (const leaderboard of [leaderboardOf(detail), canaryRows]) {
+    const [first, second] = leaderboard.split('<tbody>')[1].split('<tr').slice(1);
+    assert.ok(first.includes(`/registry/models/${MODEL}"`), 'the higher score ranks first');
+    assert.doesNotMatch(first, /not distinguishable/);
+    assert.ok(second.includes(`/registry/models/${OTHER}"`));
+    assert.match(second, /<td class="rank num">2<small[^>]*>not distinguishable from #1<\/small><\/td>/);
+    // Each result of a repeat-run benchmark is five runs, so the Runs cell counts results.
+    assert.match(first, /<small>5 results/);
+    assert.match(second, /<small>1 result[ <]/);
+  }
+
+  // Summary tables link to every result in their group, with stable labels and no implied replication.
+  const resultId = ({ name }) => name.slice(0, -5);
+  const resultHash = (file) => `#run-${resultId(file)}`;
+  const resultPath = (file) => `/evals/canary-injection-v1${resultHash(file)}`;
+  const model = site(`registry/models/${MODEL}/index.html`);
+  for (const [summary, linkFor] of [
+    [leaderboardOf(detail), resultHash],
+    [canaryRows, resultPath],
+    [model, resultPath],
+  ]) {
+    assert.match(summary, /Replication evidence/);
+    for (const candidate of [file, steadyFile, sameDay, conflict, otherDevice]) {
+      const { run, evidence } = candidate.content;
+      const label = `${run.submitter} · ${run.date} · ${evidence.sha256.slice(0, 8)}`;
+      assert.ok(summary.includes(`href="${linkFor(candidate)}">${label}</a>`), label);
+    }
+    assert.ok(!summary.includes(linkFor(earlierCanary)));
+    assert.doesNotMatch(summary, /reproduced by|replicated by/);
+  }
+
+  const row = detail.split(`id="run-${resultId(file)}"`)[1].split('</tr>')[0];
+  assert.match(row, /1 submitting handle with a consistent result/);
+  assert.match(row, /contested/);
+  for (const peer of [steadyFile, sameDay]) {
+    assert.ok(row.includes(`href="${resultHash(peer)}">consistent · fixture-bot-2 · 2026-11-21 · ${peer.content.evidence.sha256.slice(0, 8)}</a>`));
+  }
+  assert.ok(row.includes(`href="${resultHash(conflict)}">inconsistent · fixture-bot-2`));
+  assert.ok(row.includes(`href="${resultHash(otherDevice)}">repeated on other hardware · fixture-bot`));
+  assert.match(row, /mlx-lm-go 0\.0\.0.*Fixture &lt;b&gt;Rig&lt;\/b&gt; &amp; · apple-silicon · 64 GB/);
+  assert.ok(!row.includes(resultHash(otherFile)), 'rank interval overlap for a different model is not replication');
+  assert.match(detail, /same model card, benchmark version, item count, repeat method, format and quantization/);
+  assert.match(detail, /reported artifact ID/);
+  assert.match(detail, /not verified independent people/);
+  const solo = detail.split(`id="run-${resultId(otherFile)}"`)[1].split('</tr>')[0];
+  assert.match(solo, /No consistent result from another handle/);
+  const earlier = detail.split('id="previous-versions"')[1];
+  assert.ok(earlier.includes(`id="run-${resultId(earlierCanary)}"`));
+  assert.doesNotMatch(earlier, /independently replicated|>Replication<\/th>/);
+
+  const feed = JSON.parse(site('data/evals.json'));
+  assert.ok(!feed.replications.some(({ result }) => result === resultId(earlierCanary)));
+  const evidence = feed.replications.find(({ result }) => result === resultId(file));
+  assert.equal(evidence.href, resultPath(file));
+  assert.equal(evidence.benchmark, 'canary-injection-v1');
+  assert.equal(evidence.benchmark_version, currentVersion('canary-injection-v1'));
+  assert.equal(evidence.model, MODEL);
+  assert.equal(evidence.submitter, file.content.run.submitter);
+  assert.equal(evidence.n, 50);
+  assert.deepEqual(evidence.repeat_method, { runs: 5, temperature: 0.7, top_p: 1 });
+  assert.deepEqual(evidence.setup, {
+    runtime: 'mlx-lm',
+    runtime_version: '0.0.0',
+    format: 'mlx',
+    quantization: 'FIXTURE_Q',
+    served_model: 'fixture/canary-model',
+    hardware: { device: 'Fixture Laptop', memory_gb: 32, accelerator: 'apple-silicon' },
+  });
+  assert.equal(evidence.api, undefined);
+  assert.equal(evidence.consistent_submitters, 1);
+  assert.equal(evidence.independent_replicators, 0, 'v1 does not claim any verified independent replications');
+  assert.equal(evidence.contested, true);
+  assert.deepEqual(evidence.peers, [
+    { result: resultId(otherDevice), relationship: 'repeated_on_other_hardware' },
+    { result: resultId(sameDay), relationship: 'consistent' },
+    { result: resultId(steadyFile), relationship: 'consistent' },
+    { result: resultId(conflict), relationship: 'inconsistent' },
+  ]);
+  for (const candidate of [otherDevice, steadyFile, sameDay, conflict]) {
+    assert.equal(feed.replications.find(({ result }) => result === resultId(candidate)).href, resultPath(candidate));
+  }
+  const hosted = feed.replications.find(({ result }) => result === resultId(paid));
+  assert.equal(hosted.model, 'example-frontier');
+  assert.equal(hosted.setup.runtime, 'api');
+  assert.equal(hosted.setup.served_model, 'example-frontier-2026');
+  assert.deepEqual(hosted.api, { provider: 'example', model_card: 'https://example.org/model-card' });
+  assert.doesNotMatch(JSON.stringify(feed.replications), /"command"|"sha256"|"notes"|never in selectors/);
 });

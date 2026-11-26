@@ -1,28 +1,40 @@
 ---
 import '../styles/global.css';
+import lightStyles from '../styles/light.css?url';
+import themeScript from '../lib/theme.js?raw';
 import { REPO } from '../lib/site';
+import AxTask from '../components/AxTask.astro';
+import { axPage, renderAxTask } from '../lib/ax-task.mjs';
 
 interface Props {
   title: string;
   description?: string;
-  wide?: boolean;
+  findingHash?: string;
+  measuredOn?: string;
 }
-const { title, description = 'Unite4AI — equitable, genuinely open AI. An open model & dataset registry, a free open-source technology school, and a global community.' } = Astro.props;
+const { title, description = 'Unite4AI - AI as a global public resource: an open model and dataset registry, a free technology school, and a community building AI in public.' } = Astro.props;
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const href = (p: string) => `${base}${p}` || '/';
 const path = Astro.url.pathname.replace(base, '').replace(/\/$/, '') || '/';
+const agentPage = axPage(Astro.url.pathname, base);
+const agentTask = agentPage ? renderAxTask(agentPage, { base, site: Astro.site, findingHash: Astro.props.findingHash, measuredOn: Astro.props.measuredOn }) : null;
 
 const nav = [
+  { label: 'Exchange', href: '/exchange' },
   { label: 'Stack', href: '/stack' },
-  { label: 'Registry', href: '/registry' },
-  { label: 'Evals', href: '/evals' },
   { label: 'Playground', href: '/playground' },
   { label: 'School', href: '/school' },
   { label: 'Community', href: '/community' },
+  { label: 'News & Notes', href: '/blog' },
   { label: 'Search', href: '/search' },
   { label: 'Contribute', href: '/contribute' },
 ];
+const aliases: Record<string, string> = { '/global-exchange': '/exchange', '/registry': '/stack', '/evals': '/playground' };
+const section = Object.entries(aliases).find(([child]) => path === child || path.startsWith(`${child}/`))?.[1]
+  ?? nav.find((item) => path.startsWith(`${item.href}/`))?.href;
+// Pagefind compiles WebAssembly in the search document. Other pages do not need that permission.
+const wasmSource = path === '/search' ? " 'wasm-unsafe-eval'" : '';
 ---
 <!doctype html>
 <html lang="en">
@@ -42,7 +54,9 @@ const nav = [
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <!-- GitHub Pages cannot set HTTP headers, so CSP ships as a meta tag. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://giscus.app; worker-src 'self' blob:; frame-src https://giscus.app; connect-src 'self' https://api.github.com; base-uri 'self'; form-action 'self'" />
+    <meta http-equiv="Content-Security-Policy" content={`default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://giscus.app${wasmSource}; worker-src 'self' blob:; frame-src https://giscus.app; connect-src 'self' https://api.github.com; base-uri 'self'; form-action 'self'`} />
+    <link id="light-theme" rel="stylesheet" href={lightStyles} media="(prefers-color-scheme: light)" />
+    <script is:inline set:html={themeScript}></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -50,15 +64,18 @@ const nav = [
     <header class="site-header">
       <div class="bar">
         <a class="brand" href={href('/')}>Unite<span>4AI</span></a>
+        <button class="theme-toggle" data-theme-toggle type="button" hidden></button>
+        {agentTask && <button class="ax-toggle" data-ax-toggle type="button" aria-pressed="false" aria-controls="ax-task" hidden>AX</button>}
         <nav class="site-nav" aria-label="Main">
           {nav.map((n) => (
-            <a href={href(n.href)} aria-current={path === n.href ? 'page' : undefined}>{n.label}</a>
+            <a href={href(n.href)} aria-current={path === n.href ? 'page' : section === n.href ? 'location' : undefined}>{n.label}</a>
           ))}
         </nav>
       </div>
     </header>
 
-    <main id="main">
+    <main id="main" tabindex="-1">
+      {agentTask && <AxTask text={agentTask.text} />}
       <slot />
     </main>
 
@@ -71,6 +88,8 @@ const nav = [
           </div>
           <div>
             <strong>Build</strong>
+            <a href={href('/exchange')}>Evidence exchange</a>
+            <a href={href('/evals')}>Experiments</a>
             <a href={href('/registry')}>Model registry</a>
             <a href={href('/registry/datasets')}>Dataset registry</a>
             <a href={href('/contribute')}>Contribute</a>
@@ -79,6 +98,7 @@ const nav = [
             <strong>Learn</strong>
             <a href={href('/school')}>Open school</a>
             <a href={href('/community')}>Events</a>
+            <a href={href('/blog')}>News &amp; Notes</a>
             <a href={href('/search')}>Search</a>
           </div>
           <div>
@@ -86,6 +106,8 @@ const nav = [
             <a href={REPO}>Source on GitHub</a>
             <a href={href('/governance')}>Governance</a>
             <a href={href('/governance/metrics')}>Metrics</a>
+            <a href={href('/llms.txt')}>Agent index</a>
+            <a href={href('/exchange/biases')}>Biases and limits</a>
             <a href={href('/privacy')}>Privacy</a>
           </div>
         </div>
@@ -97,6 +119,38 @@ const nav = [
     <script>
       import { initWebVitals } from '../lib/web-vitals.mjs';
       initWebVitals();
+
+      // Native fragment history restores scroll but can leave focus on the old section.
+      // Keep the source link with its history entry without changing native hash navigation.
+      const fragments = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href^="#"]'));
+      document.addEventListener('click', (event) => {
+        if (event.defaultPrevented || event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+        const link = event.target instanceof Element ? event.target.closest('a[href^="#"]') : null;
+        if (!(link instanceof HTMLAnchorElement) || !link.hash || link.hash === location.hash) return;
+        if ((link.target && link.target !== '_self') || link.hasAttribute('download')) return;
+        const sourceIndex = fragments.indexOf(link);
+        if (sourceIndex !== -1) history.replaceState({ ...history.state, unite4aiFragmentSource: sourceIndex }, '');
+      });
+      window.addEventListener('popstate', (event) => {
+        const index = event.state?.unite4aiFragmentSource;
+        if (!Number.isInteger(index)) return;
+        const source = fragments[index];
+        const entry = location.href;
+        requestAnimationFrame(() => {
+          if (entry === location.href && source?.isConnected) source.focus({ preventScroll: true });
+        });
+      });
     </script>
   </body>
 </html>
+
+<style is:global>
+  .ax-toggle {
+    flex: none; min-width: 44px; min-height: 44px;
+    font: inherit; font-size: .85rem; font-weight: 700;
+    color: var(--u-text); background: var(--u-bg-elev);
+    border: 1px solid var(--u-border-bright); border-radius: var(--u-radius-sm);
+    cursor: pointer;
+  }
+  .ax-toggle[aria-pressed="true"] { border-color: var(--u-cyan); color: var(--u-cyan); }
+</style>

@@ -93,3 +93,36 @@ test('the request timeout covers the whole reply, so a stream that stalls is not
   const stalled = await streamServer((res) => res.write(delta({ content: 'It is' })));
   await assert.rejects(chat(stalled, { timeoutMs: 100 }), /request timed out after 100 ms/);
 });
+
+test('a sampled request sends temperature, top_p and seed; an unsampled one sends temperature 0 and neither', async () => {
+  const bodies = [];
+  const server = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => {
+      bodies.push(JSON.parse(body));
+      res.setHeader('content-type', 'text/event-stream');
+      res.write(delta({ content: '18' }));
+      res.write(delta({}, 'stop'));
+      res.write(event({ choices: [], usage: { prompt_tokens: 21, completion_tokens: 2, total_tokens: 23 } }));
+      res.end('data: [DONE]\n\n');
+    });
+  });
+  servers.push(server);
+  const baseUrl = await new Promise((done) => server.listen(0, '127.0.0.1', () => done(`http://127.0.0.1:${server.address().port}/v1`)));
+
+  const plain = await chat(baseUrl);
+  const sampled = await chat(baseUrl, { sampling: { temperature: 0.7, topP: 1, seed: 12 } });
+  assert.equal(bodies[0].temperature, 0);
+  assert.equal('top_p' in bodies[0] || 'seed' in bodies[0], false);
+  assert.deepEqual([bodies[1].temperature, bodies[1].top_p, bodies[1].seed], [0.7, 1, 12]);
+  assert.deepEqual([plain.promptTokens, sampled.promptTokens, sampled.completionTokens], [21, 21, 2]);
+});
+
+test('prompt tokens are null when the server sends no usage', async () => {
+  const baseUrl = await streamServer((res) => {
+    res.write(delta({ content: '18' }));
+    res.end(delta({}, 'stop'));
+  });
+  assert.equal((await chat(baseUrl)).promptTokens, null);
+});

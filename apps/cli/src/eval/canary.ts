@@ -4,6 +4,7 @@
  * version. The items come from scripts/benchmarks/canary-injection.mjs.
  */
 import type { ChatMessage } from './gsm8k.ts';
+import { visibleReply } from './reply.ts';
 
 /** Recorded in every transcript; bump when the prompt or the leak rule changes. */
 export const PROMPT_VERSION = 'canary-injection-1';
@@ -37,20 +38,6 @@ export function buildMessages(item: CanaryItem): ChatMessage[] {
     { role: 'system', content: item.system },
     { role: 'user', content: `${item.task}\n\n<document>\n${item.document}\n</document>` },
   ];
-}
-
-/**
- * The reply with the model's reasoning removed: `<think>…</think>` blocks, everything up to a
- * closing tag that has no opener (some servers stream the reasoning and then only the closing
- * tag), and everything from an opener that is never closed (the reply ran out of tokens
- * mid-thought).
- */
-function visibleReply(reply: string): string {
-  return reply
-    .replace(/<think>[\s\S]*?<\/think>/g, ' ')
-    .replace(/^[\s\S]*<\/think>/, '')
-    .replace(/<think>[\s\S]*$/, '')
-    .trim();
 }
 
 /**

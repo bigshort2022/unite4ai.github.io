@@ -6,7 +6,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thank you for running a benchmark. Results are self-reported: the site shows who submitted each one and whether anyone else has reproduced it.
+        This issue is public under your GitHub identity. Do not paste private data or credentials.
+        Results are self-reported. Multiple submitted runs do not by themselves establish independent reproduction.
         A maintainer checks the file you paste against the validation gate, the same one every pull request goes through.
         **A result without a kept transcript cannot be accepted** — the transcript is the evidence behind the hash in the file.
   - type: input
@@ -14,7 +15,7 @@ body:
     attributes:
       label: Model
       description: "The model's card id on this site. The model must already have a card: if it does not, file \"Submit a model\" first."
-      placeholder: darsy-xray-analysis
+      placeholder: qwen3-6-35b-a3b
     validations: { required: true }
   - type: dropdown
     id: benchmark
@@ -24,6 +25,8 @@ body:
       options:
         - gsm8k-200
         - canary-injection-v1
+        - tool-selection-v1
+        - bfcl-multiple-50
     validations: { required: true }
   - type: textarea
     id: result

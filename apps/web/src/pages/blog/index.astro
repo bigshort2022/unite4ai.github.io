@@ -1,0 +1,37 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = (p: string) => `${base}${p}` || '/';
+const posts = (await getCollection('posts')).sort((a, b) => b.data.published.valueOf() - a.data.published.valueOf());
+const description = 'Project updates, explainers, and resource notes from Unite4AI.';
+const formatDate = new Intl.DateTimeFormat('en-US', { dateStyle: 'long', timeZone: 'UTC' });
+---
+<Base title={'News & Notes'} description={description}>
+  <section class="wrap section" data-pagefind-body>
+    <h1>News &amp; Notes</h1>
+    <p class="lede">{description}</p>
+    {posts.length > 0 ? (
+      <div class="grid grid-2">
+        {posts.map(({ id, data }) => (
+          <article class="card">
+            <h2><a href={href(`/blog/${id}`)}>{data.title}</a></h2>
+            <p>{data.summary}</p>
+            <div class="card-meta">
+              <time datetime={data.published.toISOString().slice(0, 10)}>{formatDate.format(data.published)}</time>
+              {data.tags.map((tag) => <span class="tag">{tag}</span>)}
+            </div>
+          </article>
+        ))}
+      </div>
+    ) : (
+      <p class="empty">No posts yet.</p>
+    )}
+  </section>
+</Base>
+
+<style>
+  .card h2 { margin: 0; font-size: 1.15rem; line-height: 1.35; }
+  time { align-self: center; font-size: .85rem; color: var(--u-text-dim); }
+</style>

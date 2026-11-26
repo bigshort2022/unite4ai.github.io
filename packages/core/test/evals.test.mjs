@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { groupEvals, leaderboard, localSetups as setupsOfCurrent, median, reproductionLabel } from '../src/evals.ts';
+import { groupEvals, indistinguishableFrom, leaderboard, localSetups as setupsOfCurrent, median, submitterLabel } from '../src/evals.ts';
 import { result, run } from './fixtures/evals.mjs';
 
 const setup = (overrides = {}) => ({ ...result().setup, ...overrides });
@@ -40,6 +40,26 @@ test('runs that differ in exactly one grouping field land in separate groups', (
   assert.equal(separate(run('same')), 1);
 });
 
+test('API accounts group by provider and served model, never by the client as local hardware', () => {
+  const local = run('local', { setup: setup({ format: 'other', quantization: 'undisclosed' }) });
+  const hosted = (id, provider, served_model = 'model-2026') => run(id, {
+    setup: { ...local.setup, runtime: 'api', served_model },
+    api: { provider, terms_url: 'https://example.org/terms', terms_checked_on: '2026-11-05', expected_usd: 1, approved_usd: 2 },
+    perf: { tokens_per_second: 150 },
+  });
+  const runs = [local, hosted('a1', 'provider-a'), hosted('a2', 'provider-a'), hosted('b', 'provider-b'), hosted('c', 'provider-a', 'model-2025')];
+  const groups = groupEvals(runs);
+  assert.equal(groups.length, 4);
+  assert.deepEqual(groups.find((g) => g.api?.provider === 'provider-a' && g.api.served_model === 'model-2026').run_ids, ['a1', 'a2']);
+  const alternateCard = hosted('a3', 'provider-a');
+  alternateCard.api.model_card = 'https://example.org/different-model';
+  assert.equal(groupEvals([...runs, alternateCard]).length, 5);
+  const [paid] = groupEvals([hosted('hosted', 'provider-a')], { byHardware: new Set(['bench-a']) });
+  assert.equal(paid.device, null);
+  assert.equal(paid.tokens_per_second, null);
+  assert.deepEqual(localSetups(runs), localSetups([local]));
+});
+
 test('a separator character inside a field cannot merge two groups', () => {
   const groups = groupEvals([
     run('a', { benchmark_version: '1', setup: setup({ quantization: 'mlx|4bit' }) }),
@@ -75,12 +95,36 @@ test('speed is null when no run measured it', () => {
   assert.equal(groupEvals([run('a')])[0].tokens_per_second, null);
 });
 
-test('reproduction label counts submitters other than the first, not runs', () => {
+/** A repeat block carrying only what grouping reads; the leaderboard does not recompute it. */
+const repeatWith = (pass_k_ci) => ({ repeat: { pass_k_ci } });
+
+test('a repeat-run group spans its members\' intervals; a group with a single-run member has none', () => {
+  const [group] = groupEvals([
+    run('a', repeatWith([60, 80])),
+    run('b', repeatWith([70, 90])),
+    run('c', repeatWith([65, 85])),
+  ]);
+  assert.deepEqual(group.pass_k_ci, [60, 90]);
+  assert.equal(groupEvals([run('a', repeatWith([60, 80])), run('b')])[0].pass_k_ci, null);
+  assert.equal(groupEvals([run('a')])[0].pass_k_ci, null);
+});
+
+test('a row is not distinguishable from the highest-ranked earlier row whose interval overlaps its own', () => {
+  const rows = (...intervals) => intervals.map((pass_k_ci) => ({ pass_k_ci }));
+  assert.deepEqual(indistinguishableFrom(rows([80, 90], [70, 85], [50, 60])), [null, 0, null]);
+  // The highest-ranked overlapping row, not the nearest; touching intervals overlap.
+  assert.deepEqual(indistinguishableFrom(rows([80, 90], [75, 88], [70, 80])), [null, 0, 0]);
+  assert.deepEqual(indistinguishableFrom(rows([80, 90], null, [70, 85])), [null, null, 0]);
+  assert.deepEqual(indistinguishableFrom(rows(null, [70, 85])), [null, null]);
+  assert.deepEqual(indistinguishableFrom([]), []);
+});
+
+test('submitter labels describe submitting accounts, not independent reproduction', () => {
   const single = groupEvals([run('a'), run('b')])[0];
   assert.equal(single.runs, 2);
-  assert.equal(reproductionLabel(single), 'not yet reproduced');
-  const reproduced = groupEvals([run('a'), run('b', { run: by('bob', '2026-11-11') }), run('c', { run: by('carol', '2026-11-12') })])[0];
-  assert.equal(reproductionLabel(reproduced), 'reproduced by 2');
+  assert.equal(submitterLabel(single), '1 submitting account');
+  const multiple = groupEvals([run('a'), run('b', { run: by('bob', '2026-11-11') }), run('c', { run: by('carol', '2026-11-12') })])[0];
+  assert.equal(submitterLabel(multiple), '3 submitting accounts');
 });
 
 test('leaderboard keeps only the current version and ranks by the metric direction', () => {

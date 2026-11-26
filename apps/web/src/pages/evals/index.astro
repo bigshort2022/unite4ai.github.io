@@ -1,27 +1,29 @@
 ---
 import Base from '../../layouts/Base.astro';
 import NoResults from '../../components/NoResults.astro';
-import { reproductionLabel } from '@unite4ai/core';
-import { CATEGORIES, CATEGORY_LABELS, SUBMIT_GUIDE, deviceLine, formatNumber, loadEvals, runtimeLabel, scoreRange, withUnit } from '../../lib/evals';
+import { submitterLabel } from '@unite4ai/core';
+import { CATEGORIES, CATEGORY_LABELS, SUBMIT_GUIDE, deviceLine, evalRunLabel, evalRunPath, formatNumber, loadEvals, runsLabel, runtimeLabel, scoreRange, withUnit } from '../../lib/evals';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const href = (p: string) => `${base}${p}` || '/';
+const modelHref = (url: string) => url.startsWith('/') ? href(url) : url;
 
-const { boards, modelNames } = await loadEvals();
+const { boards, groupModelReference, runsById } = await loadEvals();
 const categories = CATEGORIES.filter((category) => boards.some((b) => b.benchmark.data.category === category));
 const runtimes = [...new Set(boards.flatMap((b) => b.rows.flatMap((row) => row.runtimes)))].sort();
 const accelerators = [...new Set(boards.flatMap((b) => b.rows.flatMap((row) => row.accelerators)))].sort();
 const hasRows = boards.some((b) => b.rows.length > 0);
 ---
-<Base title="Evaluations" description="Open models measured on contributors' own hardware: scores, speed, setup, and the command to reproduce each result.">
+<Base title="Evaluations" description="Open-model evaluations and approved API comparators: scores, setup, and the command to reproduce each result.">
   <section class="wrap section">
-    <p class="eyebrow">Evaluations</p>
+    <p class="eyebrow">The experiment layer</p>
     <h1>Open models, <span class="grad-text">measured</span> on real hardware</h1>
     <p class="lede">
-      Every number here was produced on a contributor's own machine and is published with the
-      exact command, the setup, and a hash of the raw output. Results are self-reported: give
-      the most weight to the ones other people have reproduced.
+      Local runs use contributors' own machines; approved API comparators are labelled separately.
+      Each result includes its exact command, setup, and a hash of the raw output. Results are
+      self-reported. Counts show contributing accounts, not independent reproductions.
     </p>
+    <p>These leaderboards are the experiments behind <a href={href('/exchange')}>exchange findings</a>. A score alone is not a reviewed finding; follow the exchange for hypotheses, review states and lineage.</p>
     <p style="margin-top:.8rem;color:var(--u-text-dim)">
       Speed is tokens generated per second after the first token, from the server's own token
       count; it depends on the hardware and on what else the machine was doing.
@@ -29,7 +31,9 @@ const hasRows = boards.some((b) => b.rows.length > 0);
     <p style="margin-top:1rem">
       <a class="btn btn-primary" href={SUBMIT_GUIDE}>Submit a result</a>
       <a class="btn btn-ghost" href={href('/data/evals.json')}>Data feed (JSON)</a>
+      <a class="btn btn-ghost" href={href('/data/eval-exports.json')}>Per-result exports (JSON)</a>
     </p>
+    <p>Exports retain the published scores and uncertainty. Hugging Face YAML requires a matching registered benchmark task and model artifact. Nothing is submitted automatically.</p>
 
     {categories.length > 0 && (
       <div class="registry-controls" style="margin-top:1.5rem">
@@ -68,10 +72,11 @@ const hasRows = boards.some((b) => b.rows.length > 0);
     {categories.map((category) => (
       <section style="margin-top:3rem" aria-labelledby={`category-${category}`} data-category={category}>
         <h2 id={`category-${category}`}>{CATEGORY_LABELS[category]}</h2>
-        {boards.filter((b) => b.benchmark.data.category === category).map(({ benchmark, measured, rows, earlierRuns }) => (
+        {boards.filter((b) => b.benchmark.data.category === category).map(({ benchmark, measured, rows, rankNotes, earlierRuns, registered }) => (
           <div style="margin-top:1.5rem" data-eval-board>
             <h3><a href={href(`/evals/${benchmark.id}`)}>{benchmark.data.name}</a></h3>
             <p style="color:var(--u-text-dim);max-width:70ch">{benchmark.data.summary}</p>
+            {registered.length > 0 && <p><a href={href(`/evals/${benchmark.id}#registered-baselines`)}>Registered baselines</a></p>}
             {rows.length === 0 ? (
               earlierRuns.length === 0 ? (
                 <NoResults />
@@ -102,10 +107,11 @@ const hasRows = boards.some((b) => b.rows.length > 0);
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((row, index) => (
-                      <tr data-runtimes={row.runtimes.join(',')} data-accelerators={row.accelerators.join(',')}>
-                        {!measured && <td class="rank num">{index + 1}</td>}
-                        <td><a href={href(`/registry/models/${row.model}`)}>{modelNames.get(row.model) ?? row.model}</a></td>
+                    {rows.map((row, index) => {
+                      const model = groupModelReference(row);
+                      return <tr data-runtimes={row.runtimes.join(',')} data-accelerators={row.accelerators.join(',')}>
+                        {!measured && <td class="rank num">{index + 1}{rankNotes[index] && <small title="Its 95% score interval overlaps that row's">{rankNotes[index]}</small>}</td>}
+                        <td>{model.url ? <a href={modelHref(model.url)}>{model.name}</a> : model.name}{model.upstream && <small><a href={model.upstream} rel="nofollow ugc noopener">Upstream model card</a></small>}</td>
                         <td class="num">
                           <span class="score">{withUnit(formatNumber(row.score), benchmark.data.metric.unit)}</span>
                           {scoreRange(row) && <small>range {scoreRange(row)}</small>}
@@ -113,18 +119,23 @@ const hasRows = boards.some((b) => b.rows.length > 0);
                         </td>
                         <td>
                           {row.format} · {row.quantization}
-                          <small>{runtimeLabel(row)} · {row.accelerators.join(', ')}</small>
+                          <small>{runtimeLabel(row)}{row.accelerators.length > 0 && ` · ${row.accelerators.join(', ')}`}</small>
                           {deviceLine(row) && <small>{deviceLine(row)}</small>}
                         </td>
                         {!measured && (
                           <td class="num">{row.tokens_per_second === null ? '—' : `${formatNumber(row.tokens_per_second)} tok/s`}</td>
                         )}
                         <td>
-                          <span class={`tag${row.submitters.length > 1 ? ' tag-open' : ''}`}>{reproductionLabel(row)}</span>
-                          <small>{row.runs} {row.runs === 1 ? 'run' : 'runs'} · latest {row.latest}</small>
+                          {benchmark.data.repeat ? (
+                            <>
+                              <small>Replication evidence</small>
+                              {row.run_ids.map((id) => <small><a href={href(evalRunPath(benchmark.id, id))}>{evalRunLabel(runsById.get(id)!)}</a></small>)}
+                            </>
+                          ) : <span class="tag">{submitterLabel(row)}</span>}
+                          <small>{runsLabel(row.runs, benchmark.data.repeat !== undefined)} · latest {row.latest}</small>
                         </td>
-                      </tr>
-                    ))}
+                      </tr>;
+                    })}
                   </tbody>
                 </table>
               </div>

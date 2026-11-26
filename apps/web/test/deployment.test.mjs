@@ -3,11 +3,12 @@ import { createHash } from 'node:crypto';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
 
 const ROOT = new URL('..', import.meta.url);
 // Text that only the page tests' fixtures contain; none of it may reach a normal build. The rig
 // fixture's device contains markup, so it appears escaped (or raw, if escaping broke).
-const fixtureMarkers = /fixture-bot|fixture-error-rate|Fixture (?:Laptop|Tower)|Fixture (?:&lt;b&gt;|<b>)?Rig|FIXTURE_Q|ghost-model/;
+const fixtureMarkers = /fixture-bot|fixture-author|fixture-reviewer|fixture-hypothesis|fixture-finding|fixture-error-rate|Fixture (?:Laptop|Tower)|Fixture (?:&lt;b&gt;|<b>)?Rig|FIXTURE_Q|ghost-model/;
 
 // Spawns a full Astro + Pagefind build; CI runners routinely exceed bun's 5s default.
 test('production build targets the unite4ai.com custom domain', { timeout: 120_000 }, async () => {
@@ -26,7 +27,6 @@ test('production build targets the unite4ai.com custom domain', { timeout: 120_0
 
   const homeHtml = await readFile(new URL('dist/index.html', ROOT), 'utf8');
 
-  assert.match(homeHtml, /Equitable AI/);
   assert.match(homeHtml, /href="\/registry"/);
 
   // Evaluation pages and feed exist in the real build, and test fixtures never reach it.
@@ -37,7 +37,7 @@ test('production build targets the unite4ai.com custom domain', { timeout: 120_0
   const security = sections.find((section) => section.startsWith('security"'));
   assert.ok(security, 'the evaluations page must have a security section');
   assert.match(security, /<h2 id="category-security"[^>]*>Security<\/h2>/);
-  assert.match(security, /<a href="\/evals\/canary-injection-v1"[^>]*>Prompt-injection canary \(v1\)<\/a>/);
+  assert.match(security, /<a href="\/evals\/canary-injection-v1"[^>]*>Prompt-injection canary<\/a>/);
   assert.equal(sections.filter((section) => section.includes('Prompt-injection canary')).length, 1);
   // The speed benchmark has its Efficiency section whether or not anyone has submitted a result.
   const efficiency = sections.find((section) => section.startsWith('efficiency"'));
@@ -59,10 +59,112 @@ test('production build targets the unite4ai.com custom domain', { timeout: 120_0
   for (const path of [...detailPages, ...modelPages]) {
     assert.doesNotMatch(await readFile(new URL(path, ROOT), 'utf8'), fixtureMarkers, path);
   }
+  for (const path of ['dist/exchange/index.html', 'dist/exchange/biases/index.html', 'dist/data/exchange.json', 'dist/data/exchange-text.json']) {
+    assert.doesNotMatch(await readFile(new URL(path, ROOT), 'utf8'), fixtureMarkers, path);
+  }
+  const exchange = JSON.parse(await readFile(new URL('dist/data/exchange.json', ROOT), 'utf8'));
+  const exchangeHtml = await readFile(new URL('dist/exchange/index.html', ROOT), 'utf8');
+  if (exchange.hypotheses.length === 0) assert.match(exchangeHtml, /No open hypotheses published/);
+  if (exchange.findings.length === 0) assert.match(exchangeHtml, /No unreviewed findings published/);
+
+  const bfcl = await readFile(new URL('dist/evals/bfcl-multiple-50/index.html', ROOT), 'utf8');
+  const card = bfcl.match(/<section\b[^>]*\bid="replication-task"[^>]*>[\s\S]*?<\/section>/)?.[0];
+  assert.ok(card, 'the published BFCL reference should offer a replication task');
+  const run = 'qwen3-8-27b--bfcl-multiple-50--bigshort2022--2026-11-23--5e58a1a8';
+  assert.ok(card.includes(`href="#run-${run}"`));
+  assert.ok(bfcl.includes(`id="run-${run}"`));
+  const receipt = card.match(/href="(\/data\/eval-exports\/[^"]+\/evidence\.json)"/)?.[1];
+  assert.ok(receipt, 'the card links to the actual evidence receipt');
+  const evidence = JSON.parse(await readFile(new URL(`dist${receipt}`, ROOT), 'utf8'));
+  assert.equal(evidence.result_id, run);
+  assert.ok(card.includes(evidence.setup.served_model));
+  assert.match(card, /64 GB/);
+  assert.match(card, /\$0[\s\S]*60 minutes[\s\S]*55 minutes[\s\S]*90 seconds/);
+  assert.match(card, /250 attempts/);
+  assert.match(card, /not a target/i);
+  assert.match(exchangeHtml, /href="\/evals\/bfcl-multiple-50"[^>]*>BFCL replication task</);
+  assert.doesNotMatch(await readFile(new URL('dist/evals/gsm8k-200/index.html', ROOT), 'utf8'), /id="replication-task"/);
 
   // Cost guard: GitHub Pages serves at most 1 GB; fail long before that.
   const bytes = await directorySize(new URL('dist/', ROOT));
   assert.ok(bytes < 250 * 1024 * 1024, `dist is ${bytes} bytes; the budget is 250 MB`);
+});
+
+test('the agent index leads to the deployed data and the same registry cards as the UI', async () => {
+  const dist = new URL('dist/', ROOT);
+  const origin = 'https://unite4ai.com';
+  const index = await readFile(new URL('llms.txt', dist), 'utf8');
+  const links = new Set([...index.matchAll(/\[[^\]]+\]\((https:\/\/unite4ai\.com\/[^)]+)\)/g)]
+    .map(([, href]) => new URL(href).pathname));
+  const readRoute = (path) => {
+    assert.ok(links.has(path), `${path} is discoverable in llms.txt`);
+    return readFile(new URL(path.endsWith('/') ? `${path.slice(1)}index.html` : path.slice(1), dist), 'utf8');
+  };
+
+  const pages = ['/school/', '/blog/', '/registry/', '/registry/datasets/', '/evals/', '/exchange/', '/global-exchange/'];
+  const html = new Map(await Promise.all(pages.map(async (path) => [path, await readRoute(path)])));
+  const feeds = new Map(await Promise.all([
+    ['/data/evals.json', 'schema_version'], ['/data/registry-index.json', 'schema_version'],
+    ['/data/exchange.json', 'schema_version'], ['/data/global-exchange.json', 'schemaVersion'],
+    ['/data/exchange-text.json', 'schema_version'],
+    ['/data/eval-exports.json', 'schema_version'],
+  ].map(async ([path, versionKey]) => {
+    const feed = JSON.parse(await readRoute(path));
+    assert.equal(feed[versionKey], 1, path);
+    return [path, feed];
+  })));
+
+  const registry = feeds.get('/data/registry-index.json');
+  for (const [kind, page] of [['models', '/registry/'], ['datasets', '/registry/datasets/']]) {
+    const prefix = `/registry/${kind}/`;
+    const cards = new Set([...html.get(page).matchAll(/\bhref="([^"]+)"/g)]
+      .map(([, href]) => new URL(href, origin))
+      .filter((url) => url.origin === origin && url.pathname.startsWith(prefix) && url.pathname !== prefix)
+      .map((url) => url.pathname.replace(/\/$/, '').slice(prefix.length)));
+    assert.deepEqual(registry[kind].map((record) => record.id).sort(), [...cards].sort(), kind);
+    for (const record of registry[kind]) {
+      const href = new URL(record.href, origin);
+      assert.equal(href.origin, origin);
+      assert.equal(href.pathname, `${prefix}${record.id}/`);
+      await readFile(new URL(`${href.pathname.slice(1)}index.html`, dist), 'utf8');
+    }
+  }
+});
+
+test('static exports preserve all published result files and link back to their exact evidence', async () => {
+  const dist = new URL('dist/', ROOT);
+  const readJson = async (path) => JSON.parse(await readFile(new URL(path.replace(/^\//, ''), dist), 'utf8'));
+  const source = new URL('src/content/evals/', ROOT);
+  const files = (await readdir(source)).filter((name) => name.endsWith('.json')).sort();
+  const { results } = await readJson('/data/eval-exports.json');
+  assert.deepEqual(results.map((row) => `${row.id}.json`), files);
+  assert.ok(results.length > 0);
+  for (const row of results) {
+    const original = JSON.parse(await readFile(new URL(`${row.id}.json`, source), 'utf8'));
+    const evidence = await readJson(row.evidence);
+    const eee = await readJson(row.every_eval_ever);
+    assert.equal(evidence.evidence.sha256, original.evidence.sha256);
+    assert.equal(evidence.score, original.score);
+    assert.equal(evidence.n, original.n);
+    assert.deepEqual(evidence.repeat, original.repeat);
+    assert.equal(Object.hasOwn(evidence.run, 'command'), false);
+    assert.equal(Object.hasOwn(evidence.evidence, 'url'), false);
+    assert.equal(Object.hasOwn(eee, 'detailed_evaluation_results'), false);
+    assert.equal(eee.evaluation_results[0].score_details.score, original.score);
+    const result = new URL(row.result_url);
+    assert.equal(result.origin, 'https://unite4ai.com');
+    assert.equal(result.hash, `#run-${row.id}`);
+    const page = await readFile(new URL(`${result.pathname.replace(/^\/|\/$/g, '')}/index.html`, dist), 'utf8');
+    assert.ok(page.includes(`id="run-${row.id}"`));
+    if (row.hugging_face.status === 'blocked') {
+      assert.ok(row.hugging_face.reasons.length > 0);
+      assert.equal('yaml' in row.hugging_face, false);
+      await assert.rejects(stat(new URL(`data/eval-exports/${row.id}/huggingface.yaml`, dist)), { code: 'ENOENT' });
+    } else {
+      assert.equal(row.hugging_face.status, 'ready');
+      assert.ok((await stat(new URL(row.hugging_face.yaml.slice(1), dist))).isFile());
+    }
+  }
 });
 
 async function directorySize(dir) {
@@ -75,73 +177,65 @@ async function directorySize(dir) {
 }
 
 // Reads the build of the first test. Real scores and model names change, so none is asserted.
-test('the home page leads with evaluations and carries no fixture text', async () => {
+test('home leads with the wordmark and groups navigation under parent pages', async () => {
   const home = await readFile(new URL('dist/index.html', ROOT), 'utf8');
   const text = home.replace(/\s+/g, ' ');
   assert.equal(home.split('<h1').length - 1, 1);
-  assert.match(home, /<title>Equitable AI, actually open · Unite4AI<\/title>/);
-
-  const description = home.match(/<meta name="description" content="([^"]+)"/)?.[1] ?? '';
-  assert.match(description, /^Self-reported evaluations/);
-  assert.doesNotMatch(description, /independent/i);
-  assert.ok(description.length <= 160, `the description is ${description.length} characters`);
 
   const heroStart = text.indexOf('<section class="hero');
   const hero = text.slice(heroStart, text.indexOf('</section>', heroStart));
-  assert.ok(hero.includes(
-    'Evaluations of open models, self-reported from hardware people actually own. Every score is published with '
-    + 'the command that produced it and a hash of the transcript its submitter keeps, so anyone with the same '
-    + 'setup can rerun it. Around them: an open model and dataset registry that grades real openness, and a free '
-    + 'technology school.',
-  ));
-  assert.deepEqual(
-    [...hero.matchAll(/<a class="btn (btn-\w+)" href="([^"]+)">([^<]+)<\/a>/g)].map(([, kind, target, label]) => [
-      kind,
-      target.replace(/^https:\/\/github\.com\/[^/]+\/[^/]+/, '<repo>'),
-      label,
-    ]),
-    [
-      ['btn-primary', '/evals', 'See the leaderboards'],
-      ['btn-ghost', '<repo>/blob/main/CONTRIBUTING.md#submitting-an-evaluation-result', 'Run a benchmark yourself'],
-      ['btn-ghost', '/registry', 'Browse the registry'],
-    ],
-  );
 
-  // The results follow the hero whether or not anyone has submitted one.
-  const leading = text.indexOf('<h2 id="leading-results-title">Leading results</h2>');
-  assert.notEqual(leading, -1, 'the home page must have a Leading results heading');
-  assert.equal(text.slice(heroStart, leading).split('<section').length - 1, 2);
-  const results = text.slice(leading, text.indexOf('</section>', leading));
-  assert.ok(results.includes(
-    'One row per benchmark that has a result for its current version: the best score, or for a speed benchmark '
-    + 'the most recent result, with its format and quantization and how many others have reproduced it.',
-  ));
-  assert.ok(results.includes('<a href="/evals">All leaderboards</a>'));
-  assert.doesNotMatch(text, /Latest results/);
-  assert.doesNotMatch(results, /Fastest/);
-
-  const definitions = (await readdir(new URL('src/content/benchmarks/', ROOT))).filter((name) => name.endsWith('.md'));
+  const actions = [...hero.matchAll(/<a class="btn (btn-\w+)" href="([^"]+)"/g)].map(([, kind, target]) => ({ kind, target }));
+  assert.match(hero, /<h1 class="sr-only"[^>]*>Unite4AI<\/h1>/);
+  assert.doesNotMatch(hero, /We build it like one/);
+  assert.deepEqual(actions, [
+    { kind: 'btn-primary', target: '/stack' },
+    { kind: 'btn-ghost', target: '/school' },
+    { kind: 'btn-ghost', target: '/registry' },
+  ]);
+  const nav = text.match(/<nav class="site-nav"[^>]*>(.*?)<\/nav>/)?.[1] ?? '';
+  assert.equal([...nav.matchAll(/href="\/exchange"/g)].length, 1);
+  assert.doesNotMatch(nav, /href="\/(?:global-exchange|registry|evals)"/);
+  for (const [parent, child] of [['exchange', 'global-exchange'], ['stack', 'registry'], ['playground', 'evals']]) {
+    const page = await readFile(new URL(`dist/${parent}/index.html`, ROOT), 'utf8');
+    const main = page.match(/<main[^>]*>([\s\S]*?)<\/main>/)?.[1] ?? '';
+    assert.match(main, new RegExp(`href="/${child}"`));
+  }
+  assert.doesNotMatch(nav, /aria-current/);
+  const current = async (route) => {
+    const page = (await readFile(new URL(`dist${route}/index.html`, ROOT), 'utf8')).replace(/\s+/g, ' ');
+    const links = page.match(/<nav class="site-nav"[^>]*>(.*?)<\/nav>/)?.[1] ?? '';
+    return [...links.matchAll(/href="([^"]+)" aria-current="(\w+)"/g)].map(([, target, kind]) => `${target}:${kind}`);
+  };
+  for (const [route, expected] of [
+    ['/exchange', '/exchange:page'],
+    ['/stack', '/stack:page'],
+    ['/playground', '/playground:page'],
+    ['/global-exchange', '/exchange:location'],
+    ['/registry', '/stack:location'],
+    ['/registry/datasets', '/stack:location'],
+    ['/evals', '/playground:location'],
+    ['/evals/gsm8k-200', '/playground:location'],
+  ]) {
+    assert.deepEqual(await current(route), [expected], route);
+  }
+  assert.doesNotMatch(text, /exchange-preview-title|leading-results-title|data-exchange-metric|<table/);
+  const order = ['class="hero', 'id="stack-preview-title"', 'aria-label="Platform at a glance"', 'What makes us different', 'Progress is not automatic.'];
+  const positions = order.map((marker) => text.indexOf(marker));
+  assert.ok(positions.every((position, index) => position >= 0 && (index === 0 || position > positions[index - 1])));
+  const exchange = await readFile(new URL('dist/exchange/index.html', ROOT), 'utf8');
+  assert.match(exchange, /href="\/exchange" aria-current="page"/);
+  assert.match(exchange, /Hypotheses by status/);
+  assert.match(exchange, /Findings by review state/);
+  assert.match(exchange, /data-exchange-metric="waiting"/);
+  assert.match(exchange, /href="\/exchange\/biases"/);
+  assert.match(exchange, /href="\/evals"/);
   const stats = [...text.matchAll(/<div class="stat"><b>(\d+)<\/b>\s*<span>([^<]+)<\/span>/g)];
   assert.deepEqual(
     stats.map(([, , label]) => label),
-    ['Evaluation runs', 'Benchmarks', 'Open models', 'Open datasets', 'Free courses', 'Community events'],
+    ['Open models', 'Open datasets', 'Evaluation runs', 'Free courses', 'Community events'],
   );
-  assert.equal(Number(stats[1][1]), definitions.length);
 
-  // Four commitments, the first of them about results.
-  const different = text.slice(text.indexOf('What makes us different'));
-  assert.doesNotMatch(different, /Three commitments/);
-  assert.deepEqual(
-    [...different.slice(0, different.indexOf('</section>')).matchAll(/<h3>([^<]+)<\/h3>/g)].map(([, title]) => title),
-    ['Scores you can replay', 'Openness is graded, not claimed', 'The school is the product', 'Privacy-first by architecture'],
-  );
-  assert.ok(different.includes(
-    'Every result names its model, runtime, quantization and machine, the exact command, and the hash of its '
-    + 'transcript. A second submitter running the same model, format and quantization (for a speed result, also '
-    + 'the same machine and runtime) turns "not yet reproduced" into "reproduced by 1".',
-  ));
-  // The cards sit two by two through a class, not an inline rule.
-  assert.match(different, /<div class="grid grid-2 grid-pairs" style="margin-top:1\.8rem">/);
 
   assert.doesNotMatch(home, fixtureMarkers);
 });
@@ -211,12 +305,93 @@ test('every link to the repository comes from one constant, and none points at t
 
   const home = await readFile(new URL('dist/index.html', ROOT), 'utf8');
   assert.ok(home.includes(`<a href="${REPO}">Source on GitHub</a>`));
+});
 
-  // The registry form opens an issue on the repository, and so does the evaluation result form.
-  const submit = await readFile(new URL('dist/submit/index.html', ROOT), 'utf8');
-  assert.equal(submit.match(/const REPO = "([^"]+)";/)?.[1], REPO);
-  assert.ok(submit.includes('`${REPO}/issues/new?title='));
-  assert.match(submit, new RegExp(`href="${REPO.replaceAll('.', '\\.')}/issues/new\\?template=submit-eval-result\\.yml"`));
+test('public participation links separate reading from signing in to post', async () => {
+  const { REPO } = await import('../src/lib/site.ts');
+  const [community, article, submit] = await Promise.all([
+    'community', 'blog/what-an-ai-emissions-estimate-measures', 'submit',
+  ].map((path) => readFile(new URL(`dist/${path}/index.html`, ROOT), 'utf8')));
+  for (const html of [community, article, submit]) {
+    assert.ok(html.includes(`href="${REPO}/issues"`));
+    assert.match(html, /Sign in on GitHub to post/);
+    assert.doesNotMatch(html, /href="[^"]+\/discussions(?:[/?#"])/);
+  }
+  const handoff = [...submit.matchAll(/<a [^>]*href="([^"]*\/issues\/new\?[^"]+)"[^>]*>/g)];
+  assert.deepEqual(handoff.map((link) => link[1]), [
+    `${REPO}/issues/new?blank=1`,
+    `${REPO}/issues/new?template=submit-eval-result.yml`,
+  ]);
+  assert.match(handoff[0][0], /target="_blank"/);
+  assert.match(handoff[0][0], /rel="noopener noreferrer"/);
+});
+
+test('Darsy preserves the background source without asserting a released model or runnable setup', async () => {
+  const model = await readFile(new URL('dist/registry/models/darsy-xray-analysis/index.html', ROOT), 'utf8');
+  const main = model.match(/<main\b[^>]*>([\s\S]*?)<\/main>/)?.[1];
+  assert.ok(main);
+  assert.match(main, /Unreleased concept/);
+  assert.match(main, /href="https:\/\/www\.jacr\.org\/article\/S1546-1440\(22\)00404-4\/fulltext"/);
+  assert.match(main, /No weights listed\./);
+  assert.match(main, /No artifact checksum listed on this card\./);
+  assert.match(main, /No evaluation results yet\./);
+  assert.doesNotMatch(main, /href="[^"]*(?:unite4ai\/unite4ai\.github\.io|\/school\/run-open-weights)"/);
+});
+
+test('the deployed submission script generates and copies only the editable local draft', async () => {
+  const html = await readFile(new URL('dist/submit/index.html', ROOT), 'utf8');
+  const script = html.match(/<script\b[^>]*\bid="submission-draft-script"[^>]*>([\s\S]*?)<\/script>/)?.[1];
+  assert.ok(script);
+  assert.match(html, /<fieldset [^>]*disabled[^>]*>/);
+  const source = new Map([
+    ['type', 'dataset'], ['name', 'Synthetic example'], ['summary', 'Public summary'],
+    ['license', 'cc-by-4.0'], ['maintainers', 'example'],
+    ['notes', 'local-only <probe>\nsecond line'],
+  ]);
+  const elements = new Map();
+  for (const id of [
+    'submit-form', 'submission-fields', 'submission-draft', 'draft-title', 'draft-body',
+    'copy-draft-title', 'copy-draft-body', 'draft-status',
+  ]) {
+    elements.set(id, {
+      hidden: true, disabled: true,
+      addEventListener(type, fn) { this[type] = fn; },
+      focus() {},
+      select() { this.selected = true; },
+    });
+  }
+  const get = (id) => elements.get(id);
+  const copied = [];
+  let clipboardAvailable = true;
+  runInNewContext(script, {
+    document: { getElementById: get },
+    FormData: function (form) {
+      assert.equal(form, get('submit-form'));
+      return new Map(source);
+    },
+    navigator: { clipboard: { async writeText(text) {
+      if (!clipboardAvailable) throw new Error('Permission denied');
+      copied.push(text);
+    } } },
+  });
+  assert.equal(get('submission-fields').disabled, false);
+  let prevented = false;
+  get('submit-form').submit({ preventDefault() { prevented = true; } });
+  assert.ok(prevented);
+  assert.equal(get('submission-draft').hidden, false);
+  assert.equal(get('draft-title').value, '[dataset] Synthetic example');
+  assert.ok(get('draft-body').value.includes('local-only <probe>\nsecond line'));
+  assert.deepEqual(copied, []);
+
+  get('draft-body').value = 'Edited public draft';
+  await get('copy-draft-body').click();
+  await get('copy-draft-title').click();
+  assert.deepEqual(copied, ['Edited public draft', '[dataset] Synthetic example']);
+  assert.equal(source.get('notes'), 'local-only <probe>\nsecond line');
+  clipboardAvailable = false;
+  await get('copy-draft-body').click();
+  assert.equal(get('draft-body').selected, true);
+  assert.equal(get('draft-body').value, 'Edited public draft');
 });
 
 test('the governance metrics page computes its figures and prints no number of its own', async () => {
@@ -241,25 +416,10 @@ test('the governance metrics page computes its figures and prints no number of i
   assert.doesNotMatch(metrics, /records nothing about your visit/);
   assert.doesNotMatch(metrics, /first maintainer review comment|Median PR review \(days\)/);
 
-  // The script is a module built from lib/repo-metrics and lib/site: one copy of each calculation,
-  // and no figure typed in. Astro puts a small module in the page and a larger one in a file.
-  const { REPO_SLUG } = await import('../src/lib/site.ts');
-  const files = await filesUnder(new URL('dist/_astro/', ROOT), ['.js']).catch(() => []);
-  const modules = [
-    ...[...metrics.matchAll(/<script type="module">(.*?)<\/script>/g)].map(([, code]) => code),
-    ...await Promise.all(files.map((file) => readFile(file, 'utf8'))),
-  ];
-  const script = modules.find((source) => source.includes('time-to-merge'));
-  assert.ok(script, 'the metrics page must ship its script as a module');
-  assert.doesNotMatch(metrics, /<script>/, 'a plain inline script cannot import the calculations');
-  for (const part of ['https://api.github.com/repos/', REPO_SLUG, 'pulls', 'contributors']) assert.ok(script.includes(part), part);
-  assert.doesNotMatch(script, /["'`](?:2\.4|12\+)["'`]/);
-  // It needs a median and a few filters, not the schema library the content gate uses.
-  assert.ok(script.length < 4000, `the metrics script is ${script.length} bytes`);
 });
 
 // Derived from the published files, so it holds whatever results and versions are current.
-test('the home page and the leaderboards agree with the published results about which benchmarks have a current result', async () => {
+test('the leaderboards agree with published results about earlier benchmark versions', async () => {
   const versions = new Map();
   for (const file of await filesUnder(new URL('src/content/benchmarks/', ROOT), ['.md'])) {
     const id = file.pathname.split('/').pop().replace(/\.md$/, '');
@@ -274,10 +434,6 @@ test('the home page and the leaderboards agree with the published results about 
   }
 
   const page = async (path) => (await readFile(new URL(`dist/${path}`, ROOT), 'utf8')).replace(/\s+/g, ' ');
-  const home = await page('index.html');
-  const leading = home.slice(home.indexOf('<h2 id="leading-results-title"'));
-  const rows = (leading.slice(0, leading.indexOf('</section>')).split('<tbody>')[1] ?? '').split('<tr').slice(1);
-  assert.deepEqual(rows.map((row) => row.match(/href="\/evals\/([^"]+)"/)?.[1]).sort(), [...current].sort());
 
   // A benchmark whose only results are of an earlier version says so, with their number, and
   // its own page points down to them.

@@ -1,6 +1,6 @@
 import { getCollection, type CollectionEntry } from 'astro:content';
-import { byCodeUnit, groupEvals, leaderboard, type EvalGroup, type EvalRun } from '@unite4ai/core';
-import { EVAL_CATEGORIES } from '@unite4ai/schema';
+import { baselineVersionKey, buildReplicationIndex, byCodeUnit, groupEvals, indistinguishableFrom, leaderboard, matchingBaseline, type EvalGroup, type ReplicationEvidence } from '@unite4ai/core';
+import { EVAL_CATEGORIES, bfclCalibrationSchema, type BaselineData, type EvalResult, type RepeatResult } from '@unite4ai/schema';
 import { REPO } from './site';
 
 export const SUBMIT_GUIDE = `${REPO}/blob/main/CONTRIBUTING.md#submitting-an-evaluation-result`;
@@ -14,6 +14,24 @@ export const CATEGORY_LABELS: Record<(typeof CATEGORIES)[number], string> = {
   efficiency: 'Efficiency',
 };
 
+type EvalPageRun = EvalResult & { id: string };
+
+interface BaselineRow {
+  entry: BaselineData['entries'][number];
+  anchor: string;
+  runs: EvalPageRun[];
+}
+
+const calibrationPath = '../content/calibrations/bfcl-multiple-50-v1.json';
+const calibrationData = import.meta.glob('../content/calibrations/bfcl-multiple-50-v1.json', {
+  eager: true,
+  import: 'default',
+})[calibrationPath];
+const bfclCalibration = calibrationData === undefined ? undefined : bfclCalibrationSchema.parse(calibrationData);
+
+// A production build uses a fixed content snapshot. Dev must see content edits on each load.
+const buildReplicationCache = import.meta.env.PROD ? new Map<string, ReadonlyMap<string, ReplicationEvidence>>() : undefined;
+
 /** A benchmark with the leaderboard of its current version and its runs, newest first (runs on one date order by id). */
 export interface Board {
   benchmark: CollectionEntry<'benchmarks'>;
@@ -21,29 +39,54 @@ export interface Board {
   measured: boolean;
   /** Empty when the current version has no result. */
   rows: EvalGroup[];
+  /** Per row, "not distinguishable from #j" when its 95% interval overlaps a higher-ranked row's; null otherwise. */
+  rankNotes: (string | null)[];
   /** Runs of the current version. */
-  runs: EvalRun[];
+  runs: EvalPageRun[];
   /** Runs of any other version: kept on the benchmark page, off the leaderboard. */
-  earlierRuns: EvalRun[];
+  earlierRuns: EvalPageRun[];
+  /** Current and previous versions that have a manifest, in that order. */
+  registered: { version: string; entries: BaselineRow[] }[];
+  /** Run ID to baseline anchor, or null for an unregistered setup on a version with a manifest. */
+  runBaselines: Map<string, string | null>;
 }
 
 /**
- * Everything the evaluation pages need, loaded once per page. Throws, failing the build, when
- * a result references a model or benchmark that is not in its collection.
+ * Everything the evaluation pages need, loaded once per page. Throws, failing the build,
+ * for missing model and benchmark references. API-only runs can cite an upstream card.
  */
 export async function loadEvals() {
-  const [benchmarks, evals, models] = await Promise.all([
+  const [benchmarks, evals, models, baselines] = await Promise.all([
     getCollection('benchmarks'),
     getCollection('evals'),
     getCollection('models'),
+    getCollection('baselines'),
   ]);
-  const runs: EvalRun[] = evals.map((entry) => ({ id: entry.id, ...entry.data }));
+  const runs: EvalPageRun[] = evals.map((entry) => ({ id: entry.id, ...entry.data }));
   const modelNames = new Map(models.map((model) => [model.id, model.data.name]));
+  const baselineByVersion = new Map(baselines.map(({ data }) => [baselineVersionKey(data.benchmark, data.benchmark_version), data]));
+
+  function modelReference(id: string, upstream?: string) {
+    const name = modelNames.get(id);
+    return name === undefined ? { name: id, url: upstream } : { name, url: `/registry/models/${id}`, upstream };
+  }
+
+  function groupModelReference(row: EvalGroup) {
+    return modelReference(row.model, row.api?.model_card);
+  }
 
   const benchmarkIds = new Set(benchmarks.map((benchmark) => benchmark.id));
   const dangling: string[] = [];
+  const runsById = new Map<string, EvalPageRun>();
+  const runsByBenchmark = new Map<string, EvalPageRun[]>();
   for (const run of runs) {
-    if (!modelNames.has(run.model)) dangling.push(`evals/${run.id}: model "${run.model}" has no card in models/`);
+    runsById.set(run.id, run);
+    const own = runsByBenchmark.get(run.benchmark);
+    if (own === undefined) runsByBenchmark.set(run.benchmark, [run]);
+    else own.push(run);
+    if (!modelNames.has(run.model) && !(run.setup.runtime === 'api' && run.api?.model_card !== undefined)) {
+      dangling.push(`evals/${run.id}: model "${run.model}" has no card in models/`);
+    }
     if (!benchmarkIds.has(run.benchmark)) {
       dangling.push(`evals/${run.id}: benchmark "${run.benchmark}" is not defined in benchmarks/`);
     }
@@ -59,63 +102,76 @@ export async function loadEvals() {
     || byCodeUnit(a.data.name, b.data.name)
     || byCodeUnit(a.id, b.id));
   const groups = groupEvals(runs, { byHardware });
+
+  // Summary pages don't materialize relationships; the detail page and feed share
+  // each benchmark's index when prerendered in the same build.
+  function replicationIndex(benchmarkId: string) {
+    const cached = buildReplicationCache?.get(benchmarkId);
+    if (cached !== undefined) return cached;
+    const scored = byHardware.has(benchmarkId) ? [] : runsByBenchmark.get(benchmarkId) ?? [];
+    const index = buildReplicationIndex(scored);
+    buildReplicationCache?.set(benchmarkId, index);
+    return index;
+  }
   return {
     benchmarks: ordered,
     runs,
+    runsById,
     /** Distinct runs: a run is one transcript, however many result files it backs. */
     runCount: new Set(runs.map((run) => run.evidence.sha256)).size,
     groups,
-    modelNames,
+    replicationIndex,
+    modelReference,
+    groupModelReference,
+    bfclCalibration,
     /** One board per benchmark, in the same order. */
     boards: ordered.map((benchmark): Board => {
-      const own = runs
-        .filter((run) => run.benchmark === benchmark.id)
+      const own = (runsByBenchmark.get(benchmark.id) ?? [])
         .sort((a, b) => byCodeUnit(b.run.date, a.run.date) || byCodeUnit(a.id, b.id));
+      const rows = leaderboard(groups, {
+        id: benchmark.id,
+        version: benchmark.data.version,
+        higher_is_better: benchmark.data.metric.higher_is_better,
+      });
+      const runBaselines = new Map<string, string | null>();
+      const registered = [...new Set([benchmark.data.version, ...benchmark.data.previous_versions])]
+        .flatMap((version) => {
+          const manifest = baselineByVersion.get(baselineVersionKey(benchmark.id, version));
+          if (manifest === undefined) return [];
+          const entries: BaselineRow[] = manifest.entries.map((entry) => ({
+            entry,
+            // Entry ids never contain "--", so different version/id pairs cannot collide.
+            anchor: `baseline-${encodeURIComponent(version)}--${entry.id}`,
+            runs: [],
+          }));
+          const byEntry = new Map(entries.map((row) => [row.entry.id, row]));
+          for (const run of own) {
+            if (run.benchmark_version !== version) continue;
+            const entry = matchingBaseline(manifest, run, modelNames.has(run.model));
+            const row = entry === undefined ? undefined : byEntry.get(entry.id);
+            row?.runs.push(run);
+            runBaselines.set(run.id, row?.anchor ?? null);
+          }
+          return [{ version, entries }];
+        });
       return {
         benchmark,
         measured: byHardware.has(benchmark.id),
-        rows: leaderboard(groups, {
-          id: benchmark.id,
-          version: benchmark.data.version,
-          higher_is_better: benchmark.data.metric.higher_is_better,
-        }),
+        rows,
+        rankNotes: indistinguishableFrom(rows).map((above) => (above === null ? null : `not distinguishable from #${above + 1}`)),
         runs: own.filter((run) => run.benchmark_version === benchmark.data.version),
         earlierRuns: own.filter((run) => run.benchmark_version !== benchmark.data.version),
+        registered,
+        runBaselines,
       };
     }),
   };
 }
 
-/** The one result that stands for a board where there is room for a single row. */
-export interface Headline {
-  /** The group shown, or the group of the run shown: the row's model, format, quantization and reproduction. */
-  row: EvalGroup;
-  /** The newest run on a measured board, whose own score, runtime, machine and date the row gives; null on a ranked board. */
-  run: EvalRun | null;
-  /** The group's median on a ranked board; the newest run's own score on a measured one. */
-  score: number;
-  /** What makes it the one shown: "Best score" or "Most recent". */
-  label: string;
-  /** How many other groups share its score; always 0 on a measured board, which is not ranked. */
-  tiedWith: number;
-}
-
-/**
- * A board's headline, or null for an empty board. A ranked board gives its best group. A measured
- * board has no winner, because a speed only compares on one machine: it gives its most recent run.
- */
-export function headline(board: Board): Headline | null {
-  const [best] = board.rows;
-  if (!best) return null;
-  if (!board.measured) {
-    const tiedWith = board.rows.filter((row) => row.score === best.score).length - 1;
-    return { row: best, run: null, score: best.score, label: 'Best score', tiedWith };
-  }
-  const [latest] = board.runs;
-  // Every run of the current version is in exactly one of the board's groups.
-  const row = board.rows.find((group) => group.run_ids.includes(latest.id)) as EvalGroup;
-  return { row, run: latest, score: latest.score, label: 'Most recent', tiedWith: 0 };
-}
+/** Stable fragment for a result row, including results of previous benchmark versions. */
+export const evalRunAnchor = (id: string) => `run-${id}`;
+export const evalRunPath = (benchmark: string, id: string) => `/evals/${benchmark}#${evalRunAnchor(id)}`;
+export const evalRunLabel = ({ run, evidence }: EvalPageRun) => `${run.submitter} · ${run.date} · ${evidence.sha256.slice(0, 8)}`;
 
 /** Two decimals at most, without trailing zeros (62, 62.5, 62.25); three significant digits below 1 (0.123). */
 export function formatNumber(value: number): string {
@@ -128,8 +184,9 @@ export function withUnit(text: string, unit: string): string {
   return unit === '%' ? `${text}%` : `${text} ${unit}`;
 }
 
-/** The runtimes behind a group: its one runtime with every version run when it is grouped by hardware, otherwise each runtime's name. */
+/** Name an API provider and checkpoint, or the local runtimes (with versions on measured boards). */
 export function runtimeLabel(group: EvalGroup): string {
+  if (group.api !== undefined) return `API · ${group.api.provider} · ${group.api.served_model}`;
   return group.runtime === null
     ? group.runtimes.join(', ')
     : `${group.runtime} ${(group.runtime_versions ?? []).join(', ')}`;
@@ -145,4 +202,43 @@ export function scoreRange(group: EvalGroup): string | null {
   return group.score_min === group.score_max
     ? null
     : `${formatNumber(group.score_min)}–${formatNumber(group.score_max)}`;
+}
+
+/** A row's run count; each result of a repeat-run benchmark is several runs, so there it counts results ("1 result"). */
+export function runsLabel(count: number, repeated: boolean): string {
+  const [one, many] = repeated ? ['result', 'results'] : ['run', 'runs'];
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+/**
+ * What a repeat-run result adds under its score: the score's 95% interval, pass@1 with its
+ * 95% interval, and the per-run scores' range (one value when every run scored the same) and
+ * standard deviation in percentage points.
+ */
+export function repeatLines(repeat: RepeatResult, n: number): string[] {
+  const range = ([low, high]: readonly [number, number]) => `${formatNumber(low)}–${formatNumber(high)}%`;
+  const perRun = repeat.run_correct.map((correct) => (100 * correct) / n);
+  const [lowest, highest] = [formatNumber(Math.min(...perRun)), formatNumber(Math.max(...perRun))];
+  return [
+    `score 95% CI ${range(repeat.pass_k_ci)}`,
+    `pass@1 ${formatNumber(repeat.pass_1)}% (95% CI ${range(repeat.pass_1_ci)})`,
+    `per run ${lowest === highest ? lowest : `${lowest}–${highest}`}%, sd ${formatNumber(repeat.run_score_sd)} pts`,
+  ];
+}
+
+/** Keep measured usage separate from money. Missing usage and zero-success ratios are not zeros. */
+export function resourceLines(repeat: RepeatResult): string[] {
+  const lines: string[] = [];
+  const add = (total: number | undefined, ratio: number | undefined, unit: string, label = '') => {
+    if (total === undefined) return;
+    lines.push(`${label}${formatNumber(total)} ${unit} total${ratio === undefined ? '' : ` · ${formatNumber(ratio)} ${unit} per success`}`);
+  };
+  add(repeat.seconds_total, repeat.seconds_per_success, 's');
+  add(repeat.prompt_tokens_total, repeat.prompt_tokens_per_success, 'prompt tokens');
+  add(repeat.completion_tokens_total, repeat.completion_tokens_per_success, 'completion tokens');
+  if (repeat.energy_wh_total !== undefined) {
+    const successes = repeat.run_correct.reduce((sum, correct) => sum + correct, 0);
+    add(repeat.energy_wh_total, successes === 0 ? undefined : repeat.energy_wh_total / successes, 'Wh', 'Measured energy: ');
+  }
+  return lines;
 }
