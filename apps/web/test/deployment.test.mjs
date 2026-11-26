@@ -85,6 +85,38 @@ test('production build targets the unite4ai.com custom domain', { timeout: 120_0
   assert.match(exchangeHtml, /href="\/evals\/bfcl-multiple-50"[^>]*>BFCL replication task</);
   assert.doesNotMatch(await readFile(new URL('dist/evals/gsm8k-200/index.html', ROOT), 'utf8'), /id="replication-task"/);
 
+  const taskPath = '/data/replication-tasks.json';
+  const feed = JSON.parse(await readFile(new URL(`dist${taskPath}`, ROOT), 'utf8'));
+  assert.equal(feed.schema_version, 1);
+  assert.equal(feed.tasks.length, 1);
+  const [task] = feed.tasks;
+  assert.equal(task.id, 'bfcl-multiple-50-v1-replication');
+  assert.equal(task.kind, 'independent_replication');
+  assert.deepEqual(task.reference, {
+    result_id: run, submitter: evidence.run.submitter,
+    result_url: new URL(evidence.source_url).pathname + `#run-${run}`, evidence_url: receipt,
+  });
+  assert.deepEqual(task.benchmark, {
+    id: evidence.benchmark, version: evidence.benchmark_version, source_sha256: evidence.benchmark_source.sha256,
+    items: 50, repeat: { runs: 5, temperature: 0.7, top_p: 1 }, expected_attempts: 250,
+  });
+  assert.deepEqual(task.artifact, {
+    model_card_id: evidence.model, served_model: evidence.setup.served_model,
+    format: evidence.setup.format, quantization: evidence.setup.quantization, already_loaded: true, thinking: false,
+  });
+  assert.deepEqual(task.requirements, {
+    accelerator: 'apple-silicon', min_memory_gb: 64, idle_local_host: true,
+    independent_contributor: true, run_approval: true, separate_submission_approval: true,
+  });
+  assert.deepEqual(task.budget, { max_paid_usd: 0, max_wall_seconds: 3600, runner_max_seconds: 3300, request_timeout_seconds: 90, payout_usd: 0 });
+  assert.equal(task.deliverable.new_results, 1);
+  assert.equal(task.deliverable.submission, 'add_only_draft_pr');
+  assert.equal(task.deliverable.transcript, 'private_to_reviewer');
+  assert.ok(task.deliverable.review_checks.includes('transcript_sha256_and_bytes'));
+  assert.doesNotMatch(JSON.stringify(task), /"(?:command|endpoint|transcript_url|score_target|assignee|status)"/);
+  assert.ok(card.includes(`href="${taskPath}"`));
+  assert.ok((await readFile(new URL('dist/llms.txt', ROOT), 'utf8')).includes(`https://unite4ai.com${taskPath}`));
+
   // Cost guard: GitHub Pages serves at most 1 GB; fail long before that.
   const bytes = await directorySize(new URL('dist/', ROOT));
   assert.ok(bytes < 250 * 1024 * 1024, `dist is ${bytes} bytes; the budget is 250 MB`);
