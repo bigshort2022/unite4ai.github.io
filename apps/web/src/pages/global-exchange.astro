@@ -55,6 +55,9 @@ const categories = [
               <dt>Important limit</dt><dd>{project.limitation}</dd>
             </dl>
             <p><a href={project.source} rel="nofollow noopener">Official product documentation (external)</a></p>
+            {'paymentSource' in project && project.paymentSource && (
+              <p><a href={project.paymentSource} rel="nofollow noopener">Payment documentation (external)</a></p>
+            )}
             <p>Source reviewed <time datetime={directory.reviewedAt}>{directory.reviewedAt}</time>; documentation only.</p>
             {'buyerUrl' in project && project.buyerUrl && 'sellerUrl' in project && project.sellerUrl && (
               <ul>

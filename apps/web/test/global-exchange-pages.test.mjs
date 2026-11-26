@@ -52,6 +52,10 @@ test('discovery feed and directory distinguish compute markets from adjacent rai
         assert.ok(project[field].trim(), `${project.id}: ${field}`);
       }
       httpsUrl(project.source);
+      if (project.paymentSource !== undefined) {
+        httpsUrl(project.paymentSource);
+        assert.notEqual(project.paymentSource, project.source, `${project.id}: payment source adds a distinct page`);
+      }
       if (project.category === 'compute') {
         httpsUrl(project.buyerUrl);
         httpsUrl(project.sellerUrl);
@@ -72,6 +76,9 @@ test('discovery feed and directory distinguish compute markets from adjacent rai
       assert.ok(card, `${project.id}: directory card`);
       assert.ok(card.includes(`href="${project.source}"`), `${project.id}: official documentation`);
       assert.ok(card.includes(`datetime="${feed.reviewedAt}"`), `${project.id}: source review date`);
+      if (project.paymentSource !== undefined) {
+        assert.ok(card.includes(`href="${project.paymentSource}"`), `${project.id}: payment documentation`);
+      }
       if (project.category === 'compute') {
         assert.ok(card.includes(`href="${project.buyerUrl}"`), `${project.id}: buyer handoff`);
         assert.ok(card.includes(`href="${project.sellerUrl}"`), `${project.id}: provider handoff`);
