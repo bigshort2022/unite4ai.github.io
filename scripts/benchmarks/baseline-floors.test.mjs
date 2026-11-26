@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { SUITES } from '../../apps/cli/src/eval/suites.ts';
+import { repeatSummary } from '../../packages/core/src/repeat.ts';
 import { baselineFloors } from './baseline-floors.ts';
 
 const pages = new URL('../../apps/web/src/content/benchmarks/', import.meta.url);
@@ -93,6 +94,83 @@ test('BFCL defaults to a text summary that omits private replies', { timeout: 12
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /250 of 250 answers/);
   assert.doesNotMatch(result.stdout, /private reply|never print this/);
+});
+
+function reviewFixture(t) {
+  const dir = mkdtempSync(join(tmpdir(), 'u4ai-bfcl-review-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const records = transcriptRecords();
+  const setup = {
+    runtime: 'mlx-lm', runtime_version: '1.0', served_model: 'fixture/mlx',
+    format: 'mlx', quantization: '4bit', notes: 'private setup note',
+    hardware: { device: 'Fixture Mac', accelerator: 'apple-silicon', memory_gb: 64 },
+  };
+  const { hardware, ...headerSetup } = setup;
+  Object.assign(records[0], headerSetup, { model: 'fixture-model' });
+  for (const attempt of records.slice(1, -1)) Object.assign(attempt, { seconds: 0.5, prompt_tokens: 10 });
+  const repeat = repeatSummary(records[0].repeat, {
+    item_pass_histogram: [50, 0, 0, 0, 0, 0], run_correct: [0, 0, 0, 0, 0], seconds_total: 125, prompt_tokens_total: 2500,
+  });
+  return (change = () => {}) => {
+    const rows = structuredClone(records);
+    const result = {
+      schema_version: 1, model: 'fixture-model', benchmark: 'bfcl-multiple-50', benchmark_version: '1', n: 50, score: 0,
+      run: { date: '2026-11-22', submitter: 'fixture-user', harness: { name: 'unite4ai-eval', version: '0.3.0' }, command: 'private command' },
+      setup: structuredClone(setup), repeat: structuredClone(repeat), evidence: {},
+    };
+    const mutateResult = change(rows, result);
+    const transcript = Buffer.from(rows.map((record) => `${JSON.stringify(record)}\n`).join(''));
+    result.evidence = { sha256: createHash('sha256').update(transcript).digest('hex'), bytes: transcript.length };
+    mutateResult?.();
+    const bytes = JSON.stringify(result);
+    const resultPath = join(dir, 'result.json');
+    const transcriptPath = join(dir, 'transcript.jsonl');
+    writeFileSync(resultPath, bytes);
+    writeFileSync(transcriptPath, transcript);
+    const execution = spawnSync('python3', [checker, 'review-result', resultPath, transcriptPath], { encoding: 'utf8', timeout: 120_000 });
+    assert.ifError(execution.error);
+    assert.doesNotMatch(execution.stdout + execution.stderr, /private (?:reply|setup note|command)|never print this/);
+    return { ...execution, result, resultSha: createHash('sha256').update(bytes).digest('hex') };
+  };
+}
+
+test('BFCL review binds the complete replay to both exact files without publishing dialogue', { timeout: 120_000 }, (t) => {
+  // BFCL can complete on [DONE] without a finish reason or token count.
+  const { status, stderr, stdout, result, resultSha } = reviewFixture(t)((rows) => { rows[1].finish_reason = null; });
+  assert.equal(status, 0, stderr);
+  const report = JSON.parse(stdout);
+  assert.equal(report.scope, 'bfcl-v1-local-consistency');
+  assert.equal(report.result_sha256, resultSha);
+  assert.deepEqual(report.transcript, result.evidence);
+  assert.equal(report.attempts, 250);
+  assert.deepEqual(report.scores, {
+    pass_1: 0, pass_1_ci: result.repeat.pass_1_ci, pass_k: 0, pass_k_ci: result.repeat.pass_k_ci,
+  });
+  assert.ok(report.unchecked.includes('independent_identity'));
+});
+
+test('BFCL review refuses mismatches even when the submitted repeat math is coherent', { timeout: 120_000 }, (t) => {
+  const review = reviewFixture(t);
+  for (const [change, diagnostic] of [
+    [(_, result) => () => {
+      result.repeat = repeatSummary(result.repeat, {
+        item_pass_histogram: [49, 0, 0, 0, 0, 1], run_correct: [1, 1, 1, 1, 1], seconds_total: 125, prompt_tokens_total: 2500,
+      });
+      result.score = result.repeat.pass_k;
+    }, /repeat\.item_pass_histogram/],
+    [(_, result) => () => { result.evidence.bytes -= 1; }, /evidence\.bytes/],
+    [(_, result) => () => { result.evidence.sha256 = 'a'.repeat(64); }, /evidence\.sha256/],
+    [(_, result) => () => { result.setup.notes = 'different'; }, /setup\.notes/],
+    [(_, result) => () => { result.run.date = '2026-11-23'; }, /run\.date/],
+    [(rows) => { rows[1].correct = true; }, /correct does not match the replayed verdict/],
+    [(rows) => { rows[1].seconds = null; }, /seconds/],
+    [(_, result) => () => { result.perf = { energy_wh_per_1k_tokens: 0.1 }; }, /perf\.energy_wh_per_1k_tokens/],
+  ]) {
+    const result = review(change);
+    assert.equal(result.status, 1, result.stderr);
+    assert.match(result.stderr, diagnostic);
+    assert.equal(result.stdout, '');
+  }
 });
 
 for (const [name, change, error] of [

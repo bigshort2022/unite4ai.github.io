@@ -211,6 +211,17 @@ after an unflattering result.
   genuine contributor and an approved host. The feed is not a queue: it includes no
   volunteer identity, availability, claim, acceptance, settlement, or completed-pilot state.
 
+#### Offline evidence review
+
+- A reviewer can compare a private BFCL v1 transcript with an exact proposed result
+  without contacting a model, GitHub, or the upstream scorer. The check binds both
+  files by hash, replays the pinned prompts and port verdicts in order, and recomputes
+  the score, intervals and repeat totals. A mismatch fails without echoing private text.
+- Success means those two files are consistent. It is not approval, a claim of
+  independent reproduction, or verification of the actual host, run duration,
+  checkout, weights, or what server received the prompts. No private transcript is
+  published. An independent upstream scorer cross-check is a separate operation.
+
 ## Switch findings
 
 A switch finding is an ordinary finding whose hypothesis states: on task family X, setup
