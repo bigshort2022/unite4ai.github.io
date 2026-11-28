@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "model": "qwen3-8-27b",
+  "benchmark": "bfcl-multiple-50",
+  "benchmark_version": "1",
+  "score": 76,
+  "n": 50,
+  "run": {
+    "date": "2026-11-25",
+    "submitter": "bigshort2022",
+    "harness": {
+      "name": "unite4ai-eval",
+      "version": "0.3.0"
+    },
+    "command": "bun run eval -- --benchmark bfcl-multiple-50 --model qwen3-8-27b --served-model mlx-community/Qwen3.8-27B-4bit --submitter bigshort2022 --runtime mlx-lm-go --runtime-version '24d429b82cbb dirty build sha256:f09ef2c2accf56a848b1a4a9ce4328299550015ab2f8f1545f18eebab61de619' --format mlx --quantization 4bit --device 'Mac mini Mac16,11' --accelerator apple-silicon --memory-gb 64 --base-url http://127.0.0.1:8083/v1 --notes 'Same-owner repeat, not independent. Dedicated loopback listener; thinking disabled; prompt cache 4 entries / 2 GB. Shared host; loaded weights revision unverified.' --max-seconds 3300 --request-timeout 90"
+  },
+  "setup": {
+    "runtime": "mlx-lm-go",
+    "runtime_version": "24d429b82cbb dirty build sha256:f09ef2c2accf56a848b1a4a9ce4328299550015ab2f8f1545f18eebab61de619",
+    "served_model": "mlx-community/Qwen3.8-27B-4bit",
+    "format": "mlx",
+    "quantization": "4bit",
+    "hardware": {
+      "device": "Mac mini Mac16,11",
+      "accelerator": "apple-silicon",
+      "memory_gb": 64
+    },
+    "notes": "Same-owner repeat, not independent. Dedicated loopback listener; thinking disabled; prompt cache 4 entries / 2 GB. Shared host; loaded weights revision unverified."
+  },
+  "perf": {
+    "tokens_per_second": 15.4,
+    "time_to_first_token_ms": 5013.6
+  },
+  "repeat": {
+    "runs": 5,
+    "temperature": 0.7,
+    "top_p": 1,
+    "item_pass_histogram": [
+      0,
+      2,
+      2,
+      6,
+      2,
+      38
+    ],
+    "run_correct": [
+      45,
+      44,
+      43,
+      44,
+      46
+    ],
+    "pass_1": 88.8,
+    "pass_1_ci": [
+      82.4,
+      94.4
+    ],
+    "pass_k": 76,
+    "pass_k_ci": [
+      62.59,
+      85.7
+    ],
+    "run_score_sd": 2.28,
+    "seconds_total": 1855.062,
+    "seconds_per_success": 8.356,
+    "prompt_tokens_total": 160330,
+    "completion_tokens_total": 8782,
+    "prompt_tokens_per_success": 722.2,
+    "completion_tokens_per_success": 39.6
+  },
+  "evidence": {
+    "sha256": "c4e46eae5654b3fe0a3538c9b4182cf24cb2c99f93847c803cf34592ca4e448a",
+    "bytes": 162459
+  }
+}
